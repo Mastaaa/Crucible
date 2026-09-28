@@ -1,3 +1,8 @@
 # Godot 4+ specific ignores
 .godot/
 /android/
+
+# Engine build output (godot-cpp is unpacked from native/cache by cloud_setup.sh)
+native/godot-cpp/
+native/.sconsign.dblite
+*.os
