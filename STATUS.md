@@ -1,0 +1,436 @@
+# Crucible: work in progress
+
+Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls.
+This file is the full history, newest phase first. The short "where it stands" version
+Claude reads each session is claude/STATUS.md in the Claude project.
+
+## Phase 8 of 10 done: collapse (8b, the 10x rescale, and 8c, rigid bodies, are next)
+
+Tests: `tests/scenario_collapse.gd` 0 failures; power, research, chemistry, light,
+digging, warren and engine_compare pass. The engine changed: close Godot before
+copying, and restart it after so it picks up the new library. Descent probe: 140 at
+2 min, 200 at 5, 280 at 8 (7.5 before; packed dirt digs slower).
+- Collapse (engine): every kind of ground has a span, the widest open run (air, gas
+  or liquid) it can roof over, and an overhang. A ceiling wider than its span caves
+  in from the middle, a row at a time, becoming what it crumbles into, until what's
+  left is an arch (each row within its overhang of the run's ends) or its own rubble
+  piles up and props it. Rock, powder and buildings under a ceiling hold it up; water
+  doesn't. A sweep covers 128 rows a tick, bottom up (the map every 8 ticks, about
+  0.06 ms a tick). Each material's `cave` is the chance a sweep that an unsupported
+  cell gives way. Settling (20 s after digging) and Strut holds stop it.
+- Worldgen runs the rule once (`stabilize`), clearing what would cave in, so caves and
+  aquifers start as arches that stand (seed 7: about 700 cells, mostly tents of air
+  over the Topsoil aquifers). Weathering still sheds ceiling cells, which sets off
+  small cascades now and then.
+- Cave-ins over 12 cells in a couple of seconds raise an alert, only on explored
+  ground.
+- Strut (Tier 1, 60 power; 2 Stone, key X, 60 HP): click in a gap and it spans it
+  through the cursor, rock to rock, flat or upright (R), up to 16 cells, 1 cell thick.
+  Built at once from the Hub's stock: no blueprint, no link, no upkeep. It props what
+  rests on it, and rock within 5 cells of either anchor never caves in, weathers,
+  erodes or loosens (the engine keeps a hold count per cell). It snaps (destroyed, to
+  rubble) when either anchor stops being rock. The ghost shows the span, both anchors
+  and their holds; selected, it rings them.
+- Tremor Dampers (Tier 4; needs Obsidian Saw and Strut): tremors crumble no stone
+  within 12 cells of a Strut.
+- Ground (ids 29-32, all mundane: physics and water only). Spans: gravel 4, dirt 7,
+  coal and sulfur 9, clay 11, glimmer none (never gives), stone 15, packed dirt 24.
+  - Packed dirt: slow to dig, hardly ever comes down; thickens toward the bottom of
+    the Topsoil. Water softens it to dirt very slowly.
+  - Dirt: weathers as before; water wears it to sand.
+  - Sand: a powder, pours the moment it's opened; water carries it off (to air).
+    Pockets in the upper Topsoil, never within 3 cells of water or open space.
+  - Gravel: comes down almost at once (cave 0.9, crumbles and loosens to rubble);
+    water doesn't touch it. Patches, and a bed along the Topsoil/Stone boundary.
+  - Clay: water doesn't touch it; lines the lower half of the Topsoil aquifers.
+  - Stone is cohesive: it hangs only from its own kind, counted along the row (or
+    from rock that never gives), so a lump held up by dirt alone drops once it's
+    undermined. Water wears it to dirt, very slowly.
+  - Coal comes down twice as fast as dirt (crumble 1.0, cave 0.5). Glimmer never does.
+  - Wash pass: 48 cells a tick; a wet dirt face turns to sand in about 20 minutes.
+  - Mites dig sand and gravel from the start, packed dirt and clay with Hard Teeth.
+  - The brush (F9) has dirt, packed dirt, gravel, sand and clay.
+- Data file: `span`, `overhang`, `cave`, `cohesive`, `wash_to`, `wash` (see its notes).
+- Keys: every palette key now works from the keyboard (G for the Warren didn't).
+- The GDScript fallback sim has no collapse, holds, shields or wash.
+- Tests: `tests/scenario_collapse.gd` (spans and arches, stone, water, settling, the
+  alert, worldgen, Struts flat and upright, too wide, holds against weathering,
+  snapping, a Conduit on a thin roof, Tremor Dampers, packed dirt, gravel, glimmer,
+  a stone lump, washing), `tests/shot_collapse.gd` (screenshot). Older tests that
+  carved rooms into seed 7 now wall them with plain dirt (sand pockets poured in), the
+  light test's floating ledge is bedrock, the Warren's Sounding pool is held (its skin
+  would cave in), and the network bench roofs its rooms with bedrock.
+  `tests/mapdump.gd` colours from the data file.
+
+### Phase 8 choices
+- Decided with Alex: spans and arches; natural caves settled at worldgen; Struts as
+  straight beams; rigid bodies later. Mundane ground per Alex's list, plus Clay.
+- The bench's first 5 s now include its own rooms caving in; steady state is about
+  1.1 ms a tick, as before.
+
+### Phase 8b plan: the 10x rescale (decided 2026-09-28)
+- Structures 10x bigger against the pixels (Hub 80x60, Drill 30x30, Conduit 20x20...).
+- World 2-3x wider and 4-5x deeper (e.g. 640 x 4608 or 768 x 5120 cells).
+- Touches: C++ W/H (compile-time 256x1024), worldgen and fog/explored maps (GDScript
+  loops over every cell), the map texture (split into tiles), minimap, camera and zoom,
+  every tunable counted in cells (ranges, spans, speeds, CELLS_PER_UNIT, light), and
+  the tests' hard-coded coordinates. Benchmark sizes first.
+- Rigid bodies (falling chunks, falling buildings, Thumper collisions) move to 8c.
+
+## Phase 7 of 10 done: the Warren
+
+Tests: `tests/scenario_warren.gd` 0 failures; digging, research, power, chemistry,
+light and engine_compare pass; the descent probe is unchanged (140 at 2 min, 200 at
+5, 280 at 7.5). The engine changed this phase (settling): close Godot before
+copying, and restart it after so it picks up the new library.
+- Warren (Tier 1, 100 power; 10 Stone, 5x3, key G, 120 HP): a colony of 3 mites.
+  First they hollow out a half-circle chamber over it (radius 6 from the middle of
+  its floor line, so the ground it stands on stays). Then, with a marker set, they
+  tunnel toward it and dig out a circle of radius 3 round it. The marker goes down
+  from the panel (Set marker, then click within 32 cells; Clear marker takes it
+  away) and shows as a small diamond. The chamber, the line to the marker and the
+  circle are outlined only while placing the Warren or with it selected. The panel
+  says what they're on, mites, cells dug, how far off the marker is, the next mite
+  and losses.
+- The tunnel is a simple rule, so you can steer it without drawing it: each free
+  mite takes the cell it can reach that's nearest the marker, give or take a quirk
+  fixed to that cell (up to 3 cells' worth, `WARREN_WOBBLE`), and never more than 8
+  cells off the straight line (`WARREN_TUNNEL_SLACK`). They start from wherever they
+  can already walk to that's nearest, so a tunnel may begin some way from the Warren
+  or branch off an old one. They won't dig more than 4 cells further from the marker
+  than the nearest point they've reached (`WARREN_DETOUR`): that takes them round a
+  small snag, and a wall they can't cut stops them once they've felt round it (the
+  panel says so). Within a cell of the circle's edge they switch to digging it out.
+- Mites: one breadth-first search from the Warren's doorstep a second (sooner after
+  a dig) finds what they can reach and the way there. They crawl 6 cells/s over any
+  surface (water included), dig at a quarter of full pace for half the Drill's base
+  power a cell out of the Warren's 10-power reserve, carry the cell home and bank it
+  (the nearest Cache in reach, else the Hub). With the reserve empty they wait at
+  home. Digging clears fog 3 cells round the cell.
+- What they dig: dirt, loose dirt, rubble, coal chunks and ash; Hard Teeth (Tier 2,
+  150 power, 10 Glimmer) adds stone, glimmer, coal and shards, and makes the chamber,
+  the circle and the marker's range 1.5x bigger (9, 4.5, 48). Never sulfur. Never
+  what holds the Warren up: the solid cells under it, or, with nothing under it,
+  whatever touches it. If the ground goes anyway, it falls like any other building.
+- Hazards: water drowns a mite in 5 s and fumes choke it in 5 s; lava and steam kill
+  it; ground or debris landing on it crushes it (and anything sharing its cell). One
+  that catches fire runs about lighting what it brushes and burns out in 3 s. They
+  path round fumes, steam, lava and flames they can see. A mite lost from home for
+  8 s is gone. Each loss is an alert. The first colony comes with the build; after
+  that a replacement every 20 s for 1 Stone while linked.
+- Sounding (Tier 2, 100 power, 5 Glimmer): mites leave a one-cell skin next to any
+  liquid. Without it they dig into an aquifer if it's in the way.
+- Ember Brood (Tier 3, 250 power, 15 Glimmer): 5 mites per Warren, and they walk
+  through fire without catching (lava still kills them). Hot rock comes with phase 9.
+- Settling (engine): when the Drill, a Borer or a mite digs a cell out, the solid
+  cells next to it hold still for 20 s (`SETTLE_S`, `SETTLE_RADIUS` in `defs.gd`):
+  weathering, erosion and loosening pass them over and held powder doesn't fall.
+  Then physics carries on as before, so there's time to prop a new hole up (a
+  Bulkhead now, Struts in phase 8). Liquids aren't held, so breaches flood at once.
+  Blasts and tremors aren't dug cells and don't settle. The GDScript fallback sim
+  has no settling.
+- Help (F1) has a Warren paragraph and the settling line; G is in the keys.
+- Tests: `tests/scenario_warren.gd` (the chamber's shape, nearest-first, sulfur
+  skipped, a buried colony digging its chamber, crushed, lava, fire panic, breeding,
+  settling, a marker tunnel and its circle, a stone shell stopping them, clearing the
+  marker, Sounding round a pool in stone, Ember Brood in fire, drowning, choking),
+  `tests/shot_warren.gd` (screenshot).
+
+### Phase 7 choices
+- Decided with Alex: burning mites spread fire; mites skip sulfur and fumes; falling
+  ground crushes them; the Warren runs on a power reserve; no Advance (the Warren
+  stays put and mites keep its footing; if it's knocked loose it falls, and becomes
+  a rigid body in phase 8); Ember Brood mites are fireproof; settling; a chamber over
+  the Warren and a marker to tunnel to, in place of the spec's Pit, Gallery and Den.
+- Costs halved like everything else at this scale: Warren 10 Stone (spec 20), a
+  replacement mite 1 Stone (spec 2).
+- Out in the open the chamber is mostly sky, so a surface Warren goes straight to
+  waiting for a marker; buried in a cave or a Borer's tunnel it hollows out a room.
+- Numbers from the tests: a buried Warren's chamber (34 cells of dirt) takes about
+  20 s; a marker 22 cells off takes about 4 minutes (a 47-cell tunnel and the
+  circle); round a stone shell they dug for about 8 minutes before stopping.
+- Sounding's skin is one cell. In stone it lasts; in dirt it weathers once its 20 s
+  of settling are up, and the water comes through unless it's propped.
+- Mites have no gravity of their own: one whose surface is dug away stays put until
+  it next moves.
+
+## Phase 6 of 10 done: digging
+
+Tests: `tests/scenario_digging.gd` 0 failures; power, research, chemistry, light and
+engine_compare pass. No engine changes this phase: the libraries in `bin/` are as they
+were, so Godot needs no restart. Numbers are first-pass; pacing is phase 10.
+- The Drill: one, fixed on the Hub's right from the start. It isn't in the build list,
+  can't be demolished, and blasts, fire and falls leave it alone. It bores a 3-wide
+  shaft straight down at an eighth of full pace (dirt 0.75 rows a second, stone 0.375).
+  Drill Bit (5 levels): 1.5x faster a level at 1.2x the power per cell. Drill Shaft
+  (9 levels): reach 30, then 60, 100, 160, 240, 330, 450, 590, 730 and 870 (the bedrock
+  over the chamber). Power per cell also climbs with depth, double the base 300 rows
+  down. It looks over its channel 96 rows a tick for fill that fell in, so a full-length
+  shaft costs about 0.16 ms a tick. Its panel caps the reach in steps of 10.
+- Thumper (Tier 1, 50 power; 3 Stone, 2x2, key 2): goes off every 6 s with a charge a
+  cell under it. Radius 3.5 and power 3, which breaks dirt, coal and sulfur; 1.5 power a
+  blast. Upgrades: Thumper Charge (power 5 for stone, 6 glimmer, 8, 10 obsidian), Blast
+  Radius (4.5, 5.5, 6.5), Thumper Efficiency (1.1, 0.8, 0.55 a blast), Thumper Rhythm
+  (4.5, 3.4, 2.5 s). Its body steps aside for the blast so what goes up flies clear;
+  then it's thrown up at 20 cells/s plus 2 per point of power, drifting up to 2.5
+  sideways, and lands in or by its crater. Debris only: what it breaks flies as rubble,
+  much of it falls back in, and a Hopper by the crater catches it. Alone it sinks about
+  a cell every four or five blasts; with the fill taken away, about a cell a blast.
+  Its blasts hurt your buildings and links nearby (not itself or its own link), and
+  its flash can light coal. It holds 10 power and links when it lands near a relay; out
+  of range it blasts on its reserve, then waits.
+- Dragging: press on a built Thumper and move the mouse. It follows the cursor through
+  anything open (air, gas, liquid) at up to 45 cells/s, stops against rock, and is off
+  the network while held. Let go and it keeps its speed, so a flick throws it.
+  Collision damage waits for rigid bodies in phase 8.
+- Borer (Tier 1, 150 power; 14 Stone, 3x3, key B): points down, left, right or up (R
+  while placing, its panel after). It charges up where it's placed, then grinds the
+  three cells in front of it at half full pace and moves into the space: 8 cells/s
+  through open space for 0.02 power a cell, digging at the Drill's base power per cell.
+  Liquid it moves through goes round it. It stops at bedrock, a building, a face of
+  solid lava, the map edge, obsidian (until the Obsidian Saw) or an empty reserve, and
+  its panel says which. Out past the network it runs on its reserve: 30, and 50, 80,
+  120 with Borer Cells.
+- Homing (Tier 2, 180 power, 8 Glimmer): a Borer out of reach at half power turns back
+  along the path it took (climbing where it fell). It heads out again as soon as it's
+  linked and topped up, or waits where it started until it is, then bores on past
+  where it turned. A building in its tunnel stops it; within network range it
+  recharges there.
+- Relay Mast (Tier 2, 120 power, 10 Glimmer; 4 Stone, 1 Glimmer, 2x3, key M): a
+  Conduit that links relays within 28 cells. A link holds when either end reaches, so
+  a Conduit 25 cells from a Mast links to it. It drowns and burns like a Conduit.
+- Obsidian Saw (Tier 3, 250 power, 12 Glimmer): obsidian stops the Drill and Borers
+  until it's done. A Thumper at Charge 4 breaks obsidian into shards for Hoppers.
+- Tech tree: plain techs by tier plus an Upgrades column. Each upgrade level costs more
+  than the last, and later levels wait for their tier (the table is in `defs.gd`).
+  Tuned Bit and Long Shaft are gone (Drill Bit and Drill Shaft replace them). Steam
+  Turbine and Coolant Jacket moved to phase 9 with heat; Warren, Sounding, Hard Teeth
+  and Ember Brood stay in 7, Tremor Dampers in 8.
+- Build list: 1 Conduit, 2 Thumper, 3 Hopper, 4 Bulkhead, 5 Lab, 6 Spout, 7 Floodgate,
+  8 Waterwheel, 9 Cache, 0 Lamp, B Borer, M Relay Mast. Starting kit: Conduit, Hopper,
+  Bulkhead, Lab.
+- Movers (Thumpers, Borers) keep their links, hazard-scan entries, light and sight up
+  to date as they go without rebuilding the network. The 400-building bench runs 1.08
+  ms a tick (1.05 before).
+- Descent probe (`tests/descent.gd`, rewritten for the fixed Drill): one Lab researching
+  Drill Bit and Drill Shaft on the Hub's own power. On seed 7 the shaft reaches depth
+  140 at 2 min, 200 at 5 and 280, Tier 1's deepest, at 7.5. The next levels want
+  Glimmer, which starts 40-odd rows further down, so a Borer has to fetch the first.
+  The seed-7 shaft breaks into an aquifer at depth 107, which floods it up to about 79.
+- Tests: `tests/scenario_digging.gd` (the fixed Drill, Thumper, dragging and throwing,
+  Borer stops, Homing, Relay Mast), `tests/shot_dig.gd` (screenshot). Older tests now
+  use the fixed Drill where they need one, and the screenshot scripts keep off its spot.
+
+### Phase 6 choices the spec left open
+- The shaft is 3 wide and straight down; the Borer and Thumper do the sideways work.
+- A new Borer charges up before it sets off, so it doesn't leave with an empty reserve.
+- Homing turns back only as far as it has to: linked and topped up, it heads out again.
+- A Thumper's own flash singes it (under half an HP a blast); it only raises an alert
+  below half health.
+- Drills placed by test scripts keep the old 12-row reach; players can't place one.
+
+## Phase 5 of 10 done: chemistry
+
+Tests: `tests/scenario_chemistry.gd` 0 failures; engine_compare, power, research and
+the descent probe unchanged (depth 335 in 347 s).
+- Engine: each cell carries an extra byte (burn time left, or a gas's life). Fire
+  spreads cell to cell and needs air, so buried or flooded coal goes out. Lava and
+  flames light what burns. Gases rise or sink by buoyancy and sort by density. Free
+  particles (blast debris, crumbling ceilings) fly and rejoin the grid. Blasts cast
+  rays that spend energy on what they break. Weathering drops cells from ceilings:
+  dirt every few seconds per span, stone about a hundred times slower. Same result
+  on 1 thread or 4.
+- Materials (ids 19-28): Fire, Smoke, Ash, Coal (Stone + Power), Coal chunks,
+  Sulfur (Stone + Glimmer, corrosive), Sulfur grit, Sulfur fumes, Glimmer shards,
+  Obsidian shards. Colours and render styles live in the data file; the shader reads
+  a palette built from it.
+- World: coal seams in the Topsoil and Stone, a coal cap over one lava pocket behind
+  a stone skin, sulfur crusts beside lava and nodules in deep stone.
+- Game: fire and corrosion damage buildings. Links (each building's line to its
+  relay) wear under fire, sulfur and lava, and break. Worn links, broken links and
+  damaged buildings ask for a Stone to mend them. First sightings of coal, sulfur,
+  fire and fumes get a note. The brush (F9) has Coal, Sulfur, Fire and Blast.
+- Speed: the hazard scans keep their building and link lists between runs and
+  rebuild them only when a building comes or goes or the network is rebuilt; a
+  building with nothing near it is skipped in one check. Buildings and links are
+  scanned on alternate beats, three ticks apart. Repair requests look only at
+  buildings that have been hurt. On the 400-building bench the scans went from
+  0.15 to 0.04 ms a tick and the whole tick from 1.08 to 0.95 ms. The biggest
+  remaining slice there is fog of war (about 0.13 ms a tick, GDScript).
+- Help (F1): a paragraph on coal, sulfur, fire, links and crumbling ceilings; the
+  body scrolls now, so the panel fits a 720-tall window with its buttons showing.
+  `tests/shot_help.gd` takes a picture of it.
+- Balance (burn rates, corrosion, repair costs) waits for a hand playthrough.
+
+### Light and anchoring (end of phase 5)
+First time only: restart Godot after this update so it picks up the new engine library.
+- Underground is dark. The C++ sim spreads light per cell every quarter second from
+  the Hub (22 cells), powered Lamps (20), a pilot light on every machine and Drill
+  head (3), the Crucible (10), glowing materials (lava 10, fire and burning cells 8,
+  glimmer 2) and the sky: open cells straight down from the top of the map are
+  sunlit, so the surface and open shafts are lit, spilling about 12 cells sideways.
+  Light loses a cell's worth per cell of air, two through liquid, five through rock,
+  so it lights a wall's face and dies a few cells in. Buildings are clear to it.
+  Each material's glow and opacity live in the data file ("light", "opacity").
+- Fog works like Terraria's map: a block is explored when it's lit and within sight
+  of one of your buildings (Hub 24, Conduits 12, machines 10, a lit Lamp its whole
+  pool). Explored ground shows live whenever it's lit, even with nothing watching,
+  and as last seen, dimmed and still, when it isn't. Lit open space gets a faint warm
+  haze so pools of light read. Tier 3 (lava) and Tier 4 (the Crucible) open when one
+  of your buildings actually sees them. Glimmer still glints through the fog.
+- Anchoring: every building but the Hub and the Crucible needs something solid
+  touching it (corners count), or a building that's held up; a row of Bulkheads
+  hangs off a wall by its end. Anything that loses that falls as one piece, 60
+  cells/s² up to 40 cells/s, swapping places with air, gas or liquid, drops out of
+  the network on the way, and lands on the first solid thing or building under it,
+  where it links up again. No fall damage; lava still kills. A Drill boring down
+  from where it stands rests on the lip of its shaft; one that does fall into its
+  channel keeps the rest of the channel below it.
+- Placement snaps: a ghost that's floating or poking into rock jumps to the nearest
+  legal spot within 5 cells that touches rock, a spot resting on something counting
+  as a bit nearer, and a faint box marks the cursor. A spot that's already fine stays
+  put; with nothing in reach it stays under the cursor and says why. Bulkheads are
+  laid by hand and don't snap. `tests/shot_snap.gd` takes a picture of it.
+- Speed: the light pass runs only near explored or watched ground (0.8 ms on the
+  400-building bench, four times a second); vision there went from 1.9 to 0.7 ms a
+  refresh. The bench tick is 1.05 ms (0.95 before).
+- Without the C++ library, the GDScript sim lights whole blocks in each light's
+  radius with no shadows or glow.
+- Tests: `tests/scenario_light.gd` (dark cave, Lamp on and off, a wall's shadow,
+  sunlight down a shaft, lava seen without a Lamp, a Conduit losing its ledge,
+  falling into a pool, a row of Bulkheads cut from its wall, a Drill on its lip,
+  the ghost snapping),
+  `tests/shot_light.gd` (screenshot). The bench now puts a floor under everything.
+
+## Phase 4 of 10 done: the engine (plan redrawn after phase 3; see "v3 direction" in the spec)
+- The falling-sand sim is C++ now, loaded as a Godot extension from `bin/` (Windows DLL and
+  Linux library, source in `native/`). It follows Noita's engine as described in Petri
+  Purho's GDC talk: 32x32 chunks with dirty rectangles, in-place bottom-up updates, and four
+  checkerboard passes that can run on separate threads, each chunk with its own random
+  stream so the result doesn't depend on thread count.
+- Materials and reactions live in `data/materials.json`: kind (empty, static, powder, liquid,
+  gas), density, how liquids spread, how gases age, what erodes, crumbles or glows, what
+  digging costs and yields, and which pairs react. Edit it and restart to change the world.
+- Plays the same as phase 3, much faster: a 7,200-cell slab of water collapsing into a cave
+  took 1,040 ms of sim time over its 10 s in the old sim and 14 ms here (~75x); 100,000 cells
+  of falling water run at about 1 ms a tick. A 400-building network went from 1.4 to 0.9 ms a tick; the rest is
+  game logic still in GDScript.
+- If the extension doesn't load, the game falls back to the old GDScript sim and says so.
+  F3 shows which one is running. First time only: restart Godot after this update so it
+  picks up the extension.
+- Small changes that come with the data-driven rules: heavier liquids sink through lighter
+  ones (lava can slip diagonally into water, then reacts), gases bubble up through any
+  liquid, Hoppers swallow any powder or liquid that's worth something, and buildings can
+  go in any liquid that isn't hot.
+- Tests: `tests/engine_compare.gd` runs the same set-pieces on both sims (water conserved,
+  same settling level, same obsidian from water on lava, similar erosion) and checks one
+  thread and four give identical cells. `-- --gdscript-sim` forces the old sim for any test.
+
+## v2, phase 3 of 7 done: research
+- The build list starts with the kit: Conduit, Drill, Hopper, Bulkhead and the new Lab. Everything
+  else is researched. Keys are fixed: 1 Conduit, 2 Drill, 3 Hopper, 4 Bulkhead, 5 Lab, 6 Spout,
+  7 Floodgate, 8 Waterwheel, 9 Cache, 0 Lamp; locked ones stay hidden.
+- Lab (5, 4x3, 8 Stone): turns up to 2 power/s from its reserve into the tech you've picked.
+  Two Labs, twice the pace. Tier 2+ techs also want Glimmer (Tier 4 Obsidian) sent to a Lab by
+  packet, served like a blueprint.
+- Research tab (T, or the button in the top bar): all 17 techs by tier, one picked at a time,
+  progress kept if you switch, and what each locked tech is waiting on. The top bar shows the
+  current pick and its progress.
+- Tiers open with discoveries: Tier 2 at the first Glimmer mined, Tier 3 at the first lava one of
+  your buildings sees, Tier 4 when the Crucible comes into view.
+- Techs whose content comes in later phases (Warren, Borer, Relay Mast, Hard Teeth, Sounding and
+  all of Tiers 3-4) show in the tab marked with their phase and can't be picked yet.
+- The Drill works at a third of full pace now (dirt 2 cells of depth a second, stone 1).
+  Tuned Bit: 1.5x faster at 1.5x the power per cell. Long Shaft: reach 18; the rows past 12 cost
+  1.5x power, and Drills already at full reach carry on down when it finishes.
+- "Pause on breach" moved into the Help panel to make room for the research button.
+- Tests: `tests/scenario_research.gd`, `tests/shot_research.gd` (screenshot of the tab), and
+  `tests/descent.gd`, a pacing probe: one shaft dug Drill-by-Drill with a Lab researching Tier 1
+  on the side reaches the Stone band (depth 335) in about 6 minutes on seed 7.
+
+## Phase 3 choices the spec left open
+- Lab costs 8 Stone (spec 16), halved like every other cost at this scale.
+- Long Shaft's extra power applies only to the six new rows.
+- The Floodgate is gated now (Tier 2, after Spout) since the building already existed.
+- The Drill doesn't stop at hot rock or obsidian yet; that arrives with heat and the Obsidian Saw
+  in phase 6, so the obsidian farm still works in the meantime.
+
+## v2, phase 2 of 7 done: power
+- Power is a fifth resource. The Hub makes 2/s on its own and holds up to 100; you start with 20.
+- Drills (0.1 power per dirt cell, 0.2 stone, 0.4 glimmer, 0.8 obsidian), Hoppers (0.02 per cell),
+  Spouts (1 per packet poured), Floodgates (1 per open or close) and Lamps (0.1/s) each keep a
+  10-power reserve that the network refills by packet. They keep running on it when cut off,
+  and stop where they stand when it's empty (a blinking bolt).
+- Requests go to the nearest source that has stock: the Hub, a Cache or a Waterwheel. Power goes
+  to the emptiest machine first; Hoppers and Floodgates under half jump ahead of blueprints.
+- Waterwheel (7): water landing on its top runs through and out underneath, 0.08 power a cell,
+  up to 2/s. It keeps 10 for machines nearby and sends the rest to the Hub. Water pooled under it
+  stalls it.
+- Springs sit on the floor of every aquifer and pocket and in some caves, adding 8 water cells/s
+  wherever there's room. A drained aquifer fills back up; a breached one never stops. A wheel
+  under a spring makes about 0.65/s. Found springs show as a blue pulse.
+- Cache (8): holds up to 60 of everything, is kept stocked with 30 Stone and 60 Power, serves
+  whatever is nearest first, and anything dug or swallowed within 24 cells banks into it.
+  A Cache on a cut-off stretch keeps it linked and running until it's empty.
+- Lamp (9): sees 16 cells into the fog while it has power.
+- The top bar shows totals held anywhere, and power made and used per second (red when short).
+- Network rebuilds use a bucket grid and a heap (60 ms -> 12 ms on a 400-building network);
+  dispatch skips what nothing can send (1.7 -> 0.1 ms/tick there).
+- Tests: `tests/scenario_power.gd` (starvation, wheel under a spring, Cache past a cut, a cut-off
+  Hopper under a flood), `tests/bench_net.gd`, `tests/shot_power.gd` (screenshot).
+
+## Phase 2 numbers that differ from the spec
+- Waterwheel 0.08 power a cell up to 25 cells/s (spec: 0.05 up to 40); same 2/s ceiling.
+- Springs 8 cells/s (spec: about 10), since a unit is 6 cells at this scale.
+- The Hub's own power store is capped at 100, so idling doesn't bank unlimited power.
+- Costs are scaled like phase 1: Waterwheel 6 Stone, Cache 8, Lamp 2.
+
+## v2, phase 1 of 7 done: scale and fog of war (see the "Crucible — v2 Spec" doc)
+- Everything built is smaller: Hub 8x6, Conduit 2x2, Drill 3x3 with a 3-wide channel and 12 reach,
+  Hopper 3x2, Spout and Bulkhead 2x2, Floodgate 2x6, Crucible 14x8. Costs scaled down to match,
+  and a resource unit is now 6 cells (3-wide channels move less rock).
+- Conduits link 16 cells, everything else within 8 of one; drill sense 10; sensors 16.
+- Camera sits about 1.5x closer and pans sideways: A / D, arrow keys, Shift + wheel, middle-drag.
+- Fog of war: buildings see a radius (Hub 20, Conduits 8, the rest 6, plus each drill's head).
+  Out of sight, the map shows as you last saw it, dimmed and frozen.
+- The depth bar is now a minimap: your network, alerts from the last 30 s, and the view box.
+  Click it to jump.
+- The Crucible sits 7 below the dome ceiling now, so a ceiling Conduit still reaches it.
+- Not yet: the autoplay bot still expects the old sizes and will stall; it gets rebuilt in phase 7.
+  `tests/smoke_v2.gd`, `tests/scenario_power.gd` and `tests/scenario_research.gd` are the quick
+  checks for now.
+
+## Working
+- Sand sim (chunked dirty rects, ~0.2-0.8 ms/tick), shader renderer, fog, lava glow, drill-sense outlines
+- Seeded world: layers, aquifers, glimmer veins with lodes, caves, pockets, lava lake, chamber + altar + plug
+- Hub, Conduits, links, packets, blueprints, Drill, Hopper, Spout, Bulkhead, Floodgate, sensors
+- Damage, drowning, erosion, alerts, Crucible panel/charge/tremors/win screen, HUD, depth ruler
+- Full runs: the autoplay bot wins seeds 5, 7, 11 and 23 in 15-20 min (a person should land around 25-40)
+
+## Changed from the spec (found in testing)
+- Crucible sits on a bedrock altar under the plug; plug position roams (was unreachable)
+- Recipe is 32 Glimmer, 48 Obsidian, 64 Water (was 40/60/80: too long once farm water is counted)
+- Packets move 60 cells/s (40 left the deep network feeling sluggish)
+- Hoppers 90 cells/s (30 couldn't keep up with a breach) and also drink water from their sides
+- Buildings can be placed in water; a drowned Conduit still links buildings, just doesn't relay
+- Drills stop only at all-lava rows; steam scalds only Conduits (farms cooked themselves)
+- Hub trickles Stone while below 12 (soft-lock guard); erosion cut ~10x
+- Conduit drowning has hysteresis: drowned after 0.5 s under, back after 2 s with air around it
+- Each Drill reports each liquid breach once; nearby alerts of one kind merge
+- Glimmer glints through the fog, and every vein swells into a lode somewhere, so tunnels can be planned
+- Nothing moves diagonally between two solid cells that only touch at a corner (steam was leaking past drill bodies)
+
+## Design notes from the bot runs
+- The lava lake is the real obsidian farm. Pockets are small; a pocket farm tops out near 30.
+- Water poured on the lake spreads over the crust and sits there; drills dipped across the lake drain it
+  back down onto fresh lava. Spout sensors just above the lava stop the waste.
+- A shaft drill plugs its own shaft: water that seeps in pools on top of it. A Hopper parked above the
+  next drill catches the seep.
+
+## Next
+- Play it by hand: feel of the first ten minutes, readability of the farm and the network overlay
+- Balance pass after a human run (recipe, spout glimmer cost, pocket sizes)
+- Sound and a title screen; decide whether there should be a lose state (right now you can only stall)
+
+Tests (headless): `godot --headless --path . --script tests/scenario_power.gd` (and the other tests/)
+Map picture: `godot --headless --path . --script tests/mapdump.gd -- --seed=7 --out=map.png`

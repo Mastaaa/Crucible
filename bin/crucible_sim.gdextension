@@ -1,0 +1,10 @@
+[configuration]
+
+entry_symbol = "crucible_sim_init"
+compatibility_minimum = "4.5"
+reloadable = true
+
+[libraries]
+
+linux.x86_64 = "res://bin/libcrucible_sim.linux.x86_64.so"
+windows.x86_64 = "res://bin/libcrucible_sim.windows.x86_64.dll"
