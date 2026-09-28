@@ -86,6 +86,9 @@ func _initialize() -> void:
 	var lights := PackedInt32Array([w / 2, 37, 22])
 	var sights := PackedInt32Array([w / 2, 37, 24])
 	_light(sim, lights, sights, known, "light_update, all explored")
+	sim.set_light_view(0, h / 2, w, h / 2 + 400)
+	_light(sim, lights, sights, known, "light_update, all explored, 768 x 400 view")
+	sim.set_light_view(0, 0, w, h)
 	known.fill(0)
 	for i in kw * (D.H >> 2):
 		known[i] = 255

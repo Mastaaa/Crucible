@@ -291,6 +291,7 @@ const LIGHT_LAMP := 20.0
 const LIGHT_PILOT := 3.0        # every machine and Drill head: enough to see it work
 const LIGHT_CRUCIBLE := 10.0
 const SUN_LIGHT := 12           # the sky, and straight down open shafts
+const LIGHT_VIEW_PAD := 64      # explored ground this far past the screen stays lit (live)
 const SIGHT_HUB := 24.0
 const SIGHT_CONDUIT := 12.0
 const SIGHT_MACHINE := 10.0     # a lit Lamp watches its whole pool of light

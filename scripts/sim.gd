@@ -789,6 +789,10 @@ func _stamp(out: PackedByteArray, circles: PackedInt32Array, bit: int) -> void:
 
 
 ## No per-cell light here: the renderer lights whole blocks instead.
+func set_light_view(_x0: int, _y0: int, _x1: int, _y1: int) -> void:
+	pass
+
+
 func get_light() -> PackedByteArray:
 	return PackedByteArray()
 

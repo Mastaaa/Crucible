@@ -168,6 +168,7 @@ void CrucibleSim::set_size(int w, int h) {
 	stamp.assign(N, 0);
 	light_lv.assign(N, 0);
 	light_px.assign(N, 0);
+	light_lit.clear();
 	heat.assign((size_t)(W / 4) * (H / 4), 0);
 	std::vector<std::atomic<uint8_t>> flags(NCH);
 	for (auto &f : flags) {
@@ -1678,28 +1679,45 @@ PackedByteArray CrucibleSim::get_heat() const {
 // it leaves, so it lights a wall's face and dies a few cells into the rock. Lit
 // levels are kept for get_light().
 PackedByteArray CrucibleSim::light_update(const PackedInt32Array &lights, const PackedInt32Array &sights, int sun, const PackedByteArray &known) {
-	std::fill(light_lv.begin(), light_lv.end(), (uint16_t)0);
 	const int BW = W / 4, BH = H / 4, N = BW * BH;
-	// Only chunks near something explored or watched are worth lighting: those, and
-	// two chunks round them (no light reaches further than 64 cells).
+	// Clear what the last pass lit (every lit cell is in a chunk it listed).
+	for (int c : light_lit) {
+		int gx = (c % CW) << CSHIFT, gy = (c / CW) << CSHIFT;
+		for (int yy = gy; yy < gy + CS; yy++) {
+			std::fill_n(light_lv.begin() + (yy * W + gx), CS, (uint16_t)0);
+			std::fill_n(light_px.begin() + (yy * W + gx), CS, (uint8_t)0);
+		}
+	}
+	light_lit.clear();
+	// Only chunks near something watched, or explored and in the view
+	// (set_light_view), are worth lighting: those, and two chunks round them (no
+	// light reaches further than 64 cells).
 	std::vector<uint8_t> near(NCH, 0);
 	{
 		std::vector<uint8_t> hit(NCH, 0);
 		if (known.size() >= N) {
 			const uint8_t *kn = known.ptr();
-			for (int b = 0; b < N; b++) {
-				if (kn[b]) {
-					hit[((b / BW) >> 3) * CW + ((b % BW) >> 3)] = 1;
+			int kx0 = std::clamp(view_x0 >> 2, 0, BW), kx1 = std::clamp((view_x1 + 3) >> 2, 0, BW);
+			int ky0 = std::clamp(view_y0 >> 2, 0, BH), ky1 = std::clamp((view_y1 + 3) >> 2, 0, BH);
+			for (int ky = ky0; ky < ky1; ky++) {
+				for (int kx = kx0; kx < kx1; kx++) {
+					if (kn[ky * BW + kx]) {
+						hit[(ky >> 3) * CW + (kx >> 3)] = 1;
+					}
 				}
 			}
 		}
-		const int32_t *sp = sights.ptr();
-		for (int k = 0; k + 2 < (int)sights.size(); k += 3) {
-			int x0 = std::clamp((sp[k] - sp[k + 2]) >> CSHIFT, 0, CW - 1), x1 = std::clamp((sp[k] + sp[k + 2]) >> CSHIFT, 0, CW - 1);
-			int y0 = std::clamp((sp[k + 1] - sp[k + 2]) >> CSHIFT, 0, CH - 1), y1 = std::clamp((sp[k + 1] + sp[k + 2]) >> CSHIFT, 0, CH - 1);
-			for (int cy = y0; cy <= y1; cy++) {
-				for (int cx = x0; cx <= x1; cx++) {
-					hit[cy * CW + cx] = 1;
+		// What buildings watch, and where the game's own lights sit.
+		for (const PackedInt32Array *arr : { &sights, &lights }) {
+			const int32_t *sp = arr->ptr();
+			for (int k = 0; k + 2 < (int)arr->size(); k += 3) {
+				int r = arr == &lights ? 0 : sp[k + 2];
+				int x0 = std::clamp((sp[k] - r) >> CSHIFT, 0, CW - 1), x1 = std::clamp((sp[k] + r) >> CSHIFT, 0, CW - 1);
+				int y0 = std::clamp((sp[k + 1] - r) >> CSHIFT, 0, CH - 1), y1 = std::clamp((sp[k + 1] + r) >> CSHIFT, 0, CH - 1);
+				for (int cy = y0; cy <= y1; cy++) {
+					for (int cx = x0; cx <= x1; cx++) {
+						hit[cy * CW + cx] = 1;
+					}
 				}
 			}
 		}
@@ -1816,20 +1834,20 @@ PackedByteArray CrucibleSim::light_update(const PackedInt32Array &lights, const 
 		}
 		bucket.clear();
 	}
-	// Brightness per cell, and the block masks. Light never gets further than two
-	// chunks past `near`, so one more ring covers every lit cell.
+	// Brightness per cell, and the block masks. Light starts inside `near` and never
+	// travels 64 cells, so two more rings cover every lit cell (and light_lit lists
+	// them for the next clear).
 	std::vector<uint8_t> bits(N, 0); // 1 lit, 2 in sight
 	uint8_t *o = bits.data();
 	uint8_t lut[LFULL + 1];
 	for (int lv = 0; lv <= LFULL; lv++) {
 		lut[lv] = (uint8_t)(lv * 255 / LFULL);
 	}
-	std::fill(light_px.begin(), light_px.end(), (uint8_t)0);
 	for (int c = 0; c < NCH; c++) {
 		int cx = c % CW, cy = c / CW;
 		bool any = false;
-		for (int yy = std::max(cy - 1, 0); yy <= std::min(cy + 1, CH - 1) && !any; yy++) {
-			for (int xx = std::max(cx - 1, 0); xx <= std::min(cx + 1, CW - 1); xx++) {
+		for (int yy = std::max(cy - 2, 0); yy <= std::min(cy + 2, CH - 1) && !any; yy++) {
+			for (int xx = std::max(cx - 2, 0); xx <= std::min(cx + 2, CW - 1); xx++) {
 				if (near[yy * CW + xx]) {
 					any = true;
 					break;
@@ -1839,6 +1857,7 @@ PackedByteArray CrucibleSim::light_update(const PackedInt32Array &lights, const 
 		if (!any) {
 			continue;
 		}
+		light_lit.push_back(c);
 		int gx = cx << CSHIFT, gy = cy << CSHIFT;
 		for (int yy = gy; yy < gy + CS; yy++) {
 			for (int xx = gx; xx < gx + CS; xx++) {
@@ -1883,6 +1902,16 @@ PackedByteArray CrucibleSim::light_update(const PackedInt32Array &lights, const 
 		seen[b] = s ? 255 : 0;
 	}
 	return out;
+}
+
+// Explored ground outside this rectangle (cells, end exclusive) no longer pulls its
+// chunks into light_update; what buildings watch still does. The game passes the
+// camera's view, so the pass costs what's on screen, not everything explored.
+void CrucibleSim::set_light_view(int x0, int y0, int x1, int y1) {
+	view_x0 = x0;
+	view_y0 = y0;
+	view_x1 = x1;
+	view_y1 = y1;
 }
 
 // Brightness per cell (W x H) from the last light_update.
@@ -2168,6 +2197,7 @@ void CrucibleSim::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_heat"), &CrucibleSim::get_heat);
 	ClassDB::bind_method(D_METHOD("light_update", "lights", "sights", "sun", "known"), &CrucibleSim::light_update);
 	ClassDB::bind_method(D_METHOD("get_light"), &CrucibleSim::get_light);
+	ClassDB::bind_method(D_METHOD("set_light_view", "x0", "y0", "x1", "y1"), &CrucibleSim::set_light_view);
 	ClassDB::bind_method(D_METHOD("count", "material"), &CrucibleSim::count);
 	ClassDB::bind_method(D_METHOD("count_burning"), &CrucibleSim::count_burning);
 	ClassDB::bind_method(D_METHOD("particle_count"), &CrucibleSim::particle_count);

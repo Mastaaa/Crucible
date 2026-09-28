@@ -3026,6 +3026,8 @@ func _refresh_vision() -> void:
 		else:
 			_circle(lights, b.drill_head(), D.LIGHT_PILOT)
 			_circle(sights, b.drill_head(), D.LIGHT_PILOT + 2.0)
+	var vr := view_rect(D.LIGHT_VIEW_PAD)
+	sim.set_light_view(vr.position.x, vr.position.y, vr.end.x, vr.end.y)
 	var maps: PackedByteArray = sim.light_update(lights, sights, D.SUN_LIGHT, known)
 	var n := KW * KH
 	var fresh := maps.slice(0, n)
@@ -3202,6 +3204,16 @@ func _apply_cam_x() -> void:
 
 func view_rows() -> float:
 	return get_viewport_rect().size.y / zoom
+
+
+## The cells on screen, grown by `pad` on every side (clipped to the map).
+func view_rect(pad := 0) -> Rect2i:
+	var vs := get_viewport_rect().size
+	var x0 := floori(-map_x / zoom) - pad
+	var y0 := floori(cam_y) - pad
+	var x1 := ceili((vs.x - map_x) / zoom) + pad
+	var y1 := ceili(cam_y + vs.y / zoom) + pad
+	return Rect2i(Vector2i(maxi(x0, 0), maxi(y0, 0)), Vector2i.ZERO).expand(Vector2i(mini(x1, D.W), mini(y1, D.H)))
 
 
 func _clamp_cam() -> void:

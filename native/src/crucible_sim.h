@@ -177,6 +177,8 @@ private:
 	std::vector<uint16_t> light_lv; // light left at each cell, LSTEP per cell of air
 	std::vector<uint8_t> light_px; // brightness 0..255 per cell, for the renderer
 	std::vector<std::vector<int32_t>> light_buckets;
+	std::vector<int32_t> light_lit; // chunks the last light_update may have lit (to clear next time)
+	int view_x0 = 0, view_y0 = 0, view_x1 = 1 << 20, view_y1 = 1 << 20; // explored ground outside isn't lit
 	uint8_t opq[256]; // light cost multiplier per material
 	std::vector<Particle> parts;
 	Rects cur;
@@ -299,6 +301,7 @@ public:
 	PackedByteArray get_heat() const;
 	PackedByteArray light_update(const PackedInt32Array &lights, const PackedInt32Array &sights, int sun, const PackedByteArray &known);
 	PackedByteArray get_light() const;
+	void set_light_view(int x0, int y0, int x1, int y1);
 
 	int count(int m) const;
 	int count_burning() const;
