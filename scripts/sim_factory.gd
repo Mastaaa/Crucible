@@ -4,6 +4,7 @@ extends RefCounted
 ## data/materials.json; otherwise the old GDScript one in sim.gd, which is slower
 ## and ignores the data file.
 
+const D = preload("res://scripts/defs.gd")
 const M = preload("res://scripts/materials.gd")
 const SimGD = preload("res://scripts/sim.gd")
 
@@ -19,6 +20,7 @@ static func native_available() -> bool:
 static func create(threads := -1) -> RefCounted:
 	if native_available():
 		var s: RefCounted = ClassDB.instantiate("CrucibleSim")
+		s.set_size(D.W, D.H)
 		M.ensure()
 		s.configure(M.sim_materials, M.sim_reactions)
 		if threads < 0:

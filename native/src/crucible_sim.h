@@ -44,13 +44,8 @@ class CrucibleSim : public RefCounted {
 	GDCLASS(CrucibleSim, RefCounted)
 
 public:
-	static constexpr int W = 256;
-	static constexpr int H = 1024;
 	static constexpr int CSHIFT = 5; // chunks are 32 x 32
 	static constexpr int CS = 1 << CSHIFT;
-	static constexpr int CW = W / CS;
-	static constexpr int CH = H / CS;
-	static constexpr int NCH = CW * CH;
 	static constexpr int NONE = 1 << 20;
 	static constexpr uint32_t ONE = 65536; // chances are out of this
 	static constexpr int LSTEP = 8; // light lost per straight step through air
@@ -144,7 +139,9 @@ public:
 
 	// Dirty rectangles, one per chunk.
 	struct Rects {
-		int32_t x0[NCH], y0[NCH], x1[NCH], y1[NCH];
+		int w = 0, h = 0, cw = 0, n = 0;
+		std::vector<int32_t> x0, y0, x1, y1;
+		void init(int width, int height);
 		void reset();
 		void touch(int x, int y);
 		void merge(const Rects &o);
@@ -162,6 +159,13 @@ public:
 	};
 
 private:
+	// The grid's size, set by set_size (multiples of 32); chunks across and down.
+	int W = 256;
+	int H = 1024;
+	int CW = 256 / CS;
+	int CH = 1024 / CS;
+	int NCH = CW * CH;
+
 	std::vector<uint8_t> cells;
 	std::vector<uint8_t> aux;
 	std::vector<int32_t> settle; // tick until which a freshly exposed solid cell holds still
@@ -260,6 +264,9 @@ public:
 	CrucibleSim();
 	~CrucibleSim();
 
+	void set_size(int w, int h);
+	int get_width() const { return W; }
+	int get_height() const { return H; }
 	void configure(const Array &materials, const Array &reactions);
 	void set_seed(int s);
 

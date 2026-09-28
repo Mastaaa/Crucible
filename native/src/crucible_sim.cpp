@@ -56,8 +56,19 @@ const int N8Y[8] = { -1, 1, 0, 0, -1, -1, 1, 1 };
 
 // --- Rectangles ----------------------------------------------------------------
 
+void CrucibleSim::Rects::init(int width, int height) {
+	w = width;
+	h = height;
+	cw = width / CS;
+	n = cw * (height / CS);
+	x0.assign(n, NONE);
+	y0.assign(n, NONE);
+	x1.assign(n, -1);
+	y1.assign(n, -1);
+}
+
 void CrucibleSim::Rects::reset() {
-	for (int c = 0; c < NCH; c++) {
+	for (int c = 0; c < n; c++) {
 		x0[c] = NONE;
 		y0[c] = NONE;
 		x1[c] = -1;
@@ -66,7 +77,7 @@ void CrucibleSim::Rects::reset() {
 }
 
 void CrucibleSim::Rects::touch(int x, int y) {
-	int c = ((y >> CSHIFT) * CW) + (x >> CSHIFT);
+	int c = ((y >> CSHIFT) * cw) + (x >> CSHIFT);
 	if (x < x0[c]) {
 		x0[c] = x;
 	}
@@ -87,15 +98,15 @@ void CrucibleSim::Rects::touch(int x, int y) {
 	// On a chunk border the neighbours live in other chunks: wake those too.
 	for (int dy = -1; dy <= 1; dy++) {
 		int yy = y + dy;
-		if (yy < 0 || yy >= H) {
+		if (yy < 0 || yy >= h) {
 			continue;
 		}
 		for (int dx = -1; dx <= 1; dx++) {
 			int xx = x + dx;
-			if (xx < 0 || xx >= W) {
+			if (xx < 0 || xx >= w) {
 				continue;
 			}
-			int c2 = ((yy >> CSHIFT) * CW) + (xx >> CSHIFT);
+			int c2 = ((yy >> CSHIFT) * cw) + (xx >> CSHIFT);
 			if (c2 == c) {
 				continue;
 			}
@@ -116,7 +127,7 @@ void CrucibleSim::Rects::touch(int x, int y) {
 }
 
 void CrucibleSim::Rects::merge(const Rects &o) {
-	for (int c = 0; c < NCH; c++) {
+	for (int c = 0; c < n; c++) {
 		if (o.x1[c] < 0) {
 			continue;
 		}
@@ -130,23 +141,48 @@ void CrucibleSim::Rects::merge(const Rects &o) {
 // --- Setup ------------------------------------------------------------------------
 
 CrucibleSim::CrucibleSim() :
-		cells(W * H, 0),
-		aux(W * H, 0),
-		settle(W * H, 0),
-		held(W * H, 0),
-		stamp(W * H, 0),
-		lava_dirty(NCH),
-		heat((W / 4) * (H / 4), 0),
-		light_lv(W * H, 0),
-		light_px(W * H, 0),
 		react_idx(256 * 256, -1) {
-	for (auto &f : lava_dirty) {
+	ctxs.resize(1);
+	set_size(W, H);
+	default_materials();
+}
+
+// Sizes the grid (both multiples of 32) and clears it: every buffer, the dirty
+// rectangles, particles and the collapse sweep start over. Call it before filling
+// the world.
+void CrucibleSim::set_size(int w, int h) {
+	if (w < CS || h < CS || w % CS != 0 || h % CS != 0) {
+		UtilityFunctions::push_error("CrucibleSim.set_size: both sides must be positive multiples of ", CS, ", got ", w, " x ", h);
+		return;
+	}
+	W = w;
+	H = h;
+	CW = W / CS;
+	CH = H / CS;
+	NCH = CW * CH;
+	const size_t N = (size_t)W * H;
+	cells.assign(N, 0);
+	aux.assign(N, 0);
+	settle.assign(N, 0);
+	held.assign(N, 0);
+	stamp.assign(N, 0);
+	light_lv.assign(N, 0);
+	light_px.assign(N, 0);
+	heat.assign((size_t)(W / 4) * (H / 4), 0);
+	std::vector<std::atomic<uint8_t>> flags(NCH);
+	for (auto &f : flags) {
 		f.store(0);
 	}
-	cur.reset();
-	next.reset();
-	ctxs.resize(1);
-	default_materials();
+	lava_dirty.swap(flags);
+	parts.clear();
+	cur.init(W, H);
+	next.init(W, H);
+	for (Ctx &cx : ctxs) {
+		cx.next.init(W, H);
+	}
+	collapse_cursor = H - 4;
+	changed = true;
+	heat_changed = true;
 }
 
 CrucibleSim::~CrucibleSim() {
@@ -387,6 +423,11 @@ void CrucibleSim::set_threads(int n) {
 	stop_pool();
 	threads_wanted = n;
 	ctxs.resize(n);
+	for (Ctx &cx : ctxs) {
+		if (cx.next.n != NCH) {
+			cx.next.init(W, H);
+		}
+	}
 	if (n > 1) {
 		start_pool(n - 1);
 	}
@@ -1624,7 +1665,7 @@ PackedByteArray CrucibleSim::get_heat() const {
 // --- Light ----------------------------------------------------------------------------
 
 // Spreads light over the whole grid, then works out the fog maps (one byte per 4x4
-// block, 64 x 256, 255 or 0). A block is seen when a cell in it is lit and it's
+// block, W/4 x H/4, 255 or 0). A block is seen when a cell in it is lit and it's
 // within sight of one of `sights`; seeing it explores it for good. It shows live
 // whenever it's lit and explored. Returns three maps back to back: live, explored
 // (`known` plus what was just seen), and seen.
@@ -1844,7 +1885,7 @@ PackedByteArray CrucibleSim::light_update(const PackedInt32Array &lights, const 
 	return out;
 }
 
-// Brightness per cell (256 x 1024) from the last light_update.
+// Brightness per cell (W x H) from the last light_update.
 PackedByteArray CrucibleSim::get_light() const {
 	PackedByteArray out;
 	out.resize((int64_t)light_px.size());
@@ -2052,8 +2093,8 @@ PackedInt32Array CrucibleSim::segments_batch(const PackedInt32Array &segs) const
 	return out;
 }
 
-// Which materials occur in the 4x4 blocks a mask (64 x 256, like the fog maps)
-// marks: 256 entries, each the index (y * 256 + x) of one cell of that material
+// Which materials occur in the 4x4 blocks a mask (W/4 x H/4, like the fog maps)
+// marks: 256 entries, each the index (y * W + x) of one cell of that material
 // found there, or -1. Burning cells show up as the fire material, if there is one.
 PackedInt32Array CrucibleSim::materials_in(const PackedByteArray &mask) const {
 	PackedInt32Array out;
@@ -2093,6 +2134,9 @@ PackedInt32Array CrucibleSim::materials_in(const PackedByteArray &mask) const {
 // --- Bindings ---------------------------------------------------------------------------
 
 void CrucibleSim::_bind_methods() {
+	ClassDB::bind_method(D_METHOD("set_size", "width", "height"), &CrucibleSim::set_size);
+	ClassDB::bind_method(D_METHOD("get_width"), &CrucibleSim::get_width);
+	ClassDB::bind_method(D_METHOD("get_height"), &CrucibleSim::get_height);
 	ClassDB::bind_method(D_METHOD("configure", "materials", "reactions"), &CrucibleSim::configure);
 	ClassDB::bind_method(D_METHOD("set_seed", "seed"), &CrucibleSim::set_seed);
 	ClassDB::bind_method(D_METHOD("get_cell", "x", "y"), &CrucibleSim::get_cell);
