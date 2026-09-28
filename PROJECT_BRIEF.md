@@ -8,28 +8,30 @@ mineshafts and factories in one click. Focus: the player's expansion against a r
 uncover elements, deposits and curios; exploit reactions or get blindsided by them.
 
 ## Where things live
-- Project folder on Alex's PC: C:\Users\alexa\Documents\new-game-project (open project.godot).
-- Claude project docs, read in this order at the start of a session: this brief, claude/STATUS.md
-  (lean: the game as it stands, the handoff, test baselines), claude/SESSION_SETUP.md (the
-  routine: pull, set up, build, test, deliver), and claude/CODE_MAP.md when about to read code.
-- The folder's STATUS.md is the full per-phase history for Alex; Claude adds each phase's section at
+- Repo: github.com/Mastaaa/Crucible (`main`). Alex's clone: C:\Users\alexa\Documents\new-game-project
+  (open project.godot). Claude works on a session branch; Alex merges it and pulls.
+- Claude's docs, in the repo, read in this order at the start of a session: this brief,
+  claude/STATUS.md (lean: the game as it stands, the handoff, test baselines),
+  claude/SESSION_SETUP.md (the routine: build, test, deliver), and claude/CODE_MAP.md when about
+  to read code. claude/IDEAS.md is Alex's parking lot (open it only when pointed at an entry).
+- The root STATUS.md is the full per-phase history for Alex; Claude adds each phase's section at
   its top and doesn't read the rest.
-- Spec: Claude Docs doc "Crucible — v2 Spec" (https://claude.ai/code/artifact/75beb95f-ed2c-4bdb-9f98-a6388f35f3d6)
-  is the design record as of phase 6; this brief's roadmap and the lean STATUS are the living versions,
-  so it isn't updated each phase.
+- Spec: claude/SPEC_v2.md, a copy of the Claude Docs doc "Crucible — v2 Spec"
+  (https://claude.ai/code/artifact/75beb95f-ed2c-4bdb-9f98-a6388f35f3d6), the design record as of
+  phase 6; this brief's roadmap and the lean STATUS are the living versions, so it isn't updated.
 - data/materials.json: every material (kinds, physics, burning, collapse, water wear, digging, colours)
   and reactions.
 - scripts/: game.gd (controller), defs.gd (all tunables), materials.gd, worldgen.gd, sim_factory.gd,
   sim.gd (GDScript fallback sim), building.gd, hud.gd, overlay.gd, warren.gd. shaders/terrain.gdshader.
 - native/: C++ GDExtension sim (godot-cpp 4.5) in src/; bin/ holds the built .dll and .so. Session
-  tooling: sync.py (PC <-> cloud in one archive each way), cloud_setup.sh, build.sh, run_tests.sh,
+  tooling: cloud_setup.sh (run by the SessionStart hook in .claude/), build.sh, run_tests.sh,
   lsp_check.py, cache/ (prebuilt godot-cpp).
 - tests/: scenario_* (power, research, chemistry, light, digging, warren, collapse), engine_compare,
   descent (pacing probe), bench, bench_net, mapdump, shot_* (screenshots; shot_help is the F1 panel).
 
 ## Working with a cloud session (how Claude works on it)
-- The container is fresh each conversation; claude/SESSION_SETUP.md has the routine (three calls to
-  start, three to deliver). If the PC isn't linked, ask Alex to attach files.
+- Claude Code on the web: the repo is cloned fresh each session and the SessionStart hook sets up
+  Godot and the toolchain; claude/SESSION_SETUP.md has the routine. Deliver by commit and push.
 - Windows Godot won't run under Wine, so Alex tests the DLL.
 - Spend tokens on the work, not the setup: no directory listings, grep and targeted reads over whole
   files, short command output, the lean STATUS over the history.
@@ -102,4 +104,4 @@ uncover elements, deposits and curios; exploit reactions or get blindsided by th
 ## Tone and working style
 Dry, deadpan, concise, pragmatic. No "Not X, but Y" lines, no triplet-heavy descriptions, no pet names.
 Don't give advice or plan next steps unless asked. Start each new conversation by checking prior
-conversations and STATUS.md.
+conversations (when reachable) and claude/STATUS.md.

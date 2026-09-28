@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 # Sets up a fresh cloud container to build and test Crucible. Idempotent: rerun it
-# any time. See claude/SESSION_SETUP.md in the Claude project for the whole routine.
-#   bash native/cloud_setup.sh [project dir]      (default /home/claude/crucible)
+# any time. The SessionStart hook (.claude/hooks/session-start.sh) runs it in cloud
+# sessions; see claude/SESSION_SETUP.md for the whole routine.
+#   bash native/cloud_setup.sh [project dir]      (default: the repo this script is in)
 # Gives: godot (4.7.2, Linux) on PATH, scons, mingw-w64 (posix threads) for the
 # Windows DLL, godot-cpp 4.5 already built for both platforms (from
 # native/cache/godot-cpp-built.tar.gz, so only our two .cpp files compile), and
 # the project imported.
 set -e
-P=${1:-/home/claude/crucible}
-T=/home/claude/tools
+P=${1:-$(cd "$(dirname "$0")/.." && pwd)}
+T=${CRUCIBLE_TOOLS:-/opt/crucible-tools}
 mkdir -p "$T"
 cd "$T"
 if [ ! -x Godot_v4.7.2-stable_linux.x86_64 ]; then
