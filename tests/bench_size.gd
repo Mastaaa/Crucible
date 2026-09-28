@@ -87,7 +87,7 @@ func _initialize() -> void:
 	var sights := PackedInt32Array([w / 2, 37, 24])
 	_light(sim, lights, sights, known, "light_update, all explored")
 	known.fill(0)
-	for i in kw * (D.H / 4):
+	for i in kw * (D.H >> 2):
 		known[i] = 255
 	_light(sim, lights, sights, known, "light_update, top 1024 rows explored")
 
