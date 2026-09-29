@@ -2,7 +2,58 @@
 
 Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls.
 This file is the full history, newest phase first. The short "where it stands" version
-Claude reads each session is claude/STATUS.md in the Claude project.
+Claude reads each session is claude/STATUS.md.
+
+## Phase 8b done: the rescale (8c, rigid bodies, is next)
+
+Tests: all eight suites (`bash native/run_tests.sh`, about 6 minutes) end
+`FAILURES: 0` at the new scale. The engine changed a lot: close Godot before
+pulling, and restart it after so it picks up the new library. Descent probe (depths
+5x): 700 at 2 min, 1000 at 5, 1400 (Tier 1's deepest) at 7, v2's curve.
+- The world is 768 x 5120 cells (v2: 256 x 1024). Its layout is v2's, 3x across and
+  5x down; its features (caves, aquifers, veins, pockets, the lava lake, the
+  chamber) are 4x bigger each way. Seed 7 generates in about 0.8 s.
+- Everything built is 10x its v2 size against the cells (`D.S`): the Hub is 80 x 60,
+  a Conduit 20 x 20, the Drill 30 wide. Ranges, speeds and radii are 10x (Conduits
+  link 160, Masts 280, the Hub lights 220); amounts counted in cells are 100x (a unit
+  of a resource is 600 cells, a Hopper takes up to 9000 cells a second, power per
+  cell dug is a hundredth). Costs in resources and times are v2's.
+- Buildings end up about 2.5x bigger against the caves than in v2, and the map is
+  narrower in building terms (about 5 relays across at full spacing). The camera
+  zooms smoothly from the whole width (about 1.3 px a cell) to 6 px a cell.
+- Free fall (new): sand, dirt, water and anything else that falls speeds up (900
+  cells/s^2, up to 600 cells/s) through air instead of dropping a cell a tick; into
+  water it still sinks slowly. Water spreads 16/8 cells a tick, lava 8/4.
+- Mites work in bites of 4 x 4 cells: a mite nibbles one out a cell at a time,
+  hops to the next nearby, and carries up to 8 bites home a trip. They cling to
+  surfaces as before. A buried Warren's chamber takes about 76 s; a marker 218
+  cells off about 13 minutes (pace is for phase 10).
+- Collapse: spans are 10x (dirt 70, stone 150, packed dirt 240), overhangs as in
+  v2 (it's the slope an arch narrows by), so arches keep their shape at 10x. The
+  sweep covers 512 rows a tick; an arch rises a row about every 2.5 s. A stone roof
+  no longer drops a whole row when weathering takes one cell out of it (its own kind
+  above a gap bridges it). Loose powder only holds a building up from underneath,
+  resting on something. Struts are 10 cells thick where the gap allows.
+- Light works on 4 x 4 blocks now (radii reach 220), and only for explored ground
+  on screen plus what buildings watch. The map is drawn from 256 x 256 tiles and
+  only tiles that changed are uploaded; the "as last seen" picture is kept by the
+  engine. Placement snapping, the Drill's channel scan and row digging, Drill
+  sense, corrosion and Hopper rims all run in the engine or skip empty work.
+- Springs give their full rate (they gave at most 60 cells a second before); the
+  Waterwheel passes water along its whole underside.
+- Speed: a fresh seed-7 game ticks in about 0.7 ms; the network bench (383
+  buildings) about 2.5 ms a tick once its own floors cave in, and a network rebuild
+  there about 34 ms.
+- Not ported: the screenshot scripts (`tests/shot_*.gd`), `smoke_v2`, `flow`,
+  `scenario_water*` and the autoplay bot still use v2 coordinates.
+
+### Phase 8b choices
+- Decided with Alex: 768 x 5120; features scale with the world (4x), not the
+  buildings; mites nibble small bites in short bursts; falling gets real speed now.
+- Overhang stays v2's (a slope); spans, dig rates and glow radii are 10x.
+- Mites move 100 cells/s (1.7x the straight 10x) and nibble at twice full pace; the
+  Warren's detour is 2 x S (at bite granularity that still gets round a snag).
+- The cave-in alert counts 12 x S cells (a caving front is 10x wider, not 100x).
 
 ## Phase 8 of 10 done: collapse (8b, the 10x rescale, and 8c, rigid bodies, are next)
 

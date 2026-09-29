@@ -3,7 +3,7 @@
 ## What it is
 Godot 4.7.2 pixel-sim descent game. Mixes Noita (per-pixel physics), Creeper World IXE (network building)
 and Dome Keeper. The player never digs: buildings do. Goal: feed and light the Crucible at the bottom of
-a 256 x 1024 map. Pacing target: an incremental game that ramps SLOWLY from one pixel at a time to whole
+a 768 x 5120 map. Pacing target: an incremental game that ramps SLOWLY from one pixel at a time to whole
 mineshafts and factories in one click. Focus: the player's expansion against a reactive environment;
 uncover elements, deposits and curios; exploit reactions or get blindsided by them.
 
@@ -69,11 +69,12 @@ uncover elements, deposits and curios; exploit reactions or get blindsided by th
    - Tremor Dampers.
    - Mundane ground: packed dirt, gravel, sand, clay; cohesive stone; water wash.
 
-8b. Rescale: next.
-   - Structures 10x bigger against the pixels.
-   - World 2-3x wider and 4-5x deeper.
+8b. Rescale: done.
+   - Structures 10x bigger against the pixels (D.S); the world 768 x 5120, features 4x.
+   - Free fall for powders and liquids; mites nibble in 4x4 bites.
+   - Light, fog and rendering reworked for the size (blocks, tiles).
 
-8c. Rigid bodies: falling chunks, falling buildings, Thumper collisions.
+8c. Rigid bodies: next. Falling chunks, falling buildings, Thumper collisions.
 
 9. Depth: heat, deeper materials, Crucible power draw.
 
@@ -89,7 +90,11 @@ uncover elements, deposits and curios; exploit reactions or get blindsided by th
   building's sight explores; explored ground shows live only while lit (Terraria-style).
 - Every building except Hub and Crucible must stay anchored (rock or a held-up building touching, corners
   count); dislodged ones fall and re-anchor. Real rigid-body physics for this comes with phase 8c.
-- The Drill is one fixed machine on the Hub's right: a 3-wide shaft straight down, never buildable.
+- The Drill is one fixed machine on the Hub's right: a 30-wide shaft straight down, never buildable.
+- Scale (8b): everything built is D.S (10) times its v2 size against the cells; ranges, speeds and
+  radii S times, amounts in cells S * S times. World features scale with the world (4x), not the
+  buildings. Overhang is a slope and stays as in v2.
+- Falling has speed (free fall); mites are small and nibble 4x4 bites in bursts of up to 8.
 - Thumper: holds a reserve and links when it lands near a relay; the player can drag and throw it (collision
   damage comes with rigid bodies); it yields debris only, for Hoppers. Thumper and Borer are Tier 1.
 - Upgrades are techs with levels, each dearer than the last, later levels gated by tier.

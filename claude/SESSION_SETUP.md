@@ -17,7 +17,7 @@ No directory listings needed.
   Rebuilds aren't byte-identical, so only commit `bin/` when the engine changed;
   otherwise `git checkout -- bin/`.
 - Tests: `bash native/run_tests.sh [names...]` prints one line per test plus any FAIL.
-  Run the phase's own test while working, all of them before committing (about 15 min).
+  Run the phase's own test while working, all of them before committing (about 6 min).
 - Warnings: `python3 native/lsp_check.py . <files>` ("checked N files" alone is clean).
 - Screenshot: `xvfb-run -a -s "-screen 0 1280x720x24" godot --rendering-method
   gl_compatibility --rendering-driver opengl3 --path . --script tests/shot_X.gd -- --out=/tmp/x`
@@ -38,7 +38,12 @@ No directory listings needed.
 
 ## Traps
 - Tests that carve rooms into seed 7 wall them with plain dirt first; measure collapse
-  locally, not with the global `get_caved()`.
+  locally, not with the global `get_caved()`. Lay v2-style set-pieces out with P / R
+  (see claude/CODE_MAP.md); the map is only 768 wide, so far-out pieces need their own
+  origin or to go below the Hub.
+- Anything per cell in GDScript is 100x the work it was in v2: count, dig or mark in
+  the engine (count_in_rect, block_counts, dig_rect, block_circles) and loop in
+  GDScript only over what's left.
 - New building: extend every per-type array in defs.gd at the same index (B_NAMES,
   B_LETTERS, B_SIZES, B_HP, B_COSTS, B_COLORS, B_BLURBS), then PALETTE / PALETTE_KEYS,
   `uses_power`, `needs_link`, and a tech with "building".
