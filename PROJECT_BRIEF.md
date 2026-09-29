@@ -76,6 +76,8 @@ uncover elements, deposits and curios; exploit reactions or get blindsided by th
 
 8c. Rigid bodies: next. Falling chunks, falling buildings, Thumper collisions.
 
+8d. Mites as bodies (claude/IDEAS.md entry 4).
+
 9. Depth: heat, deeper materials, Crucible power draw.
 
 10. Pacing: incremental curve, bot, tuning.
@@ -94,6 +96,9 @@ uncover elements, deposits and curios; exploit reactions or get blindsided by th
 - Scale (8b): everything built is D.S (10) times its v2 size against the cells; ranges, speeds and
   radii S times, amounts in cells S * S times. World features scale with the world (4x), not the
   buildings. Overhang is a slope and stays as in v2.
+- Rigid bodies (8c): unsupported spans break off as solid chunks that shatter to rubble on
+  impact; buildings that lose footing fall, take fall damage and relink where they land;
+  chunks crush buildings, links and mites by mass and speed.
 - Falling has speed (free fall); mites are small and nibble 4x4 bites in bursts of up to 8.
 - Thumper: holds a reserve and links when it lands near a relay; the player can drag and throw it (collision
   damage comes with rigid bodies); it yields debris only, for Hoppers. Thumper and Borer are Tier 1.

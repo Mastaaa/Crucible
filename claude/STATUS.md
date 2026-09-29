@@ -10,7 +10,11 @@ Claude adds a section at its top each phase and doesn't need to read the rest.
   nibbling mites, block light, tiled rendering and the speed work it needed. Merged
   into `main`.
 - Next: phase 8c, rigid bodies (falling chunks, falling buildings, Thumper collisions;
-  mites as bodies per claude/IDEAS.md entry 4).
+  Alex's calls: spans break off as solid chunks that shatter to rubble on impact
+  (crumbling stays for small bits); a building that loses footing falls as a body,
+  takes damage by the fall and relinks where it lands; chunks crush buildings, links
+  and mites by mass and speed. Mites become bodies in a short 8d right after
+  (claude/IDEAS.md entry 4).
 - Open with Alex: mite pace (about 2-3x slower than v2 against building size) is for
   phase 10.
 - Known rough edges: the screenshot scripts, smoke_v2, flow and scenario_water* still
