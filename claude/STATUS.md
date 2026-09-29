@@ -12,6 +12,12 @@ Claude adds a section at its top each phase and doesn't need to read the rest.
   about 2 hours (the bot, which knows the map, about 1). Phases 8b-8d are in `main`.
 - Next: new features in earnest, starting with deeper materials and curios, then
   claude/IDEAS.md (Alex's call).
+- Placeholder: Alex plans to rework how buildings and coolant work after the
+  pre-alpha. Phase 10's jacket rules (lava shield, quenching, drinking), the tuning
+  numbers tied to Borers and research, and the bot's Borer and Conduit logistics
+  are expected to change with it; don't polish them. The run shell (title, save
+  slot, speeds, win and lose, milestones) and the bot's harness (checkpoints,
+  dumps, milestone timeline) should carry over.
 - Settled in phase 10 (tuned with the bot): mites at v2's pace against the buildings;
   the Turbine's 4/s now reachable (0.4 a cell, as fast as a room of steam rises); water
   still quenches hot rock slowly (a staged steam room would die otherwise) and condensing

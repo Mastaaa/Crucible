@@ -99,7 +99,8 @@ uncover elements, deposits and curios; exploit reactions or get blindsided by th
    - Deposits worth 6x a cell; the Coolant Jacket takes on lava; condensing steam loses half.
 
 After 10: new features in earnest, starting with deeper materials and curios (moved out
-of phase 9) and claude/IDEAS.md.
+of phase 9) and claude/IDEAS.md. Buildings and coolant will be reworked after the
+pre-alpha, so phase 10's jacket rules and building-tied tuning are placeholders.
 
 ## Standing decisions
 - Engine in C++; Noita-style chunks, dirty rects, checkerboard threading, deterministic per-chunk RNG.
