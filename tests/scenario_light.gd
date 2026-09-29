@@ -84,6 +84,15 @@ func QR(x: int, y: int, w: int, h: int) -> Rect2i:
 	return Rect2i(Q(x, y), Vector2i(w, h) * D.S)
 
 
+## Mark `r` explored and put the camera on it: light is only worked out where
+## something watches, or on explored ground in view.
+func look_at(r: Rect2i) -> void:
+	for by in range(r.position.y >> 2, ((r.end.y - 1) >> 2) + 1):
+		for bx in range(r.position.x >> 2, ((r.end.x - 1) >> 2) + 1):
+			game.known[by * (D.W >> 2) + bx] = 255
+	game._center_on(r.get_center().y, true, r.get_center().x)
+
+
 func fresh() -> void:
 	game.new_game(7)
 	game.paused = true
@@ -197,6 +206,7 @@ func scenario_c() -> void:
 	gfill(QR(200, 40, 50, 64), D.STONE)
 	gfill(QR(210, 40, 3, 60), D.AIR)
 	gfill(QR(213, 94, 34, 4), D.AIR)
+	look_at(QR(200, 40, 50, 64))
 	game._refresh_vision()
 	print("  light 500 down the shaft %d, 40 into the side tunnel %d, 300 in %d" % [light_at(Q(211, 90)), light_at(Q(217, 96)), light_at(Q(243, 96))])
 	check(light_at(Q(211, 90)) == 255, "the shaft is sunlit all the way down")
@@ -215,7 +225,8 @@ func scenario_d() -> void:
 	var c = drop_in(D.B_CONDUIT, Q(61, 126))
 	check(not game.tiers_open[3], "Tier 3 isn't open yet")
 	game._refresh_vision()
-	var pool := QR(70, 122, 6, 6)       # the end of it within the Conduit's sight
+	var pool := QR(70, 124, 3, 4)       # the end of it within the Conduit's sight
+	game._center_on(pool.get_center().y, true, pool.get_center().x)
 	print("  over the pool: %.0f%% explored, %.0f%% live" % [share(game.known, pool) * 100.0, share(game.vis, pool) * 100.0])
 	check(share(game.known, pool) == 1.0, "a Conduit sees the glowing pool without a Lamp")
 	check(game.tiers_open[3], "and the lava opens Tier 3")
