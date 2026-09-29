@@ -11,6 +11,12 @@ extends RefCounted
 ## over bites from the Warren's doorstep finds what they can reach and the way to
 ## it. Mites never dig what holds the Warren up; if the ground goes anyway, the
 ## Warren falls like any building.
+##
+## Phase 8d: a mite walks and clings on its own, but the moment physics takes it
+## (it loses its grip, a blast catches it) it's a small body in the engine
+## (MITE_SIZE square, material Mite) that falls, tumbles, piles up and can be
+## thrown; once it lies still it walks again from where it landed. Rock moving into
+## a mite with MITE_CRUSH or more crushes it; less squeezes it into the next bite.
 
 const D = preload("res://scripts/defs.gd")
 
@@ -30,7 +36,7 @@ const SEARCH_SOON := 0.5    # soonest a search reruns after a bite
 const LOST_S := 8.0         # a mite that can't find its way home this long is gone
 const REVEAL_R := 3.0 * D.S # fog a mite clears where it digs
 const BURST_HOP := 2        # the next bite of a burst is at most this many bites off
-const LOSS_TEXT := {"crushed": "A mite was crushed", "drowned": "A mite drowned",
+const LOSS_TEXT := {"crushed": "A mite was crushed", "fell": "A mite fell too far", "drowned": "A mite drowned",
 		"choked": "A mite choked on fumes", "burned": "A mite burned up", "lava": "A mite fell in lava",
 		"steam": "A mite was scalded", "lost": "A mite strayed and was lost"}
 
@@ -54,6 +60,8 @@ static func bite_centre(q: Vector2i) -> Vector2:
 
 ## Where to draw a mite (its top-left cell).
 static func mite_cell(mt: Dictionary) -> Vector2:
+	if mt.body != 0:
+		return mt.fp
 	return Vector2(mt.p * BITE) + Vector2(0.5, 0.5)
 
 
@@ -72,7 +80,7 @@ static func mask(what: String) -> PackedByteArray:
 			match what:
 				"pass": hit = passable(m, false)
 				"pass_ember": hit = passable(m, true)
-				"hold": hit = m == D.BUILDING or D.is_solid(m)
+				"hold": hit = m == D.BUILDING or (D.is_solid(m) and m != D.MITE)
 				"liquid": hit = D.is_liquid(m)
 				"fire": hit = m == D.FIRE
 				"soft": hit = can_dig(m, false)
@@ -405,7 +413,8 @@ static func doorstep(b) -> Vector2i:
 
 static func new_mite(at: Vector2i) -> Dictionary:
 	return {"p": at, "state": S_HOME, "t": Vector2i(-1, -1), "path": [], "i": 0, "move": 0.0,
-			"work": 0.0, "load": {}, "burst": 0, "wet": 0.0, "choke": 0.0, "burn": 0.0, "lost": 0.0}
+			"work": 0.0, "load": {}, "burst": 0, "wet": 0.0, "choke": 0.0, "burn": 0.0, "lost": 0.0,
+			"body": 0, "fp": Vector2.ZERO, "fate": ""}
 
 
 ## How many mites this Warren keeps.
@@ -447,10 +456,15 @@ static func tick(game, b) -> void:
 	var i: int = b.mites.size() - 1
 	while i >= 0:
 		var mt: Dictionary = b.mites[i]
-		var death := _hazards(game, mt)
-		if death == "":
+		var death := _fly(game, b, mt) if mt.body != 0 else _hazards(game, mt)
+		if death == "" and mt.body == 0:
 			_step(game, b, mt, claimed)
-		else:
+			if not _gripping(game.sim, mt.p):
+				loosen(game, mt, Vector2.ZERO)
+		if death != "":
+			if mt.body != 0:
+				game.sim.remove_body(mt.body)
+				game.mite_bodies.erase(mt.body)
 			b.mites.remove_at(i)
 			b.mites_lost += 1
 			b.last_loss = death
@@ -462,9 +476,22 @@ static func tick(game, b) -> void:
 
 
 ## Whatever is killing it, or "". What's at the middle of its bite is what it's in.
+## Rock moving in (a body) crushes it, or with too little weight squeezes it into an
+## open bite beside it.
 static func _hazards(game, mt: Dictionary) -> String:
 	var sim = game.sim
 	var c := Vector2i(bite_centre(mt.p))
+	var other: int = sim.get_owner(c.x, c.y)
+	if other != 0:
+		if game.body_momentum(other) >= D.MITE_CRUSH:
+			return "crushed"
+		for o: Vector2i in N8:
+			if _open(sim, mt.p + o, game.researched.has("ember_brood")):
+				mt.p = mt.p + o
+				if mt.state != S_HOME:
+					mt.state = S_BACK
+				return ""
+		return "crushed"
 	var m: int = sim.get_cell(c.x, c.y)
 	if m == D.LAVA:
 		return "lava"
@@ -662,3 +689,67 @@ static func _arrive(game, b, mt: Dictionary) -> void:
 	mt.load = {}
 	mt.state = S_HOME
 	mt.t = Vector2i(-1, -1)
+
+
+# --- As a body ----------------------------------------------------------------------
+
+## Something solid or built within MITE_GRIP bites of this one to cling to.
+static func _gripping(sim, q: Vector2i) -> bool:
+	var r := bite_rect(q).grow(BITE * D.MITE_GRIP)
+	return sim.count_in_rect(r.position.x, r.position.y, r.size.x, r.size.y, mask("hold")) > 0
+
+
+## Physics takes the mite: it becomes a body at the foot of its bite moving at `v`
+## (cells a second). Nothing happens if there's no room for it there.
+static func loosen(game, mt: Dictionary, v: Vector2) -> void:
+	if mt.body != 0:
+		return
+	var sim = game.sim
+	var at := Vector2i(mt.p * BITE) + Vector2i(0, BITE - D.MITE_SIZE)
+	if sim.count_in_rect(at.x, at.y, D.MITE_SIZE, D.MITE_SIZE, mask("pass_ember")) < D.MITE_SIZE * D.MITE_SIZE:
+		return
+	for yy in range(at.y, at.y + D.MITE_SIZE):
+		for xx in range(at.x, at.x + D.MITE_SIZE):
+			sim.set_cell(xx, yy, D.MITE)
+	var id: int = sim.make_body(at.x, at.y, D.MITE_SIZE, D.MITE_SIZE, v.x, v.y, 0.0)
+	if id < 0:
+		for yy in range(at.y, at.y + D.MITE_SIZE):
+			for xx in range(at.x, at.x + D.MITE_SIZE):
+				sim.set_cell(xx, yy, D.AIR)
+		return
+	sim.set_creature(id, true)
+	if mt.state == S_OUT or mt.state == S_DIG:
+		mt.state = S_BACK       # its bite is someone else's now
+	mt.body = id
+	mt.fp = Vector2(at)
+	mt.fate = ""
+	game.mite_bodies[id] = mt
+
+
+## A mite that's a body: gone if the body is (shattered by its own fall, or crushed:
+## the reason is in mt.fate); walking again once it's lain still a third of a second.
+static func _fly(game, b, mt: Dictionary) -> String:
+	var sim = game.sim
+	var st: PackedFloat32Array = sim.body_state(mt.body)
+	if st.is_empty():
+		game.mite_bodies.erase(mt.body)
+		mt.body = 0
+		return mt.fate if mt.fate != "" else "fell"
+	var half := D.MITE_SIZE * 0.5
+	mt.fp = Vector2(st[0] - half, st[1] - half)
+	if mt.state == S_PANIC:
+		mt.burn -= D.DT
+		if mt.burn <= 0.0:
+			return "burned"
+	if st[8] < 20.0:
+		return ""
+	sim.remove_body(mt.body)
+	game.mite_bodies.erase(mt.body)
+	mt.body = 0
+	mt.p = bite_of(Vector2i(floori(st[0]), floori(st[1])))
+	if mt.state != S_PANIC and (mt.state != S_HOME or not mt.load.is_empty()):
+		mt.state = S_BACK       # wherever it was going, it has to find its way again
+	mt.path = []
+	mt.lost = 0.0
+	b.search_due = true
+	return ""

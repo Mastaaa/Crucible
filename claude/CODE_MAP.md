@@ -21,7 +21,9 @@ index as [Stone, Glimmer, Obsidian, Water, Power].
   chamber, deposits (coal, sulfur), `_ground` (packed dirt, sand, gravel, clay), then
   `sim.stabilize()`. `_near` reads 4x4 block masks built with native finds.
 - `scripts/warren.gd`: static helpers for the Warren, on 4x4 bites (`tick`, `search`
-  over bites with `block_counts`, mite `_step`, `_nibble` bursts).
+  over bites with `block_counts`, mite `_step`, `_nibble` bursts). As bodies (8d):
+  `_gripping`, `loosen` (a mite becomes a creature body), `_fly` (follow it; walk again
+  at rest). `game.mite_bodies` maps body ids to mites; `game.body_momentum(id)`.
 - `scripts/hud.gd`: top bar, Build list, building panel (`_rebuild_info`), alerts,
   depth ruler/minimap, Crucible panel, Help (`_build_help`), Research tab.
 - `scripts/overlay.gd`: world-space drawing: buildings, links, packets, ghosts,
@@ -69,8 +71,9 @@ sense (30), vision/light (15), Crucible.
   `building_hazards`, `segment_hazards`, `ring_counts`, `materials_in(mask)`.
 - Bodies: `set_body_params(dict)` (from `D.body_params()`), `make_body(x, y, w, h, vx, vy,
   spin)`, `body_count`, `get_bodies` (7 ints each: id, box, speed, cells), `body_state(id)`
-  (10 floats: pose, speeds, cells, age, rest), `take_impacts` (5 ints each: x, y, speed, cells,
-  hit a building), `get_owner(x, y)`, `get_bodies_made/shattered/settled`.
+  (10 floats: pose, speeds, cells, age, rest), `take_impacts` (6 ints each: x, y, speed, cells,
+  hit a building, body hit), `get_owner(x, y)`, `set_creature(id, on)` (never settles;
+  grips on contact), `remove_body(id)`, `get_bodies_made/shattered/settled`.
 - Stats: `stat_chunks`, `stat_updates`, `reactions`, `ignitions`, `eroded`, `crumbled`,
   `get_caved`, `get_washed`, `get_last_cave`, `get_tick`; `changed`/`heat_changed` flags.
 - Setup: `configure(materials, reactions)`, `set_seed`, `set_threads`.

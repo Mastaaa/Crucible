@@ -6,11 +6,10 @@ history (what shipped when, old numbers, test notes) is the root STATUS.md:
 Claude adds a section at its top each phase and doesn't need to read the rest.
 
 ## Handoff
-- Last done: phase 8c, rigid bodies. Ceilings break off in pieces that tumble and
-  shatter; falling rock crushes buildings, links and mites; falls hurt buildings;
-  Thumper collisions. On branch claude/charming-mayer-evn3ro.
-- Next: phase 8d, mites as bodies (claude/IDEAS.md entry 4), then 9 (depth).
-- Open with Alex: whether to merge 8c into main; mite pace (about 2-3x slower than v2
+- Last done: phase 8d, mites as bodies (8c, rigid bodies, is merged). On branch
+  claude/charming-mayer-evn3ro.
+- Next: phase 9, depth (heat, deeper materials, the Crucible's power draw).
+- Open with Alex: whether to merge 8d into main; mite pace (about 2-3x slower than v2
   against building size) is for phase 10.
 - Known rough edges: the screenshot scripts (bar shot_bodies), smoke_v2, flow and
   scenario_water* still use v2 coordinates; the top bar clips the Help button when the
@@ -101,6 +100,14 @@ anchored (rock, resting powder under it, or a held-up building touching; corners
 or it falls straight down (600 cells/s^2, up to 400; through liquid at most 100) and
 relinks where it lands; past 200 cells/s it's hurt, up to 75% of its HP at 400, and so
 is a building it lands on. Placement ghosts snap to legal spots within 50.
+
+Mites (8d): a mite walks and clings on its own (warren.gd); when it has nothing within two
+bites to cling to, or a blast reaches it, it becomes a 3x3 body of material Mite (a
+creature body: it never turns into ground) that falls, tumbles and piles up, and once
+it's lain still a third of a second it walks again from the bite it's in (heading home).
+A landing faster than 480 cells/s (a fall of about 130 cells) kills it; on contact it
+grips (no rolling); a body moving into it with
+3000 or more (cells x cells/s) crushes it, less squeezes it into an open bite beside.
 
 Hazards: water drowns Conduits, lava destroys them, steam scalds them; fire, corrosion
 (sulfur) and lava hurt buildings; blasts hurt nearby buildings and links; falling rock

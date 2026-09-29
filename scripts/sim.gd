@@ -975,3 +975,11 @@ func get_owner(_x: int, _y: int) -> int:
 
 func body_state(_id: int) -> PackedFloat32Array:
 	return PackedFloat32Array()
+
+
+func set_creature(_id: int, _on: bool) -> bool:
+	return false
+
+
+func remove_body(_id: int) -> bool:
+	return false

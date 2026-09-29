@@ -88,7 +88,9 @@ spit, oil blood), with some ways to defend against them. Mainly for pace disrupt
 ---
 
 ## 4. Mites as rigid bodies (logged 2026-09-28)
-Rough phase: 8c (Rigid bodies) or right after it.
+Done in phase 8d, as a hybrid: walking and clinging stay the creature's own; physics
+(falling, throws, crushing, piling up) takes over whenever it loses its grip or is hit,
+and hands it back once it lies still. Kept below for the reasoning.
 
 **Alex:** Once rigid-body physics is in, mites should become rigid bodies by default instead of
 "very smart pixels".

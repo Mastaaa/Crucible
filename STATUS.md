@@ -4,6 +4,26 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## Phase 8d done: mites as bodies (9, depth, is next)
+
+Tests: nine suites end `FAILURES: 0`; scenario_bodies has a mites section. The engine
+changed: close Godot before pulling, restart after.
+- A mite walks and clings as before. When it has nothing within two bites to hold on to
+  (the ground it clung to caved in or was dug away) or a blast reaches it, it becomes
+  a small body (3x3 cells of a new material, Mite): it falls, tumbles, piles up and
+  gets thrown, then walks again from where it lands once it's still, heading home.
+- Landing faster than 480 cells/s (a fall of about 130 cells) kills it ("A mite fell too
+  far"); a burning one keeps burning in the air. Seed 7's buried chamber now takes 81 s
+  (76 before; a mite or two falls off the dome's roof as it's eaten away), the marker
+  circle 228 s.
+- Rock crushes a mite by weight and speed: 3000 or more (cells x cells/s; a 20-cell
+  pebble at 150) crushes it, less squeezes it into the next open bite. Mites never
+  crush each other.
+- Engine: creature bodies never turn back into ground and grip on contact (no
+  rolling); `remove_body`; impacts say which body was hit.
+- Walking and clinging stay the mite's own rather than physical: a physical mite can't
+  climb a ceiling, and 3x3 bodies in 4-wide tunnels would jam against each other.
+
 ## Phase 8c done: rigid bodies (8d, mites as bodies, is next)
 
 Tests: nine suites (`bash native/run_tests.sh`, about 7 minutes, now with

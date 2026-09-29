@@ -10,6 +10,8 @@ extends SceneTree
 ##  F. a building falling far is hurt, a short way or into water it isn't
 ##  G. Thumper collisions: thrown hard into a wall or up into a ceiling it's hurt,
 ##     launched at a blast's speed it isn't
+##  H. mites as bodies (8d): one that loses its grip falls, lands and walks again;
+##     one that falls far dies; a slab crushes one; a blast throws one
 ## Run: godot --headless --path . --script tests/scenario_bodies.gd
 
 const D = preload("res://scripts/defs.gd")
@@ -39,6 +41,7 @@ func _process(_d: float) -> bool:
 		scenario_e()
 		scenario_f()
 		scenario_g()
+		scenario_h()
 		print("FAILURES: %d" % fails)
 		return true
 	return false
@@ -291,3 +294,78 @@ func scenario_g() -> void:
 	print("  launched into a ceiling 40 up: at a blast's speed %.0f HP, at 450 %.0f HP" % [soft, t.hp])
 	check(soft == t.max_hp, "a blast's launch into a low ceiling doesn't hurt it")
 	check(t.hp < soft, "a hard one does")
+
+
+## A Warren on the floor of a bedrock room (nothing it can dig, so its mites idle
+## on the doorstep), and its first mite put in bite `q`.
+func mite_room(room: Rect2i, q: Vector2i) -> Array:
+	fresh()
+	arena(room)
+	var sz: Vector2i = D.B_SIZES[D.B_WARREN]
+	var w = put_built(D.B_WARREN, Rect2i(room.position.x + 10, room.end.y - sz.y, sz.x, sz.y))
+	game.run_ticks(3)
+	if w.mites.is_empty():
+		print("  !! no mites bred")
+		fails += 1
+		return [w, {}]
+	var mt: Dictionary = w.mites[0]
+	mt.p = q
+	mt.state = WR.S_HOME
+	return [w, mt]
+
+
+## Run until mite `mt` is walking again (not a body), dead, or `limit` seconds pass;
+## the fastest it went sideways as a body.
+func until_down(w, mt: Dictionary, limit: float) -> float:
+	var vx := 0.0
+	for _i in int(limit * 60.0):
+		game.run_ticks(1)
+		if mt.body != 0:
+			var st: PackedFloat32Array = game.sim.body_state(mt.body)
+			if st.size() > 0:
+				vx = maxf(vx, absf(st[3]))
+		if not w.mites.has(mt) or (mt.body == 0 and game.ticks > 10):
+			break
+	return vx
+
+
+func scenario_h() -> void:
+	print("H. mites as bodies")
+	var room := Rect2i(200, 4700, 300, 300)
+	var floor_y := room.end.y
+	var pair := mite_room(room, WR.bite_of(Vector2i(400, floor_y - 30)))
+	var w = pair[0]
+	var mt: Dictionary = pair[1]
+	game.run_ticks(2)
+	var was_body: bool = mt.body != 0
+	until_down(w, mt, 3.0)
+	print("  let go 30 up: became a body %s; now at bite %s (floor at bite row %d), a body %s, alive %s" % [was_body,
+			mt.p, (floor_y >> WR.BSHIFT) - 1, mt.body != 0, w.mites.has(mt)])
+	check(was_body and w.mites.has(mt) and mt.body == 0 and mt.p.y >= (floor_y >> WR.BSHIFT) - 2,
+			"a mite with nothing to cling to falls as a body, lands, and walks again")
+
+	pair = mite_room(room, WR.bite_of(Vector2i(400, room.position.y + 10)))
+	w = pair[0]
+	mt = pair[1]
+	until_down(w, mt, 4.0)
+	print("  let go 290 up: alive %s, last loss '%s'" % [w.mites.has(mt), w.last_loss])
+	check(not w.mites.has(mt) and w.last_loss == "fell", "one that falls far dies of it")
+
+	pair = mite_room(room, WR.bite_of(Vector2i(400, floor_y - 2)))
+	w = pair[0]
+	mt = pair[1]
+	game.run_ticks(5)
+	var clinging: bool = mt.body == 0 and w.mites.has(mt)
+	slab(Rect2i(380, room.position.y + 10, 40, 12), D.STONE)
+	secs(3.0)
+	print("  on the floor under a falling slab: clinging first %s, alive %s, last loss '%s'" % [clinging, w.mites.has(mt), w.last_loss])
+	check(clinging and not w.mites.has(mt) and w.last_loss == "crushed", "a slab landing on a mite crushes it")
+
+	pair = mite_room(room, WR.bite_of(Vector2i(400, floor_y - 2)))
+	w = pair[0]
+	mt = pair[1]
+	game.run_ticks(5)
+	game.blast(Vector2i(380, floor_y - 3), 40.0, 3)
+	var thrown := until_down(w, mt, 4.0)
+	print("  a blast 20 off: thrown at up to %.0f cells/s sideways; alive %s, walking again %s" % [thrown, w.mites.has(mt), mt.body == 0])
+	check(thrown > 60.0 and w.mites.has(mt) and mt.body == 0, "a blast throws a mite, and it lands and walks on")

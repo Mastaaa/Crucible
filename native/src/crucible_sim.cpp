@@ -2590,6 +2590,8 @@ void CrucibleSim::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_bodies_shattered"), &CrucibleSim::get_bodies_shattered);
 	ClassDB::bind_method(D_METHOD("get_bodies_settled"), &CrucibleSim::get_bodies_settled);
 	ClassDB::bind_method(D_METHOD("get_owner", "x", "y"), &CrucibleSim::get_owner);
+	ClassDB::bind_method(D_METHOD("set_creature", "id", "on"), &CrucibleSim::set_creature);
+	ClassDB::bind_method(D_METHOD("remove_body", "id"), &CrucibleSim::remove_body);
 	ClassDB::bind_method(D_METHOD("set_threads", "n"), &CrucibleSim::set_threads);
 	ClassDB::bind_method(D_METHOD("set_fall", "accel", "max_speed"), &CrucibleSim::set_fall);
 	ClassDB::bind_method(D_METHOD("get_threads"), &CrucibleSim::get_threads);

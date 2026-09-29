@@ -80,9 +80,11 @@ uncover elements, deposits and curios; exploit reactions or get blindsided by th
    - Ceilings break off in pieces (crawlspaces still crumble).
    - Falling rock crushes buildings, links and mites; falls hurt buildings; Thumper collisions.
 
-8d. Mites as bodies (claude/IDEAS.md entry 4): next.
+8d. Mites as bodies: done. A mite walks and clings as before; when it loses its grip or a
+   blast catches it, it's a small engine body that falls, tumbles and piles up, then walks
+   again from where it lands. Rock crushes it by weight and speed; a long fall kills it.
 
-9. Depth: heat, deeper materials, Crucible power draw.
+9. Depth: heat, deeper materials, Crucible power draw. Next.
 
 10. Pacing: incremental curve, bot, tuning.
 
@@ -105,6 +107,8 @@ uncover elements, deposits and curios; exploit reactions or get blindsided by th
   buildings that lose footing fall, take fall damage and relink where they land; chunks
   crush buildings, links and mites by mass and speed. Buildings stay upright boxes.
 - Falling has speed (free fall); mites are small and nibble 4x4 bites in bursts of up to 8.
+- Mites (8d) are creature-controlled while they cling and bodies (3x3, material Mite) while
+  physics has them; the switch is automatic both ways.
 - Thumper: holds a reserve and links when it lands near a relay; the player can drag and throw it (hitting
   rock or a building sideways or upward past 300 cells/s hurts both; landing never does); it yields debris
   only, for Hoppers. Thumper and Borer are Tier 1.

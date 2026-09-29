@@ -35,7 +35,7 @@ using crucible::roll;
 
 namespace {
 
-constexpr uint8_t AIR = 0, BUILDING = 5;
+constexpr uint8_t AIR = 0, BEDROCK = 1, BUILDING = 5;
 constexpr float RESTITUTION = 0.2f;
 constexpr float FRICTION = 0.5f;
 constexpr float LIQUID_MAX = 1.6f; // cells a tick: the fastest anything sinks through liquid
@@ -58,6 +58,7 @@ void CrucibleSim::set_body_params(const Dictionary &p) {
 	shatter_base = (float)(num("shatter", shatter_base * 60.0) / 60.0);
 	shatter_per = (float)(num("shatter_per_durability", shatter_per * 60.0) / 60.0);
 	crush_min = (float)(num("crush_min", crush_min * 60.0) / 60.0);
+	creature_tough = (float)(num("creature_shatter", creature_tough * 60.0) / 60.0);
 	body_min = std::max(1, (int)num("min_cells", body_min));
 	piece_min = std::max(RUN_MIN, (int)num("piece_min", piece_min));
 	piece_max = std::max(piece_min, (int)num("piece_max", piece_max));
@@ -76,7 +77,7 @@ int CrucibleSim::make_body(int x, int y, int w, int h, double vx, double vy, dou
 		for (int xx = std::max(2, x); xx < std::min(W - 2, x + w); xx++) {
 			int i = yy * W + xx;
 			const Mat &M = mats[cells[i]];
-			if (M.kind == K_STATIC && cells[i] != BUILDING && M.durability < 255 && owner[i] == 0) {
+			if (M.kind == K_STATIC && cells[i] != BUILDING && cells[i] != BEDROCK && owner[i] == 0) {
 				list.push_back(i);
 			}
 		}
@@ -138,8 +139,9 @@ PackedFloat32Array CrucibleSim::body_state(int id) const {
 	return out;
 }
 
-// Impacts since last asked: x, y, speed (cells a second), the body's cells, and 1
-// if what it hit there was a building (x, y are then in the building).
+// Impacts since last asked: x, y, speed (cells a second), the body's cells, 1 if
+// what it hit there was a building (x, y are then in the building), and the id of
+// the body it hit (0 if none).
 PackedInt32Array CrucibleSim::take_impacts() {
 	PackedInt32Array out;
 	out.resize((int64_t)impacts.size());
@@ -155,6 +157,35 @@ int CrucibleSim::get_owner(int x, int y) const {
 		return 0;
 	}
 	return owner[y * W + x];
+}
+
+// Body `id` is a creature (a mite): it never turns back into ground, and at rest it
+// just lies still (body_state says how long) for the game to take back. False if
+// there's no such body.
+bool CrucibleSim::set_creature(int id, bool on) {
+	for (Body &b : bodies) {
+		if (b.id == id) {
+			b.creature = on;
+			if (on) {
+				b.toughness = creature_tough;
+			}
+			return true;
+		}
+	}
+	return false;
+}
+
+// Lift body `id` out of the grid (its cells go back to air) and forget it. False if
+// there's no such body.
+bool CrucibleSim::remove_body(int id) {
+	for (size_t k = 0; k < bodies.size(); k++) {
+		if (bodies[k].id == id) {
+			unstamp(bodies[k]);
+			bodies.erase(bodies.begin() + (long)k);
+			return true;
+		}
+	}
+	return false;
 }
 
 void CrucibleSim::clear_bodies() {
@@ -524,7 +555,11 @@ bool CrucibleSim::body_tick(Body &b) {
 		Contact c;
 		overlap(b, b.x, b.y, b.a, skip, c, &skip);
 		if ((int)skip.size() > SKIP_MAX) {
-			settle_body(b);
+			if (b.creature) {
+				shatter(b); // a mite wedged into rock is crushed
+			} else {
+				settle_body(b);
+			}
 			return false;
 		}
 	}
@@ -585,7 +620,7 @@ bool CrucibleSim::body_tick(Body &b) {
 		b.ay = b.y;
 		b.aa = b.a;
 	}
-	if (b.rest >= REST_TICKS || b.age >= MAX_AGE) {
+	if (!b.creature && (b.rest >= REST_TICKS || b.age >= MAX_AGE)) {
 		settle_body(b);
 		return false;
 	}
@@ -640,6 +675,9 @@ bool CrucibleSim::overlap(const Body &b, float x, float y, float a, const std::v
 				}
 			}
 		}
+		if (gi >= 0 && c.other == 0 && owner[gi]) {
+			c.other = owner[gi];
+		}
 		if (gi >= 0 && cells[gi] == BUILDING) {
 			c.nb++;
 			c.bx += px;
@@ -668,18 +706,24 @@ bool CrucibleSim::body_hit(Body &b, const Contact &c, float &nx, float &ny) {
 		ny /= len;
 	}
 	b.last_hit = b.age;
+	if (b.creature) {
+		// A mite scrabbles for a hold: it doesn't roll, and it drags.
+		b.spin *= 0.3f;
+		b.vx *= 0.8f;
+	}
 	float vn = vcx * nx + vcy * ny;
 	if (vn >= 0.0f) {
 		return true; // already parting there: a pixel off to one side turned into it
 	}
 	float speed = -vn;
-	if (speed >= crush_min && impacts.size() < 5 * 256) {
+	if (speed >= crush_min && impacts.size() < 6 * 256) {
 		bool bld = c.nb > 0;
 		impacts.push_back((int)std::floor(bld ? c.bx / c.nb : px));
 		impacts.push_back((int)std::floor(bld ? c.by / c.nb : py));
 		impacts.push_back((int)(speed * 60.0f));
 		impacts.push_back(b.count);
 		impacts.push_back(bld ? 1 : 0);
+		impacts.push_back(c.other);
 	}
 	if (speed > b.toughness) {
 		restamp(b); // where it hit, not where it was last drawn

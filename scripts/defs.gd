@@ -56,6 +56,7 @@ const PACKED_DIRT := 29
 const GRAVEL := 30
 const SAND := 31
 const CLAY := 32
+const MITE := 33          # a mite that's a body (thrown, falling, tumbling): phase 8d
 
 static func mat_name(m: int) -> String:
 	return M.name_of(m)
@@ -274,6 +275,14 @@ const MITE_MOVE_PER_S := 10.0 * S    # cells a second along a surface
 const MITE_DROWN_S := 5.0            # under liquid this long and it drowns
 const MITE_CHOKE_S := 5.0            # in fumes this long and it chokes
 const MITE_BURN_S := 3.0             # alight this long, running and lighting what it brushes, then dead
+# Mites as bodies (phase 8d): a mite walks and clings on its own, and turns into a
+# MITE_SIZE-square body the moment physics takes it (it loses its grip, a blast
+# catches it); it walks again once it lies still. Anything moving into it with at
+# least MITE_CRUSH (cells of it x cells a second) crushes it; less squeezes it aside.
+const MITE_SIZE := 3
+const MITE_CRUSH := 3000.0          # a 20-cell pebble at 150; a falling mite (9 cells) never does
+const MITE_FALL_V := 480.0          # landing faster than this kills one (a fall of about 130 cells)
+const MITE_GRIP := 2                # bites off it can reach to cling to
 const MITE_SOFT := [DIRT, LOOSE_DIRT, RUBBLE, COAL_CHUNKS, ASH, SAND, GRAVEL]   # Tier 1
 const MITE_HARD := [STONE, GLIMMER, COAL, GLIMMER_SHARDS, OBSIDIAN_SHARDS, PACKED_DIRT, CLAY]   # added by Hard Teeth
 # Settling: when a building digs a cell out, the solid cells round it hold still
@@ -490,4 +499,5 @@ static func body_params() -> Dictionary:
 	return {"accel": SIM_FALL_ACCEL, "max_speed": SIM_FALL_MAX, "shatter": BODY_SHATTER,
 			"shatter_per_durability": BODY_SHATTER_PER_DUR, "crush_min": CRUSH_MIN_V,
 			"min_cells": BODY_MIN_CELLS, "piece_min": PIECE_WIDTH.x, "piece_max": PIECE_WIDTH.y,
-			"thick_min": PIECE_THICK.x, "thick_max": PIECE_THICK.y, "piece_room": PIECE_ROOM, "pieces": true}
+			"thick_min": PIECE_THICK.x, "thick_max": PIECE_THICK.y, "piece_room": PIECE_ROOM, "pieces": true,
+			"creature_shatter": MITE_FALL_V}

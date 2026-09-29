@@ -91,6 +91,9 @@ var link_list: Array = []         # buildings whose link is checked
 var fallers: Array = []           # buildings falling right now
 var fliers: Array = []            # Thumpers in the air, or being dragged
 var crushed := {}                 # body id -> {link key: true} for the links it has already hit
+var mite_bodies := {}             # body id -> the mite (Dictionary) that is that body
+var body_seen := {}               # body id -> cells x speed, as of body_seen_tick
+var body_seen_tick := -1
 var scan_stale := false           # a mover changed its link: rebuild the scan lists soon
 var by_id := {}                   # building id -> building, rebuilt with the scan cache
 var still_lights := PackedInt32Array()  # lights and sights that don't move or switch, with the cache
@@ -326,6 +329,9 @@ func new_game(s: int) -> void:
 	fallers.clear()
 	fliers.clear()
 	crushed.clear()
+	mite_bodies.clear()
+	body_seen.clear()
+	body_seen_tick = -1
 	scan_stale = false
 	scan_dirty = true
 	send_log.clear()
@@ -894,10 +900,15 @@ func _cave_ins(n: int) -> void:
 
 
 ## Rigid bodies (pieces of ground falling): a building one lands on is hurt by its
-## mass and speed; links it crosses fast are worn (every third tick).
+## mass and speed, a mite (as a body) is crushed by enough of both; links it crosses
+## fast are worn (every third tick).
 func _bodies() -> void:
 	var hits: PackedInt32Array = sim.take_impacts()
-	for k in range(0, hits.size(), 5):
+	for k in range(0, hits.size(), 6):
+		var mt = mite_bodies.get(hits[k + 5])
+		if mt != null and hits[k + 2] * hits[k + 3] >= D.MITE_CRUSH:
+			mt.fate = "crushed"
+			sim.remove_body(hits[k + 5])
 		if hits[k + 4] == 0:
 			continue
 		var b := building_at(Vector2i(hits[k], hits[k + 1]))
@@ -941,6 +952,17 @@ func _crush_links() -> void:
 			crushed.erase(id)
 
 
+## Cells x speed (cells a second) of body `id` this tick; 0 if there's no such body.
+func body_momentum(id: int) -> float:
+	if body_seen_tick != ticks:
+		body_seen_tick = ticks
+		body_seen.clear()
+		var bl: PackedInt32Array = sim.get_bodies()
+		for k in range(0, bl.size(), 7):
+			body_seen[bl[k]] = float(bl[k + 5] * bl[k + 6])
+	return body_seen.get(id, 0.0)
+
+
 static func _segment_hits_rect(a: Vector2, b: Vector2, r: Rect2) -> bool:
 	if minf(a.x, b.x) > r.end.x or maxf(a.x, b.x) < r.position.x or minf(a.y, b.y) > r.end.y or maxf(a.y, b.y) < r.position.y:
 		return false
@@ -976,6 +998,10 @@ func _destroy(b: Building, cause: String) -> void:
 
 func _remove(b: Building, fill: int) -> void:
 	b.dead = true
+	for mt: Dictionary in b.mites:
+		if mt.body != 0:
+			sim.remove_body(mt.body)
+			mite_bodies.erase(mt.body)
 	if b.type == D.B_STRUT:
 		_strut_hold(b, -1)
 	for yy in range(b.y, b.y + b.h):
@@ -2299,8 +2325,15 @@ func _link_scan(dt: float) -> void:
 ## debris; buildings and links nearby take damage by distance.
 ## `source` (a Thumper) is spared, and so is its own link.
 func blast(at: Vector2i, radius: float, power: int, source: Building = null) -> int:
-	var broke: int = sim.explode(at.x, at.y, radius, power)
 	var p := Vector2(at) + Vector2(0.5, 0.5)
+	# Mites it reaches become bodies first, so it throws them.
+	for w: Building in buildings:
+		if w.type != D.B_WARREN or w.dead:
+			continue
+		for mt: Dictionary in w.mites:
+			if mt.body == 0 and WR.bite_centre(mt.p).distance_to(p) <= radius + WR.BITE:
+				WR.loosen(self, mt, Vector2.ZERO)
+	var broke: int = sim.explode(at.x, at.y, radius, power)
 	for b: Building in buildings.duplicate():
 		if b.dead or b.type == D.B_HUB or b.type == D.B_CRUCIBLE or b.fixed or b == source:
 			continue

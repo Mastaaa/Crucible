@@ -159,6 +159,7 @@ public:
 		std::vector<int32_t> at; // grid cells it's stamped into
 		std::vector<int32_t> from; // ... and the pixel each came from
 		float ax = 0, ay = 0, aa = 0; // where it was when it last started being still
+		bool creature = false; // a mite: never turns back into ground (the game takes it back when it's still)
 		int age = 0, rest = 0, last_hit = -100;
 	};
 
@@ -168,6 +169,7 @@ public:
 		float gx = 0, gy = 0; // which way the ground they hit lies
 		int nb = 0; // ... of them in a building
 		float bx = 0, by = 0;
+		int other = 0; // a body it ran into (the first seen), or 0
 	};
 
 	// Dirty rectangles, one per chunk.
@@ -231,12 +233,13 @@ private:
 	std::vector<Body> bodies;
 	std::vector<uint16_t> owner; // the body a cell belongs to (0: none)
 	int next_body_id = 1;
-	std::vector<int32_t> impacts; // x, y, speed (cells a second), mass, hit a building: 5 per hit
+	std::vector<int32_t> impacts; // x, y, speed (cells a second), mass, hit a building, body hit: 6 per hit
 	float body_g = 0.25f; // cells a tick, per tick
 	float body_max = 10.0f; // cells a tick
 	float shatter_base = 1.5f; // impact speed (cells a tick) that breaks a body up...
 	float shatter_per = 0.33f; // ... plus this per point of its ground's durability
 	float crush_min = 1.0f; // slower impacts than this aren't reported
+	float creature_tough = 8.0f; // impact speed (cells a tick) that kills a creature
 	int body_min = 12; // pieces smaller than this crumble instead
 	int piece_min = 24, piece_max = 64; // how wide a piece breaking off a ceiling is
 	int thick_min = 6, thick_max = 20; // ... and how thick
@@ -429,6 +432,8 @@ public:
 	int get_bodies_shattered() const { return bodies_shattered; }
 	int get_bodies_settled() const { return bodies_settled; }
 	int get_owner(int x, int y) const;
+	bool set_creature(int id, bool on);
+	bool remove_body(int id);
 
 	void set_threads(int n);
 	void set_fall(double accel, double max_speed);
