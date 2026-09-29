@@ -928,6 +928,10 @@ void CrucibleSim::gas(Ctx &cx, int i, int x, int y, uint8_t m, int d, uint32_t r
 	}
 	if (M.age_to >= 0 && M.age_chance > 0 && ((r >> 17) % M.age_chance) == 0) {
 		uint8_t to = (uint8_t)M.age_to;
+		// Condensing, some of it disperses instead: expires_alt, with alt_chance.
+		if (mats[to].kind != K_GAS && M.expires_alt >= 0 && roll(cx.rng, M.alt_chance)) {
+			to = (uint8_t)M.expires_alt;
+		}
 		cells[i] = to;
 		cx.changed = true;
 		if (mats[to].kind != K_GAS) {

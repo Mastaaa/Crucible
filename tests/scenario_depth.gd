@@ -385,3 +385,18 @@ func scenario_h() -> void:
 	game.stock[D.R_WATER] = 0.0
 	secs(3.0)
 	check(b.hp < b.max_hp, "with the tank dry it burns (%d of %d)" % [int(b.hp), int(b.max_hp)])
+	# Water standing on a jacketed Borer goes into its tank (its own steam condensing
+	# back down a shaft).
+	fresh()
+	research("borer")
+	research("coolant_jacket")
+	game.stock[D.R_WATER] = 0.0
+	arena(room)
+	b = put_built(D.B_BORER, cell)
+	b.enabled = false
+	b.coolant = 0.0
+	var wet := Rect2i(cell.position.x, cell.position.y - 10, 30, 10)
+	fill(wet, D.WATER)
+	secs(2.0)
+	check(b.coolant > 0.8 * wet.get_area() / D.CELLS_PER_UNIT and count(room, D.WATER) < 0.2 * wet.get_area(),
+			"water poured on a jacketed Borer ends up in its tank (%.2f of %.2f)" % [b.coolant, wet.get_area() / D.CELLS_PER_UNIT])

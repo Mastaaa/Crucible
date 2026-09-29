@@ -198,8 +198,8 @@ const GATE_POWER := 1.0
 const LAMP_POWER_PER_S := 0.1
 const WHEEL_POWER_PER_CELL := 0.08 / (S * S)
 const WHEEL_CELLS_PER_S := 25.0 * S * S   # most water a Waterwheel passes a second (2 power/s)
-const TURBINE_POWER_PER_CELL := 0.2 / (S * S)   # v2's numbers: 0.2 a cell, up to 4/s
-const TURBINE_CELLS_PER_S := 20.0 * S * S        # the most it takes; steam rising under a 40-wide core
+const TURBINE_POWER_PER_CELL := 0.4 / (S * S)   # 4/s from the ~1000 cells/s a room of steam pushes through it (phase 10)
+const TURBINE_CELLS_PER_S := 10.0 * S * S        # the most it takes: its 4/s
                                                   # gives about half that (2 power/s)
 const GEN_BUFFER := 20.0            # power a generator holds before the rest goes to the Hub
 const CACHE_CAP := 60.0
@@ -266,7 +266,7 @@ const DRAG_SPEED := 45.0 * S        # fastest a dragged Thumper follows the curs
 const FLY_WATER_MAX := 10.0 * S     # fastest anything sinks through liquid
 # Borer: grinds the rock in front of it at BORER_SPEED of full pace, moves into
 # the space, runs on its reserve out past the network.
-const BORER_SPEED := 0.5
+const BORER_SPEED := 0.3             # phase 10: 0.5 made the mid-game a sprint
 const BORER_MOVE_PER_S := 8.0 * S   # cells a second through open space
 const BORER_MOVE_POWER := 0.02 / S  # power per cell moved
 const BORER_RESERVES := [30.0, 50.0, 80.0, 120.0]   # by Borer Cells level
@@ -287,9 +287,9 @@ const WARREN_BREED_S := 20.0         # a replacement mite every this long
 const WARREN_BREED_COST := 1.0       # Stone, taken from the Hub or a Cache like a blueprint
 const WARREN_POWER_FRAC := 0.5       # power per cell dug, of the Drill's base rate
 const WARREN_REACH_MARGIN := 3 * S   # mites path through open cells this far outside the zone
-const MITE_SPEED := 2.0              # of full pace, nibbling a cell
+const MITE_SPEED := 4.0              # of full pace, nibbling a cell (phase 10: v2's pace against building size)
 const MITE_BURST := 8                # bites (4 x 4 cells) nibbled out a trip before hauling them home
-const MITE_MOVE_PER_S := 10.0 * S    # cells a second along a surface
+const MITE_MOVE_PER_S := 20.0 * S    # cells a second along a surface
 const MITE_DROWN_S := 5.0            # under liquid this long and it drowns
 const MITE_CHOKE_S := 5.0            # in fumes this long and it chokes
 const MITE_BURN_S := 3.0             # alight this long, running and lighting what it brushes, then dead
@@ -358,73 +358,73 @@ const TIER_FOUND := ["", "", "Glimmer", "Lava", "The Crucible"]
 # Upgrades have "levels" instead of one cost: each level is researched in turn,
 # costs more than the last and may want a later tier open.
 const TECHS := [
-	{"id": "waterwheel", "name": "Waterwheel", "tier": 1, "needs": [], "power": 60, "building": B_WATERWHEEL,
+	{"id": "waterwheel", "name": "Waterwheel", "tier": 1, "needs": [], "power": 180, "building": B_WATERWHEEL,
 		"text": "Generator: power from water falling through it."},
-	{"id": "spout", "name": "Spout", "tier": 1, "needs": [], "power": 80, "building": B_SPOUT,
+	{"id": "spout", "name": "Spout", "tier": 1, "needs": [], "power": 240, "building": B_SPOUT,
 		"text": "Releases stockpiled Water where you put it."},
-	{"id": "cache", "name": "Cache", "tier": 1, "needs": [], "power": 60, "building": B_CACHE,
+	{"id": "cache", "name": "Cache", "tier": 1, "needs": [], "power": 180, "building": B_CACHE,
 		"text": "Storage for power and materials out at the front."},
-	{"id": "lamp", "name": "Lamp", "tier": 1, "needs": [], "power": 40, "building": B_LAMP,
+	{"id": "lamp", "name": "Lamp", "tier": 1, "needs": [], "power": 120, "building": B_LAMP,
 		"text": "Lights 200 cells round it for 0.1 power/s. Everywhere else underground stays dark."},
-	{"id": "thumper", "name": "Thumper", "tier": 1, "needs": [], "power": 50, "building": B_THUMPER,
+	{"id": "thumper", "name": "Thumper", "tier": 1, "needs": [], "power": 150, "building": B_THUMPER,
 		"text": "Blasts the ground under it every few seconds and throws itself up. Drag it anywhere; Hoppers catch the rubble."},
-	{"id": "borer", "name": "Borer", "tier": 1, "needs": [], "power": 150, "building": B_BORER,
+	{"id": "borer", "name": "Borer", "tier": 1, "needs": [], "power": 450, "building": B_BORER,
 		"text": "A digger you point and let go: it tunnels until its power runs out or it meets something it can't cut."},
-	{"id": "warren", "name": "Warren", "tier": 1, "needs": [], "power": 100, "building": B_WARREN,
+	{"id": "warren", "name": "Warren", "tier": 1, "needs": [], "power": 300, "building": B_WARREN,
 		"text": "Mites dig a chamber round the Warren, then tunnel toward a marker you set (soft ground only)."},
-	{"id": "strut", "name": "Strut", "tier": 1, "needs": [], "power": 60, "building": B_STRUT,
+	{"id": "strut", "name": "Strut", "tier": 1, "needs": [], "power": 180, "building": B_STRUT,
 		"text": "A beam across a gap, rock to rock (up to 160 cells). It props what rests on it and holds rock within 50 cells of each end."},
-	{"id": "floodgate", "name": "Floodgate", "tier": 2, "needs": ["spout"], "power": 120, "mats": [0, 5, 0, 0, 0],
+	{"id": "floodgate", "name": "Floodgate", "tier": 2, "needs": ["spout"], "power": 480, "mats": [0, 10, 0, 0, 0],
 		"building": B_FLOODGATE, "text": "A Bulkhead that opens and closes on a sensor."},
-	{"id": "relay_mast", "name": "Relay Mast", "tier": 2, "needs": ["cache"], "power": 120, "mats": [0, 10, 0, 0, 0],
+	{"id": "relay_mast", "name": "Relay Mast", "tier": 2, "needs": ["cache"], "power": 480, "mats": [0, 20, 0, 0, 0],
 		"building": B_MAST, "text": "A Conduit on a mast that links 280 cells instead of 160."},
-	{"id": "homing", "name": "Homing", "tier": 2, "needs": ["borer"], "power": 180, "mats": [0, 8, 0, 0, 0],
+	{"id": "homing", "name": "Homing", "tier": 2, "needs": ["borer"], "power": 720, "mats": [0, 16, 0, 0, 0],
 		"text": "A Borer at half power heads back the way it came, recharges, then goes back to work."},
-	{"id": "sounding", "name": "Sounding", "tier": 2, "needs": ["warren"], "power": 100, "mats": [0, 5, 0, 0, 0],
+	{"id": "sounding", "name": "Sounding", "tier": 2, "needs": ["warren"], "power": 400, "mats": [0, 10, 0, 0, 0],
 		"text": "Mites leave a 10-cell skin against any liquid."},
-	{"id": "hard_teeth", "name": "Hard Teeth", "tier": 2, "needs": ["warren"], "power": 150, "mats": [0, 10, 0, 0, 0],
+	{"id": "hard_teeth", "name": "Hard Teeth", "tier": 2, "needs": ["warren"], "power": 600, "mats": [0, 20, 0, 0, 0],
 		"text": "Mites dig stone, glimmer and coal; chamber, marker circle and marker range 1.5x larger."},
-	{"id": "obsidian_saw", "name": "Obsidian Saw", "tier": 3, "needs": ["hard_teeth", "borer"], "any": true, "power": 250,
-		"mats": [0, 12, 0, 0, 0], "text": "The Drill and Borers cut obsidian. Until then it stops them."},
-	{"id": "steam_turbine", "name": "Steam Turbine", "tier": 3, "needs": ["waterwheel"], "power": 250, "mats": [0, 15, 0, 0, 0],
+	{"id": "obsidian_saw", "name": "Obsidian Saw", "tier": 3, "needs": ["hard_teeth", "borer"], "any": true, "power": 1000,
+		"mats": [0, 24, 0, 0, 0], "text": "The Drill and Borers cut obsidian. Until then it stops them."},
+	{"id": "steam_turbine", "name": "Steam Turbine", "tier": 3, "needs": ["waterwheel"], "power": 1000, "mats": [0, 30, 0, 0, 0],
 		"building": B_TURBINE, "text": "Generator: power from steam rising through it."},
-	{"id": "ember_brood", "name": "Ember Brood", "tier": 3, "needs": ["hard_teeth"], "power": 250, "mats": [0, 15, 0, 0, 0],
+	{"id": "ember_brood", "name": "Ember Brood", "tier": 3, "needs": ["hard_teeth"], "power": 1000, "mats": [0, 30, 0, 0, 0],
 		"text": "5 mites per Warren; they dig hot rock and walk through fire (lava still kills them)."},
-	{"id": "coolant_jacket", "name": "Coolant Jacket", "tier": 3, "needs": ["borer"], "power": 250, "mats": [0, 15, 0, 0, 0],
-		"text": "The Drill and Borers cut hot rock, for 1 Water per 2000 cells, all of it vented as steam behind them. A jacketed Borer shrugs off lava while its tank has water, and both quench lava they face into obsidian, a cell of water a cell."},
-	{"id": "tremor_dampers", "name": "Tremor Dampers", "tier": 4, "needs": ["obsidian_saw", "strut"], "power": 300,
+	{"id": "coolant_jacket", "name": "Coolant Jacket", "tier": 3, "needs": ["borer"], "power": 1000, "mats": [0, 30, 0, 0, 0],
+		"text": "The Drill and Borers cut hot rock, for 1 Water per 2000 cells, all of it vented as steam behind them. A jacketed Borer shrugs off lava while its tank has water, and both quench lava they face into obsidian, a cell of water a cell. Water that lands on a jacketed Borer goes into its tank."},
+	{"id": "tremor_dampers", "name": "Tremor Dampers", "tier": 4, "needs": ["obsidian_saw", "strut"], "power": 1200,
 		"mats": [0, 0, 20, 0, 0], "text": "Tremors crumble no stone within 120 cells of a Strut."},
 	# Upgrades.
 	{"id": "drill_bit", "name": "Drill Bit", "tier": 1, "needs": [],
 		"text": "The Drill digs 50% faster a level, and each level costs 20% more power per cell.",
-		"levels": [{"tier": 1, "power": 60}, {"tier": 1, "power": 130}, {"tier": 2, "power": 260, "mats": [0, 8, 0, 0, 0]},
-			{"tier": 2, "power": 500, "mats": [0, 16, 0, 0, 0]}, {"tier": 3, "power": 900, "mats": [0, 24, 8, 0, 0]}]},
+		"levels": [{"tier": 1, "power": 180}, {"tier": 1, "power": 390}, {"tier": 2, "power": 1040, "mats": [0, 16, 0, 0, 0]},
+			{"tier": 2, "power": 2000, "mats": [0, 32, 0, 0, 0]}, {"tier": 3, "power": 3600, "mats": [0, 48, 8, 0, 0]}]},
 	{"id": "drill_shaft", "name": "Drill Shaft", "tier": 1, "needs": [],
 		"text": "The Drill reaches deeper: 300, 500, 800, 1200, 1650, 2250, 2950, 3650, then 4350 rows (the bedrock over the chamber). Deep rows cost more power, and past about 2800 rows the rock is hot: that needs the Coolant Jacket.",
-		"levels": [{"tier": 1, "power": 40}, {"tier": 1, "power": 80}, {"tier": 1, "power": 150}, {"tier": 1, "power": 260},
-			{"tier": 2, "power": 420, "mats": [0, 10, 0, 0, 0]}, {"tier": 2, "power": 650, "mats": [0, 20, 0, 0, 0]},
-			{"tier": 3, "power": 950, "mats": [0, 30, 0, 0, 0]}, {"tier": 3, "power": 1300, "mats": [0, 30, 10, 0, 0]},
-			{"tier": 3, "power": 1800, "mats": [0, 40, 20, 0, 0]}]},
+		"levels": [{"tier": 1, "power": 120}, {"tier": 1, "power": 240}, {"tier": 1, "power": 450}, {"tier": 1, "power": 780},
+			{"tier": 2, "power": 1680, "mats": [0, 20, 0, 0, 0]}, {"tier": 2, "power": 2600, "mats": [0, 40, 0, 0, 0]},
+			{"tier": 3, "power": 3800, "mats": [0, 60, 0, 0, 0]}, {"tier": 3, "power": 5200, "mats": [0, 60, 10, 0, 0]},
+			{"tier": 3, "power": 7200, "mats": [0, 80, 20, 0, 0]}]},
 	{"id": "thump_charge", "name": "Thumper Charge", "tier": 1, "needs": ["thumper"],
 		"text": "Harder blasts: through stone, then glimmer, then (at the last level) obsidian.",
-		"levels": [{"tier": 1, "power": 60}, {"tier": 2, "power": 150, "mats": [0, 6, 0, 0, 0]},
-			{"tier": 3, "power": 300, "mats": [0, 15, 0, 0, 0]}, {"tier": 3, "power": 500, "mats": [0, 25, 0, 0, 0]}]},
+		"levels": [{"tier": 1, "power": 180}, {"tier": 2, "power": 600, "mats": [0, 12, 0, 0, 0]},
+			{"tier": 3, "power": 1200, "mats": [0, 30, 0, 0, 0]}, {"tier": 3, "power": 2000, "mats": [0, 50, 0, 0, 0]}]},
 	{"id": "thump_radius", "name": "Blast Radius", "tier": 1, "needs": ["thumper"],
 		"text": "Thumper craters 10 cells wider each level (35, 45, 55, 65).",
-		"levels": [{"tier": 1, "power": 50}, {"tier": 2, "power": 140, "mats": [0, 6, 0, 0, 0]},
-			{"tier": 3, "power": 300, "mats": [0, 15, 0, 0, 0]}]},
+		"levels": [{"tier": 1, "power": 150}, {"tier": 2, "power": 560, "mats": [0, 12, 0, 0, 0]},
+			{"tier": 3, "power": 1200, "mats": [0, 30, 0, 0, 0]}]},
 	{"id": "thump_efficiency", "name": "Thumper Efficiency", "tier": 1, "needs": ["thumper"],
 		"text": "Less power a blast: 1.5, 1.1, 0.8, 0.55.",
-		"levels": [{"tier": 1, "power": 40}, {"tier": 2, "power": 120, "mats": [0, 5, 0, 0, 0]},
-			{"tier": 2, "power": 240, "mats": [0, 10, 0, 0, 0]}]},
+		"levels": [{"tier": 1, "power": 120}, {"tier": 2, "power": 480, "mats": [0, 10, 0, 0, 0]},
+			{"tier": 2, "power": 960, "mats": [0, 20, 0, 0, 0]}]},
 	{"id": "thump_rhythm", "name": "Thumper Rhythm", "tier": 1, "needs": ["thumper"],
 		"text": "Blasts come quicker: every 6, 4.5, 3.4, then 2.5 seconds.",
-		"levels": [{"tier": 1, "power": 50}, {"tier": 2, "power": 150, "mats": [0, 6, 0, 0, 0]},
-			{"tier": 3, "power": 320, "mats": [0, 15, 0, 0, 0]}]},
+		"levels": [{"tier": 1, "power": 150}, {"tier": 2, "power": 600, "mats": [0, 12, 0, 0, 0]},
+			{"tier": 3, "power": 1280, "mats": [0, 30, 0, 0, 0]}]},
 	{"id": "borer_cells", "name": "Borer Cells", "tier": 1, "needs": ["borer"],
 		"text": "A Borer holds more power, so it gets further past the network: 30, 50, 80, 120.",
-		"levels": [{"tier": 1, "power": 80}, {"tier": 2, "power": 200, "mats": [0, 8, 0, 0, 0]},
-			{"tier": 3, "power": 400, "mats": [0, 20, 0, 0, 0]}]},
+		"levels": [{"tier": 1, "power": 240}, {"tier": 2, "power": 800, "mats": [0, 16, 0, 0, 0]},
+			{"tier": 3, "power": 1600, "mats": [0, 40, 0, 0, 0]}]},
 ]
 
 ## Index of a tech in TECHS by id, or -1.
@@ -437,7 +437,7 @@ static func tech_index(id: String) -> int:
 # --- Crucible ----------------------------------------------------------------
 # Indexed like the stockpile: [stone, glimmer, obsidian, water, power].
 const RECIPE := [0, 32, 48, 64, 0]
-const CRUCIBLE_PACKETS_PER_S := 2.0
+const CRUCIBLE_PACKETS_PER_S := 1.5  # phase 10: a longer charge to hold
 const CRUCIBLE_STALL_S := 5.0
 const CRUCIBLE_DRAIN_PER_S := 0.01
 const CRUCIBLE_POWER_PER_S := 4.0   # drawn while charging (phase 9)

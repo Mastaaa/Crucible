@@ -26,8 +26,9 @@ uncover elements, deposits and curios; exploit reactions or get blindsided by th
 - native/: C++ GDExtension sim (godot-cpp 4.5) in src/; bin/ holds the built .dll and .so. Session
   tooling: cloud_setup.sh (run by the SessionStart hook in .claude/), build.sh, run_tests.sh,
   lsp_check.py, cache/ (prebuilt godot-cpp).
-- tests/: scenario_* (power, research, chemistry, light, digging, warren, collapse, bodies, depth), engine_compare,
-  descent (pacing probe), bench, bench_net, mapdump, shot_* (screenshots; shot_help is the F1 panel).
+- tests/: scenario_* (power, research, chemistry, light, digging, warren, collapse, bodies, depth, run), engine_compare,
+  descent (pacing probe), autoplay (the bot that plays a run), bench, bench_net, mapdump, shot_* (screenshots;
+  shot_help is the F1 panel, shot_title the title, win and loss screens).
 
 ## Working with a cloud session (how Claude works on it)
 - Claude Code on the web: the repo is cloned fresh each session and the SessionStart hook sets up
@@ -89,7 +90,13 @@ uncover elements, deposits and curios; exploit reactions or get blindsided by th
    - Coolant Jacket: the Drill and Borers cut hot rock for water, vented as steam.
    - Steam Turbine; the Crucible draws 4 power/s while charging.
 
-10. Pacing: incremental curve, bot, tuning. Next.
+10. Pacing: done. The pre-alpha is complete.
+   - A run: the Hub can be destroyed (the run is lost), a summary on the win (keep going
+     after), speeds, a title screen, one save slot (Continue / Start Run).
+   - Dragged lines of buildings, planned where they can't go yet.
+   - An autoplay bot that plays a whole run on the map it knows, and a retune to it:
+     a first run about 2 hours, the bot about 1.
+   - Deposits worth 6x a cell; the Coolant Jacket takes on lava; condensing steam loses half.
 
 After 10: new features in earnest, starting with deeper materials and curios (moved out
 of phase 9) and claude/IDEAS.md.
@@ -130,6 +137,19 @@ of phase 9) and claude/IDEAS.md.
   erosion, loosening or powder falls can take them; liquids aren't held.
 - The Warren never moves (no Advance); mites never dig its footing. It has no zone picker: a chamber over it,
   then a marker the player sets, which the mites reach their own way.
+- A run (10): lost when the Hub is destroyed (it takes damage like any building and patches itself with its
+  own Stone); won when the Crucible is lit, and the player can keep going. One save slot, no Load menu: the
+  title has Continue and Start Run; it saves on quit, on going to the title and every 5 minutes; a loss
+  erases it, a win keeps it. A random seed unless one is typed in.
+- Pacing (10): a first run about 2 hours; the map-aware bot (tests/autoplay.gd) about 1, on the Hub's power
+  alone. Research power is the early clock; Tier 1 is v2 x3, later tiers x4.
+- Deposits (10): glimmer, obsidian, coal and sulfur (and their shards) bank 6x a cell ("worth" in the data).
+- The Coolant Jacket and lava (10): Borers stop short of lava; with the jacket a Drill or Borer facing lava
+  quenches it into obsidian from its tank (then the Saw cuts it), a jacketed Borer boils its tank instead of
+  burning in lava or flames, and water landing on it goes into its tank.
+- Steam (10): condensing, half of it turns back to water and half is lost, so boil cycles die out.
+- Dragged lines (10): relays spaced to link, Lamps a light apart, the rest side by side; what can't go down
+  yet is planned and goes down when the network reaches it.
 
 ## Tone and working style
 Dry, deadpan, concise, pragmatic. No "Not X, but Y" lines, no triplet-heavy descriptions, no pet names.

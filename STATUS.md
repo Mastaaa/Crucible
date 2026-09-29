@@ -4,6 +4,80 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## Phase 10 done: pacing (the pre-alpha is complete)
+
+Tests: eleven suites end `FAILURES: 0`, with the new scenario_run. The engine changed
+(saving; condensing steam): close Godot before pulling, restart after.
+
+A run, start to finish:
+- Title screen: Continue (the one save slot, with its seed and time), Start Run (a
+  random seed, or type one), Quit. Esc opens it from a run. The run saves on quit, on
+  going to the title and every 5 minutes. A loaded run steps exactly as the saved one.
+- Speeds: pause, 1x, 2x, 4x on the top bar and keys. When the machine can't keep up,
+  the game slows rather than the frame rate, and the bar says what speed it's managing.
+- Lost: the Hub takes damage like any building (blasts, falling rock, fire, lava,
+  sulfur, collisions). It patches itself with one of its own Stones every 10 s at
+  most while under 60%, and a banner warns under 35%. When it goes, the run is over
+  and its save erased.
+- Won: the Crucible lit. A summary lists the milestones with times (tiers, depth
+  bands, firsts, the Crucible) and the run's numbers; Keep going, Replay, New seed, Title.
+- Dragging with a build tool lays a line: Conduits and Masts 0.75 of their range apart,
+  Lamps a light apart, the rest side by side (40 at most). What can't go down yet shows
+  dashed and goes down once the network reaches it; right-click cuts a line.
+
+Rules that changed:
+- Deposits bank 6x a cell: glimmer, obsidian, coal, sulfur and their shards (the
+  rescale had left them scarce against 600-cell units).
+- Borers stop short of lava ("Lava ahead"). With the Coolant Jacket, a Drill or Borer
+  facing lava quenches it into obsidian from its tank, a cell of water a cell, and cuts
+  it with the Saw; a jacketed Borer in lava or flames boils 0.05 water a second off its
+  tank instead of burning (dry, it burns). So obsidian comes from diving jacketed Borers
+  into lava, or from water poured on it as before.
+- Water that lands on or against a jacketed Borer goes into its tank. Boring down, its
+  own steam condenses up the shaft and rained back onto it in a pool that drowned the
+  Conduit line following it.
+- Condensing steam: half turns back to water, half is lost. Before, a finished jacket
+  tunnel kept its steam cycling (boiling on the hot rock, condensing, dripping back)
+  indefinitely, scalding its Conduits: about 27 Stone a minute of repairs. Water still
+  quenches hot rock as slowly as before, so a staged steam room under a Turbine lasts.
+- Steam Turbine: 0.4 power a steam cell (per v2 cell) up to 4/s, which is about what a
+  room of steam pushes through its core (before, 2/s was as far as it got).
+- Mites at v2's pace against the buildings (twice as fast as phase 8b left them).
+
+The curve (tuned with the bot):
+- Research power is v2's x3 at Tier 1 and x4 from Tier 2 (Borer 450, Drill Shaft 120 /
+  240 / 450 / 780, Coolant Jacket and Obsidian Saw 1000 each), Glimmer costs x2.
+- Borers dig at 0.3 of full pace (0.5 made the middle of a run a sprint).
+- The Crucible takes 1.5 packets a second (about 1.6 minutes of charge to hold through
+  its tremors). Its 4 power/s is twice what the Hub makes, and the Hub's packets take
+  about 10 s to get down there against a 5 s reserve: it wants Caches nearby.
+- Descent probe (seed 7, one Lab on the Hub's power): head 500 at 1.5 min, 700 at 5.5,
+  1000 at 13.5, 1400 at 19.5 (was 700 at 2, 1000 at 5, 1400 at 7).
+
+The bot (tests/autoplay.gd, rebuilt): plays a whole run headless on the map it knows,
+through the game's own calls, on the Hub's power alone. It researches the Drill down
+through the Topsoil and the Borer; bores a column from the Drill's foot to the hot
+rock with a Conduit line after it; sweeps Glimmer bands; taps an aquifer into a Hopper
+in the column (and, when a tap caves in or runs dry, drops Hoppers into the aquifer or
+taps the next); tunnels over the nearest lava and Thumps down to it (Tier 3);
+researches the Coolant Jacket and the Saw; dives jacketed Borers into that lava pocket
+and then the lava lake for obsidian; bores down to the bedrock on a path clear of lava
+and caves and on through the plug; hangs a Conduit under the dome for the Crucible;
+fills three Caches and lights it, holding everything else and relaying the line
+whenever a tremor knocks it out. Seed 7:
+
+| | before | tuned |
+|---|---|---|
+| Stone band | 7:39 | 20:02 |
+| Tier 2 | 9:14 | 22:08 |
+| Tier 3 | 13:03 | 25:55 |
+| Coolant Jacket, Saw | 20:07 | 37:00, 45:00 |
+| bedrock | 25:12 | 51:37 |
+| Tier 4 | 26:18 | 52:45 |
+| the Crucible lit | 29:12 | 1:00:01 |
+
+Seeds 5, 11 and 23: runs in progress (filled in by the next commit).
+
 ## Phase 9 done: depth (10, pacing, is next)
 
 Tests: ten suites end `FAILURES: 0`, with the new scenario_depth. The engine changed:

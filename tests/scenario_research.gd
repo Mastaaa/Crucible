@@ -107,9 +107,10 @@ func scenario_b() -> void:
 	print("B. one Lab on the Hub's own power")
 	fresh()
 	build(D.B_LAB, R(118, 37, 4, 3))
-	var secs := research("lamp", 60.0)
-	print("  Lamp (40 power) took %.1f s; research rate %.2f/s" % [secs, game.research_rate])
-	check(secs > 0.0 and secs < 30.0, "Lamp researched")
+	var cost: float = D.TECHS[D.tech_index("lamp")]["power"]
+	var secs := research("lamp", cost)
+	print("  Lamp (%d power) took %.1f s; research rate %.2f/s" % [int(cost), secs, game.research_rate])
+	check(secs > 0.0 and secs < cost / D.LAB_POWER_PER_S * 1.2 + 5.0, "Lamp researched at a Lab's pace")
 	check(game.is_unlocked(D.B_LAMP), "Lamp is in the build list now")
 	check(game.current_tech == "", "nothing picked after it's done")
 
@@ -121,9 +122,10 @@ func scenario_c() -> void:
 	build(D.B_LAB, R(118, 37, 4, 3))
 	game.stock[D.R_POWER] = 100.0
 	game.run_ticks(60)
-	var secs := research("drill_bit", 60.0)
-	print("  Drill Bit 1 (60 power) took %.1f s with two Labs" % secs)
-	check(secs > 0.0 and secs < 20.0, "two Labs research at about twice the pace (60 power in under 20 s)")
+	var cost: float = D.TECHS[D.tech_index("drill_bit")]["levels"][0]["power"]
+	var secs := research("drill_bit", cost)
+	print("  Drill Bit 1 (%d power) took %.1f s with two Labs" % [int(cost), secs])
+	check(secs > 0.0 and secs < cost / (2.0 * D.LAB_POWER_PER_S) * 1.3, "two Labs research at about twice the pace")
 
 
 ## Cells the fixed Drill bores in 4 s of plain dirt, once it's going.
@@ -214,13 +216,15 @@ func scenario_g() -> void:
 	game.tiers_open[2] = true
 	game.researched["spout"] = true
 	game._refresh_unlocks()
-	game.stock[D.R_GLIMMER] = 12.0
+	var fg: Dictionary = D.TECHS[D.tech_index("floodgate")]
+	var want: float = fg["mats"][D.R_GLIMMER]
+	game.stock[D.R_GLIMMER] = want + 7.0
 	game.stock[D.R_POWER] = 100.0
 	build(D.B_LAB, R(118, 37, 4, 3))
-	var secs := research("floodgate", 120.0)
-	print("  Floodgate (120 power, 5 Glimmer) took %.1f s; Hub Glimmer %.0f" % [secs, game.stock[D.R_GLIMMER]])
+	var secs := research("floodgate", fg["power"])
+	print("  Floodgate (%d power, %d Glimmer) took %.1f s; Hub Glimmer %.0f" % [fg["power"], int(want), secs, game.stock[D.R_GLIMMER]])
 	check(secs > 0.0, "researched")
-	check(absf(game.stock[D.R_GLIMMER] - 7.0) < 0.01, "exactly 5 Glimmer went to the Lab")
+	check(absf(game.stock[D.R_GLIMMER] - 7.0) < 0.01, "exactly the tech's %d Glimmer went to the Lab" % int(want))
 	check(game.is_unlocked(D.B_FLOODGATE), "Floodgate unlocked")
 	# Switching picks keeps progress.
 	game.researched.erase("floodgate")

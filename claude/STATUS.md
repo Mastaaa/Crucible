@@ -6,22 +6,29 @@ history (what shipped when, old numbers, test notes) is the root STATUS.md:
 Claude adds a section at its top each phase and doesn't need to read the rest.
 
 ## Handoff
-- Last done: phase 9, depth (hot rock, Coolant Jacket, Steam Turbine, the Crucible's
-  power draw), on branch claude/charming-mayer-evn3ro, not merged yet. Phases 8b-8d
-  are in `main`.
-- Next: phase 10, pacing (incremental curve, bot, tuning). Deeper materials and curios
-  wait until after phase 10, when new features start in earnest (Alex's call).
-- Open with Alex, for phase 10: mite pace (about 2-3x slower than v2 against building
-  size); the Steam Turbine tops out near 2 power/s over a room of steam (its 4/s cap is
-  out of reach at a cell a column a tick); how fast water should quench hot rock.
-- Known rough edges: the screenshot scripts (bar shot_bodies), smoke_v2, flow and
-  scenario_water* still use v2 coordinates; the top bar clips the Help button when the
-  depth label shows; a network rebuild on a dense 380-building network takes ~34 ms.
+- Last done: phase 10, pacing (the pre-alpha's last phase), on branch
+  claude/charming-mayer-evn3ro, not merged yet: a run can be won or lost, saved and
+  continued; the autoplay bot plays a whole run; the curve is retuned for a first run of
+  about 2 hours (the bot, which knows the map, about 1). Phases 8b-8d are in `main`.
+- Next: new features in earnest, starting with deeper materials and curios, then
+  claude/IDEAS.md (Alex's call).
+- Settled in phase 10 (tuned with the bot): mites at v2's pace against the buildings;
+  the Turbine's 4/s now reachable (0.4 a cell, as fast as a room of steam rises); water
+  still quenches hot rock slowly (a staged steam room would die otherwise) and condensing
+  steam loses half, so the jacket's steam stops cycling in a finished tunnel.
+- Known rough edges: the screenshot scripts (bar shot_bodies and shot_title), smoke_v2,
+  flow and scenario_water* still use v2 coordinates; the top bar clips the Help button
+  when the depth label shows; a network rebuild on a dense 380-building network takes
+  ~34 ms; an aquifer's spring buried by rubble stops refilling it.
 
 ## Test baseline (all must hold before committing)
-- `bash native/run_tests.sh` (about 7 minutes): every scenario (ten, with
-  scenario_depth) and engine_compare end `FAILURES: 0`.
-- Descent probe (tests/descent.gd, seed 7): head at 700 at 2 min, 1000 at 5, 1400 at 7.
+- `bash native/run_tests.sh` (about 7 minutes): every scenario (eleven, with
+  scenario_run) and engine_compare end `FAILURES: 0`.
+- Descent probe (tests/descent.gd, seed 7): head at 500 at 1.5 min, 700 at 5.5, 1000 at
+  13.5, 1400 at 19.5 (research is the clock early on).
+- Autoplay bot (tests/autoplay.gd, seed 7): Stone band 20:02, Tier 2 22:08, Tier 3
+  25:55, the Saw ~45:00, bedrock 51:37, Tier 4 52:45, the Crucible lit at 1:00:01.
+  A full run takes about an hour of real time; `--save`/`--load` checkpoints help.
 - Network bench (tests/bench_net.gd): about 2.5 ms a tick once its floors cave in (4.1 at
   60 s on the slower container, same as main there).
 - `tests/prof_scale.gd`: a fresh game ticks in about 0.7 ms (1.3 ms on a slower
@@ -90,23 +97,31 @@ Heat (phase 9): hot rock stops the Drill and Borers until the Coolant Jacket; th
 cuts it for 1 Water per 2000 cells from a 4-Water tank the network fills (a Borer
 charging up waits for it while there's water), and the water goes up as steam from the
 cut (a Borer steps past it, so it leaves by its tail). Mites dig it with Ember Brood;
-Thumpers break it like stone.
+Thumpers break it like stone. Phase 10: Borers stop short of lava ("Lava ahead");
+with the jacket a Drill or Borer facing lava quenches it to obsidian from its tank
+(a cell of water a cell) and cuts it with the Saw; a jacketed Borer touching lava or
+flames boils 0.05 water/s instead of burning; water that lands on or against a
+jacketed Borer goes into its tank. Condensing steam: half becomes water, half is lost
+(Steam's expires_alt/alt_chance), so a boil cycle in a finished tunnel dies away.
 
 Resources: Stone, Glimmer, Obsidian, Water, Power. A unit is 600 cells (CELLS_PER_UNIT).
-Coal pays Stone + Power, sulfur Stone + Glimmer.
+Coal pays Stone + Power, sulfur Stone + Glimmer. Deposits are worth more a cell (data
+"worth": glimmer, obsidian, coal, sulfur and their shards 6x; `D.cell_units(m)`).
 
 Network: the Hub sends packets along Conduits (relays, 160) and Relay Masts (280); every
 other building links to a relay within 80. Blueprints fill by packet. Machines hold a
 10-power reserve refilled by packet from the nearest Hub, Cache or generator with stock.
 Links have HP (fire, sulfur, lava wear them); broken links and hurt buildings ask for a
-Stone. Struts need no link.
+Stone. Struts need no link. Dragging with a build tool lays a line (relays 0.75 of
+their range apart, Lamps a light apart, the rest side by side, 40 at most); what can't
+go down yet is a plan that goes down once the network reaches it; right-click cuts it.
 
 Buildings (key): Hub; fixed Drill (right of the Hub, 3-wide shaft straight down; Drill
 Bit / Drill Shaft upgrades; 30 wide); Conduit 1; Thumper 2 (timed blasts, thrown by them,
 draggable); Hopper 3; Bulkhead 4 (drag a wall); Lab 5; Spout 6; Floodgate 7; Waterwheel
-8; Cache 9; Lamp 0; Borer B (points four ways; Homing); Relay Mast M; Steam Turbine U
-(steam rising into its bottom leaves by its top, 0.2 power a v2 cell; about 2/s over a
-room of steam); Warren G (mites
+8; Cache 9; Lamp 0; Borer B (points four ways; Homing; digs at 0.3 of full pace since phase 10); Relay Mast M; Steam Turbine U
+(steam rising into its bottom leaves by its top; 0.4 power a v2 cell up to 4/s, about
+the 1000 cells a second a room of steam pushes through its core); Warren G (mites
 nibble a chamber in 4x4 bites, then tunnel to a marker and dig a circle); Strut X
 (instant beam rock to rock, up to 160 long and 10 thick, props and holds rock within 50
 of each end; snaps without its anchors). Everything but the Hub and Crucible must stay
@@ -115,7 +130,8 @@ or it falls straight down (600 cells/s^2, up to 400; through liquid at most 100)
 relinks where it lands; past 200 cells/s it's hurt, up to 75% of its HP at 400, and so
 is a building it lands on. Placement ghosts snap to legal spots within 50.
 
-Mites (8d): a mite walks and clings on its own (warren.gd); when it has nothing within two
+Mites (8d): a mite walks and clings on its own (warren.gd), at v2's pace against the
+buildings since phase 10 (MITE_SPEED 4, MITE_MOVE_PER_S 20 S); when it has nothing within two
 bites to cling to, or a blast reaches it, it becomes a 3x3 body of material Mite (a
 creature body: it never turns into ground) that falls, tumbles and piles up, and once
 it's lain still a third of a second it walks again from the bite it's in (heading home).
@@ -135,13 +151,23 @@ none within 120 of a Strut).
 Research: Labs turn power (and Glimmer/Obsidian for later tiers) into the picked tech
 (T). Tiers open by discovery: 2 at the first Glimmer mined, 3 at the first lava seen,
 4 when the Crucible is in view. Plain techs by tier plus an Upgrades column with levels.
+Phase 10 costs: v2's power x3 at Tier 1 and x4 from Tier 2 (Borer 450, Coolant Jacket
+and Obsidian Saw 1000 each), Glimmer x2; a Lab turns at most 2 power/s into research.
 
 Fog and light: underground is dark; a block is explored when it's lit and within sight
 of a building; explored ground shows live while lit, as last seen when not.
 
-Crucible: 32 Glimmer, 48 Obsidian, 64 Water delivered while charging, and 4 power/s
-drawn from a 20-power reserve (filled ahead of every machine); the charge drains if
-packets stop for 5 s or it's out of power for 5 s; tremors every 15 s while charging.
+Crucible: 32 Glimmer, 48 Obsidian, 64 Water delivered while charging (1.5 packets a
+second: about 1.6 min), and 4 power/s drawn from a 20-power reserve (filled ahead of
+every machine); the charge drains if packets stop for 5 s or it's out of power for 5 s;
+tremors every 15 s while charging. The Hub's packets take ~10 s to get down there, so
+it needs Caches nearby to hold its power.
+
+A run (phase 10): the Hub can be destroyed (it patches itself with its own Stone every
+10 s at most under 60% HP, warns under 35%); then the run is lost and its save erased.
+Title screen (Continue, Start Run with an optional seed, Quit; Esc), one save slot
+(user://run.save: on quit, going to the title, every 5 minutes), speeds (pause, 1x,
+2x, 4x), milestones and an end panel (Keep going after a win, Replay, New seed, Title).
 
 ## Standing quirks worth knowing
 - Tests that carve rooms into seed 7 wall them with plain dirt first (sand pockets pour,
@@ -150,5 +176,7 @@ packets stop for 5 s or it's out of power for 5 s; tremors every 15 s while char
 - Light is only worked out near what buildings watch and explored ground in the view:
   a test that reads light elsewhere explores the spot and points the camera there.
 - Cave-in alerts fire only on explored ground.
-- The autoplay bot (tests/autoplay.gd) predates v2 and doesn't work; rebuilt in phase 10.
-- Not yet: sound, title screen, saving, a lose state.
+- The autoplay bot (tests/autoplay.gd) plays a whole run on the map it knows, on the
+  Hub's power alone (the aquifer it taps drains in a minute, so a Waterwheel there
+  pays little). It measures the pace; it isn't a test and isn't in run_tests.sh.
+- Not yet: sound.

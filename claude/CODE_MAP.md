@@ -1,4 +1,4 @@
-# Crucible: code map (as of phase 9)
+# Crucible: code map (as of phase 10)
 
 Where things are, so a new session can go straight to the right function instead of
 grepping. Line numbers drift; names don't. Coordinates are cells: x across (0..767),
@@ -24,8 +24,15 @@ index as [Stone, Glimmer, Obsidian, Water, Power].
   over bites with `block_counts`, mite `_step`, `_nibble` bursts). As bodies (8d):
   `_gripping`, `loosen` (a mite becomes a creature body), `_fly` (follow it; walk again
   at rest). `game.mite_bodies` maps body ids to mites; `game.body_momentum(id)`.
-- `scripts/hud.gd`: top bar, Build list, building panel (`_rebuild_info`), alerts,
-  depth ruler/minimap, Crucible panel, Help (`_build_help`), Research tab.
+- `scripts/hud.gd`: top bar (speed buttons, `speed_label` when the sim can't keep up),
+  Build list, building panel (`_rebuild_info`), alerts, depth ruler/minimap, Crucible
+  panel, Help (`_build_help`), Research tab, the end panel (`_build_end`, `show_end`).
+- `scripts/save.gd` (phase 10): the one save slot. `write(game, path)` (the engine's
+  `save_state` plus every name in GAME_VARS and every building's own variables,
+  zstd), `read`, `restore`, `peek` (the header for the title), `erase`. Buildings are
+  stored by value and referred to by id (`_enc`/`_dec`: {"$b"}, {"$p"}, {"$d"}).
+- `scripts/title.gd` (phase 10): the title screen (a CanvasLayer): Continue, Start Run
+  with an optional seed, Quit; Esc goes back to a live run.
 - `scripts/overlay.gd`: world-space drawing: buildings, links, packets, ghosts,
   ranges, Warren zones, Strut beams and holds.
 - `scripts/sim_factory.gd`: C++ sim if the extension loaded (sized D.W x D.H, free fall
@@ -34,6 +41,8 @@ index as [Stone, Glimmer, Obsidian, Water, Power].
 - `shaders/terrain.gdshader`: cells, aux and memory from Texture2DArrays (a 256 x 256
   tile a layer, `tile_at`), palette, and block textures (light, fog, heat, sense).
 - `native/src/crucible_sim.{h,cpp}`: the engine (CrucibleSim, a RefCounted).
+- `native/src/save.cpp`: `save_state`/`load_state` (everything a run needs to step on
+  exactly as before: cells, aux, holds, settle, bodies, RNG, tick).
 - `native/src/bodies.cpp`: rigid bodies and collapse into pieces (members of CrucibleSim);
   `native/src/rng.h`: the random helpers both share.
 - Session tooling in `native/`: `cloud_setup.sh` (run by `.claude/hooks/session-start.sh`),
@@ -77,6 +86,7 @@ sense (30), vision/light (15), Crucible.
 - Stats: `stat_chunks`, `stat_updates`, `reactions`, `ignitions`, `eroded`, `crumbled`,
   `get_caved`, `get_washed`, `get_last_cave`, `get_tick`; `changed`/`heat_changed` flags.
 - Setup: `configure(materials, reactions)`, `set_seed`, `set_threads`.
+- Saving (phase 10): `save_state()` (PackedByteArray), `load_state(bytes)`.
 - Inside: 32x32 chunks with dirty rects, four checkerboard passes (threads), per-chunk
   RNG from (seed, tick, chunk); game-side passes use one stream (`grng`). Nothing moves
   more than 15 cells a tick (`fall`, liquid `spread`), so passes stay independent.
@@ -106,6 +116,19 @@ sense (30), vision/light (15), Crucible.
   `WR.can_dig(m, teeth, ember)`, mask "ember".
 - Crucible: `activate_crucible`, `_update_crucible` (power draw from `c_power`,
   `c_starved`, drain, tremors); its power request leads `_requests`.
+- A run (phase 10): `new_game` = `_label_sim`, `_reset(seed)`, `_start`; `save_run`,
+  `continue_run(path)` (then `_loaded` rebuilds caches); `open_title`, `start_run`,
+  `continue_game`, `quit_game`. Its end: `frozen` (won or lost, not carrying on),
+  `keep_going`, `_lose(cause)`; milestones with `mark(text, major)`, `_track_depth`.
+  The Hub: `_hub_upkeep` (patches itself), and `_destroy` of it calls `_lose`.
+- Speed: `set_speed(i)` over SPEEDS; the frame loop runs ticks until TICK_BUDGET_US.
+- Lines (phase 10): `line_points` (spacing by type), `lay_line` (places what it can,
+  plans the rest), `plans`/`_try_plans` (every 30 ticks), `plan_at`, `cut_plans`;
+  input `dragged_line`.
+- Jacket and lava (phase 10): `_quench` (a Drill or Borer facing lava turns it to
+  obsidian from its tank), `_jacket_drink` (water on a jacketed Borer fills its tank);
+  `_damage_scan` lets a jacketed Borer boil JACKET_LAVA_WATER instead of burning.
+- Worth: `D.cell_units(m)` (units a cell of m banks; data "worth").
 - Drawing: `_upload` (dirty tiles near the view), `view_rect(pad)`, float `zoom`.
 - Losing: `demolish` (50% back), `_destroy(b, cause)` (alert, rubble), `_remove`.
 - Anchoring: `_damage_scan` finds unheld buildings, `_settle` keeps those joined to a
@@ -121,6 +144,18 @@ sense (30), vision/light (15), Crucible.
 - Alerts: `alert(kind, text, at)` (merges same kind nearby within 20 s), `show_banner`.
 - Blasts: `blast(at, radius, power, source)`.
 - Tests: `run_ticks(n)`, `new_game(seed)`, `paused = true`, `drill.enabled = false`.
+
+## The autoplay bot (tests/autoplay.gd, phase 10)
+Plays a run headless through the game's own calls and prints milestones with times
+(`--seed`, `--max`, `--quiet`, `--save=SECONDS` for a checkpoint, `--load=PATH`,
+`--dump=SECONDS --rect=x,y,w,h` for a map of an area). It knows the map. `think()` runs
+its jobs once a game second: research (PLAN), shaft_chain, place_conduits (its own
+Conduit queue: exact spots, sliding to a wall), drive_borers (routes of legs; turns
+checked every 10 ticks by `_turns`), deep (the column), glimmer, tap, lava (a Thumper
+down to lava: Tier 3), descent (`lava_free_legs`: a search over 30-cell blocks clear of
+lava and caves), obsidian (jacketed dives into a lava pocket), plug, crucible (two
+Caches by the plug, then charge). Its state `st` is plain data saved beside a checkpoint
+(`.bot`), so a run resumes from any checkpoint.
 
 ## Tests: the usual harness
 `extends SceneTree`; `_initialize` instantiates `scenes/main.tscn`; `_process` runs the

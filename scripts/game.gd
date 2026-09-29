@@ -1548,8 +1548,6 @@ func cut_mask() -> PackedByteArray:
 	return Mats.mask(("dig" if saw else "dig_no_obsidian") + ("" if cool else "_no_hot"))
 
 
-## The Coolant Jacket's water for `cells` of hot rock: false (and it waits for more)
-## when there isn't enough.
 ## With the Coolant Jacket, the Drill and Borers quench lava they face into
 ## obsidian from their tank (phase 10): QUENCH_WATER_PER_CELL each, the water going
 ## up as steam into open cells of `vent`. False (and the tank dry) without the water.
@@ -1563,6 +1561,27 @@ func _quench(b: Building, c: Vector2i, vent: Rect2i) -> bool:
 	return true
 
 
+## A jacketed Borer's tank takes water standing on it or against its sides (phase
+## 10): boring down, its own steam condenses up the shaft and rains back onto it.
+func _jacket_drink(b: Building) -> void:
+	if b.coolant > D.COOLANT_CAP - D.QUENCH_WATER_PER_CELL or b.y < 2 or not researched.has("coolant_jacket"):
+		return
+	if sim.count_in_rect(b.x - 1, b.y - 1, b.w + 2, b.h + 1, Mats.mask("worth_liquid")) == 0:
+		return
+	for k in b.w + 2 * b.h:
+		var c := Vector2i(b.x + k, b.y - 1) if k < b.w else (Vector2i(b.x - 1, b.y + k - b.w) if k < b.w + b.h \
+				else Vector2i(b.x + b.w, b.y + k - b.w - b.h))
+		var m: int = sim.get_cell(c.x, c.y)
+		if Mats.kind_of(m) != Mats.K_LIQUID or D.mat_res(m) != D.R_WATER:
+			continue
+		sim.set_cell(c.x, c.y, D.AIR)
+		b.coolant += 1.0 / D.CELLS_PER_UNIT
+		if b.coolant > D.COOLANT_CAP - D.QUENCH_WATER_PER_CELL:
+			return
+
+
+## The Coolant Jacket's water for `cells` of hot rock: false (and it waits for more)
+## when there isn't enough.
 func _cool(b: Building, cells: int) -> bool:
 	var need := cells * D.COOLANT_WATER_PER_CELL
 	if b.coolant < need:
@@ -2101,6 +2120,7 @@ func set_borer_dir(b: Building, dir: int) -> void:
 ## its reserve out past the network; with Homing it heads back at half power.
 func _borer(b: Building) -> void:
 	b.starved = false
+	_jacket_drink(b)
 	if not b.enabled:
 		return
 	var cap := reserve_cap(b)
