@@ -20,6 +20,7 @@ const KH := D.H >> 2
 const SIDE_UI := 240.0         # screen width kept free for side panels, per side
 const ZOOM_STEP := 1.25        # a wheel notch or +/- zooms by this much
 const ZOOM_CLOSEST := 6.0      # screen pixels a cell, closest in
+const SPRING_COLS := 5         # a spring's water comes up over this many columns
 const TILE_SHIFT := 8
 const TILE := 1 << TILE_SHIFT  # the map's textures are cut into tiles this big (the engine's too)
 const DIRS4 := [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]
@@ -57,6 +58,7 @@ var stock := PackedFloat64Array([0.0, 0.0, 0.0, 0.0, 0.0])
 var packets: Array = []
 var relays: Array = []
 var relay_index := {}             # relay -> its index in `relays`
+var spring_tops := {}              # (spring x, spring y, column) -> the first cell over its water last tick
 var relay_grid := {}              # 128x128-cell bucket -> indices of the relays in it
 var caches: Array = []            # built, linked Caches (for banking), as of the last rebuild
 var dispatch_wait := 0            # ticks until the next dispatch pass after one that sent nothing
@@ -301,6 +303,7 @@ func _build_nodes() -> void:
 func new_game(s: int) -> void:
 	seed_value = s
 	rng.seed = s * 7919 + 13
+	spring_tops.clear()
 	sim = SimFactory.create()
 	sim.set_seed(s)
 	if SimFactory.native_available():
@@ -1214,20 +1217,21 @@ func spout_can_pay(b: Building) -> bool:
 func _wheel(b: Building) -> void:
 	var made := 0.0
 	if b.enabled:
-		b.gen_tokens = minf(b.gen_tokens + D.WHEEL_CELLS_PER_S * D.DT, 3.0)
-		var cx := b.x + (b.w >> 1)
-		var outs: Array = [Vector2i(cx, b.y + b.h), Vector2i(b.x, b.y + b.h), Vector2i(b.x + b.w - 1, b.y + b.h)]
+		b.gen_tokens = minf(b.gen_tokens + D.WHEEL_CELLS_PER_S * D.DT, maxf(3.0, D.WHEEL_CELLS_PER_S * D.DT * 2.0))
 		var start := ticks % b.w
+		var out_k := 0             # the next cell under it to try as an exit
 		for k in b.w:
 			if b.gen_tokens < 1.0:
 				break
 			var ix := b.x + (start + k) % b.w
 			if sim.get_cell(ix, b.y - 1) != D.WATER:
 				continue
+			# Out underneath: the first open cell along its bottom edge.
 			var exit := Vector2i(-1, -1)
-			for o: Vector2i in outs:
-				var m: int = sim.get_cell(o.x, o.y)
-				if D.is_thin(m):
+			while out_k < b.w:
+				var o := Vector2i(b.x + (start + out_k) % b.w, b.y + b.h)
+				out_k += 1
+				if D.is_thin(sim.get_cell(o.x, o.y)):
 					exit = o
 					break
 			if exit.x < 0:
@@ -1654,18 +1658,49 @@ func _borer_retrace(b: Building) -> void:
 ## pool sitting over them, so a drained aquifer fills back up.
 func _springs() -> void:
 	spring_acc += D.SPRING_CELLS_PER_S * D.DT
-	if spring_acc < 1.0:
+	var n := floori(spring_acc)
+	if n < 1:
 		return
-	spring_acc -= 1.0
+	spring_acc -= n
 	for c: Vector2i in info.get("springs", []):
-		var y := c.y
-		var guard := 0
-		while guard < 64 * D.S and sim.get_cell(c.x, y) == D.WATER:
-			y -= 1
-			guard += 1
-		var m: int = sim.get_cell(c.x, y)
-		if D.is_thin(m):
-			sim.set_cell(c.x, y, D.WATER)
+		# On top of whatever water already stands over it, spread over a few columns.
+		for k in mini(n, SPRING_COLS):
+			var x := c.x + k - (SPRING_COLS >> 1)
+			var y := _spring_top(c, x)
+			var guard := 0
+			for _j in range(k, n, SPRING_COLS):
+				# Water falling in a stream has gaps: fill one, climb past the water
+				# over it to the next.
+				while guard < 64 * D.S and sim.get_cell(x, y) == D.WATER:
+					y -= 1
+					guard += 1
+				if not D.is_thin(sim.get_cell(x, y)) or guard >= 64 * D.S:
+					break
+				sim.set_cell(x, y, D.WATER)
+				y -= 1
+				guard += 1
+			spring_tops[Vector3i(c.x, c.y, x)] = y
+
+
+## The first cell above the water standing over a spring in column `x` (or the
+## cell that stops it). With the spring's own cell open, that's the spring. Under
+## standing water it climbs from where the top was last tick if the column still
+## reaches there, so a spring under an aquifer costs a step or two a tick, not a
+## climb up the whole column.
+func _spring_top(c: Vector2i, x: int) -> int:
+	var y := c.y
+	if sim.get_cell(x, y) != D.WATER:
+		return y
+	# Standing water (resting on something): carry on from last tick's top if the
+	# column still reaches it. Water falling through, climb it from the spring.
+	var last: int = spring_tops.get(Vector3i(c.x, c.y, x), c.y)
+	if not D.is_thin(sim.get_cell(x, y + 1)) and last < c.y and sim.get_cell(x, last + 1) == D.WATER:
+		y = last + 1
+	var guard := 0
+	while guard < 64 * D.S and sim.get_cell(x, y) == D.WATER:
+		y -= 1
+		guard += 1
+	return y
 
 
 func _power_stats() -> void:

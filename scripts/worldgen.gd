@@ -27,8 +27,8 @@ const KS := 1 << KSHIFT
 
 const HUB_SIZE := Vector2i(8, 6) * D.S
 const HUB_RECT := Rect2i((W >> 1) - (HUB_SIZE.x >> 1), D.GROUND_Y - HUB_SIZE.y, HUB_SIZE.x, HUB_SIZE.y)
-const PAD_FLAT := 130        # the ground is flat this far either side of the middle...
-const PAD_BLEND := 30        # ...and blends into the wobble over this much more
+const PAD_FLAT := 20 * D.S    # the ground is flat this far either side of the middle...
+const PAD_BLEND := 6 * D.S    # ...and blends into the wobble over this much more
 # The chamber is a dome resting on the floor; the Crucible stands on a bedrock
 # altar in the middle, so a Conduit hung from the ceiling under the plug is
 # within reach of it.

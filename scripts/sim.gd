@@ -23,8 +23,8 @@ const D = preload("res://scripts/defs.gd")
 const W := D.W
 const H := D.H
 const BW := W >> 2   # blocks (4 x 4 cells) across, for heat and the fog maps
-const CW := 8            # chunks across
-const CH := 32           # chunks down
+const CW := W >> 5       # chunks (32 x 32) across
+const CH := H >> 5       # chunks down
 const NCH := CW * CH
 const EMPTY := 1 << 20
 
@@ -114,7 +114,7 @@ func _clear_next() -> void:
 
 ## Wake (x, y) and its neighbours for the next tick.
 func touch(x: int, y: int) -> void:
-	var c := ((y >> 5) << 3) | (x >> 5)
+	var c := (y >> 5) * CW + (x >> 5)
 	if x < bx0[c]:
 		bx0[c] = x
 	if x > bx1[c]:
@@ -140,7 +140,7 @@ func _touch_edges(x: int, y: int, c: int) -> void:
 			var xx := x + dx
 			if xx < 0 or xx >= W:
 				continue
-			var c2 := ((yy >> 5) << 3) | (xx >> 5)
+			var c2 := (yy >> 5) * CW + (xx >> 5)
 			if c2 == c:
 				continue
 			if xx < bx0[c2]:
@@ -157,7 +157,7 @@ func _touch_edges(x: int, y: int, c: int) -> void:
 func touch_rect(x0: int, y0: int, x1: int, y1: int) -> void:
 	for cy in range(maxi(y0, 0) >> 5, (mini(y1, H - 1) >> 5) + 1):
 		for cx in range(maxi(x0, 0) >> 5, (mini(x1, W - 1) >> 5) + 1):
-			var c := (cy << 3) | cx
+			var c := cy * CW + cx
 			bx0[c] = mini(bx0[c], maxi(x0, cx << 5))
 			bx1[c] = maxi(bx1[c], mini(x1, (cx << 5) + 31))
 			by0[c] = mini(by0[c], maxi(y0, cy << 5))
@@ -185,7 +185,7 @@ func set_cell(x: int, y: int, m: int) -> void:
 	cells[i] = m
 	touch(x, y)
 	if old == LAVA or m == LAVA:
-		lava_dirty[((y >> 5) << 3) | (x >> 5)] = 1
+		lava_dirty[(y >> 5) * CW + (x >> 5)] = 1
 	if _yields(m):
 		if y > 2 and cells[i - W] == DIRT:
 			_dirt_check(i - W, x, y - 1)
@@ -224,7 +224,7 @@ func step() -> void:
 	for cyi in range(CH - 1, -1, -1):
 		for k in CW:
 			var cxi := k if flip == 0 else CW - 1 - k
-			var c := (cyi << 3) | cxi
+			var c := cyi * CW + cxi
 			if ax1[c] < 0:
 				continue
 			chunks += 1
@@ -360,8 +360,8 @@ func _move_liquid(i: int, j: int, x: int, y: int, x2: int, y2: int, liquid: int)
 		if (tick & 1) == 1:
 			touch(x, y)
 			return
-		lava_dirty[((y >> 5) << 3) | (x >> 5)] = 1
-		lava_dirty[((y2 >> 5) << 3) | (x2 >> 5)] = 1
+		lava_dirty[(y >> 5) * CW + (x >> 5)] = 1
+		lava_dirty[(y2 >> 5) * CW + (x2 >> 5)] = 1
 	_swap(i, j, x, y, x2, y2)
 
 
@@ -389,7 +389,7 @@ func _lava(i: int, x: int, y: int, d: int) -> void:
 		stamp[j] = mark
 		touch(x, y)
 		touch(jx, jy)
-		lava_dirty[((y >> 5) << 3) | (x >> 5)] = 1
+		lava_dirty[(y >> 5) * CW + (x >> 5)] = 1
 		reactions += 1
 		return
 	# Sluggish: moves only on even ticks (_move_liquid defers odd ones).
@@ -531,8 +531,8 @@ func refresh_heat(all: bool) -> void:
 		if not all and lava_dirty[c] == 0:
 			continue
 		lava_dirty[c] = 0
-		var gx := (c & 7) << 5
-		var gy := (c >> 3) << 5
+		var gx := (c % CW) << 5
+		var gy := floori(c / float(CW)) << 5
 		for by in 8:
 			for bx in 8:
 				var v := 0

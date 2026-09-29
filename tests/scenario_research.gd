@@ -35,6 +35,16 @@ func _process(_d: float) -> bool:
 	return false
 
 
+## Where a v2 cell near the Hub is now: the layout scales by D.S about the pad's
+## middle at ground level.
+func P(x: int, y: int) -> Vector2i:
+	return Vector2i((D.W >> 1) + (x - 128) * D.S, D.GROUND_Y + (y - 40) * D.S)
+
+
+func R(x: int, y: int, w: int, h: int) -> Rect2i:
+	return Rect2i(P(x, y), Vector2i(w, h) * D.S)
+
+
 func fresh() -> void:
 	game.new_game(7)
 	game.paused = true
@@ -96,7 +106,7 @@ func scenario_a() -> void:
 func scenario_b() -> void:
 	print("B. one Lab on the Hub's own power")
 	fresh()
-	build(D.B_LAB, Rect2i(118, 37, 4, 3))
+	build(D.B_LAB, R(118, 37, 4, 3))
 	var secs := research("lamp", 60.0)
 	print("  Lamp (40 power) took %.1f s; research rate %.2f/s" % [secs, game.research_rate])
 	check(secs > 0.0 and secs < 30.0, "Lamp researched")
@@ -107,8 +117,8 @@ func scenario_b() -> void:
 func scenario_c() -> void:
 	print("C. two Labs on a full store")
 	fresh()
-	build(D.B_LAB, Rect2i(136, 37, 4, 3))
-	build(D.B_LAB, Rect2i(118, 37, 4, 3))
+	build(D.B_LAB, R(136, 37, 4, 3))
+	build(D.B_LAB, R(118, 37, 4, 3))
 	game.stock[D.R_POWER] = 100.0
 	game.run_ticks(60)
 	var secs := research("drill_bit", 60.0)
@@ -119,8 +129,8 @@ func scenario_c() -> void:
 ## Cells the fixed Drill bores in 4 s of plain dirt, once it's going.
 func _drill_rate(label: String) -> int:
 	var d = game.drill
-	for yy in range(40, 100):
-		for xx in range(d.x, d.x + 3):
+	for yy in range(D.GROUND_Y, D.GROUND_Y + 60 * D.S):
+		for xx in range(d.x, d.x + d.w):
 			game.sim.set_cell(xx, yy, D.DIRT)
 	d.reach = 0
 	d.scan_from = 0
@@ -142,8 +152,9 @@ func scenario_d() -> void:
 	game.researched["drill_bit"] = true
 	var fast := _drill_rate("Drill Bit 2")
 	check(fast >= slow * 1.9, "digs about 2.25x faster at level 2 (%d vs %d)" % [fast, slow])
-	check(absf(game.drill_power(D.DIRT, 0) - 0.144) < 0.001, "dirt costs 0.144 power a cell at level 2 (0.1 plain)")
-	check(absf(game.drill_power(D.DIRT, 300) - 0.288) < 0.001, "and twice that 300 rows down")
+	var plain := D.power_per_cell(D.DIRT)
+	check(absf(game.drill_power(D.DIRT, 0) - plain * 1.44) < plain * 0.01, "dirt costs 1.44x the plain power a cell at level 2 (%.5f)" % game.drill_power(D.DIRT, 0))
+	check(absf(game.drill_power(D.DIRT, int(D.DRILL_DEEP_ROWS)) - plain * 2.88) < plain * 0.01, "and twice that %d rows down" % int(D.DRILL_DEEP_ROWS))
 
 
 func scenario_e() -> void:
@@ -152,16 +163,18 @@ func scenario_e() -> void:
 	var d = game.drill
 	game.levels["drill_bit"] = 3
 	game.researched["drill_bit"] = true
-	check(d.reach_limit == 30, "the Drill starts with 30 rows of reach (%d)" % d.reach_limit)
+	var r0: int = D.DRILL_REACHES[0]
+	var r1: int = D.DRILL_REACHES[1]
+	check(d.reach_limit == r0, "the Drill starts with %d rows of reach (%d)" % [r0, d.reach_limit])
 	for _i in 3:
 		game.stock[D.R_POWER] = 100.0
 		game.run_ticks(60 * 10)
-	check(d.reach == 30, "it stops at 30 (%d)" % d.reach)
+	check(d.reach == r0, "it stops at %d (%d)" % [r0, d.reach])
 	game._finish_research("drill_shaft")
 	for _i in 3:
 		game.stock[D.R_POWER] = 100.0
 		game.run_ticks(60 * 10)
-	check(d.reach_limit == 60 and d.reach > 40, "it carries on toward 60 once Drill Shaft 1 is done (%d / %d)" % [d.reach, d.reach_limit])
+	check(d.reach_limit == r1 and d.reach > r0 + floori((r1 - r0) / 3.0), "it carries on toward %d once Drill Shaft 1 is done (%d / %d)" % [r1, d.reach, d.reach_limit])
 	check(game.level("drill_shaft") == 1 and game.tech_block("drill_shaft") == "", "level 2 can be picked next")
 
 
@@ -169,24 +182,26 @@ func scenario_f() -> void:
 	print("F. discoveries")
 	fresh()
 	# Glimmer under a Drill.
-	build(D.B_CONDUIT, Rect2i(140, 38, 2, 2))
-	for yy in range(42, 46):
-		for xx in range(143, 146):
+	build(D.B_CONDUIT, R(140, 38, 2, 2))
+	var vein := R(143, 42, 3, 4)
+	for yy in range(vein.position.y, vein.end.y):
+		for xx in range(vein.position.x, vein.end.x):
 			game.sim.set_cell(xx, yy, D.GLIMMER)
-	build(D.B_DRILL, Rect2i(143, 37, 3, 3))
+	build(D.B_DRILL, R(143, 37, 3, 3))
 	game.stock[D.R_POWER] = 100.0
 	game.run_ticks(60 * 10)
 	check(game.tiers_open[2], "Tier 2 opens when Glimmer is mined")
 	check(game.tech_block("floodgate") == "Needs Spout", "Floodgate now waits only on Spout (%s)" % game.tech_block("floodgate"))
 	# Lava where a building can see it.
 	check(not game.tiers_open[3], "Tier 3 still shut")
-	game.sim.set_cell(150, 44, D.LAVA)
+	var lv := P(150, 44)
+	game.sim.set_cell(lv.x, lv.y, D.LAVA)
 	game.sim.refresh_heat(true)
 	game._refresh_vision()
 	check(game.tiers_open[3], "Tier 3 opens when lava is seen")
 	# Something of yours in sight of the Crucible.
 	var cr: Rect2i = game.crucible.rect()
-	var lamp = game._make_building(D.B_LAMP, Rect2i(cr.position.x, cr.position.y - 8, 2, 2))
+	var lamp = game._make_building(D.B_LAMP, Rect2i(cr.position.x, cr.position.y - 8 * D.S, 2 * D.S, 2 * D.S))
 	lamp.built = true
 	lamp.power = 5.0
 	game._refresh_vision()
@@ -201,7 +216,7 @@ func scenario_g() -> void:
 	game._refresh_unlocks()
 	game.stock[D.R_GLIMMER] = 12.0
 	game.stock[D.R_POWER] = 100.0
-	build(D.B_LAB, Rect2i(118, 37, 4, 3))
+	build(D.B_LAB, R(118, 37, 4, 3))
 	var secs := research("floodgate", 120.0)
 	print("  Floodgate (120 power, 5 Glimmer) took %.1f s; Hub Glimmer %.0f" % [secs, game.stock[D.R_GLIMMER]])
 	check(secs > 0.0, "researched")
