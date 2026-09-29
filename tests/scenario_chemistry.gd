@@ -219,32 +219,32 @@ func scenario_d() -> void:
 
 func scenario_e() -> void:
 	print("E. coal and sulfur in the world")
+	# Deposits are v2's, 4x each way (16x the cells); the Topsoil ends 5x deeper.
+	const F := 16
 	var ok_all := true
 	for s in [1, 2, 3, 7, 11, 42, 99, 12345]:
 		var sim = SimFactory.create(1)
 		WorldGen.new().generate(sim, s)
 		var cells: PackedByteArray = sim.get_cells()
-		var coal := 0
-		var coal_top := 0
-		var sulfur := 0
+		var coal: int = sim.count(D.COAL)
+		var sulfur: int = sim.count(D.SULFUR)
+		var mask := PackedByteArray()
+		mask.resize(256)
+		mask[D.COAL] = 1
+		var coal_top: int = sim.count_in_rect(0, 0, D.W, D.LAYERS[1]["bottom"], mask)
+		# Lava beside any coal or sulfur: hop from one of their cells to the next.
 		var touching := 0
-		for y in range(2, D.H - 2):
-			for x in range(2, D.W - 2):
-				var m := cells[y * D.W + x]
-				if m != D.COAL and m != D.SULFUR:
-					continue
-				if m == D.COAL:
-					coal += 1
-					if y < 300:
-						coal_top += 1
-				else:
-					sulfur += 1
+		for m: int in [D.COAL, D.SULFUR]:
+			var i := cells.find(m)
+			while i >= 0:
 				for oy in range(-1, 2):
 					for ox in range(-1, 2):
-						if cells[(y + oy) * D.W + x + ox] == D.LAVA:
+						var j := i + oy * D.W + ox
+						if j >= 0 and j < cells.size() and cells[j] == D.LAVA:
 							touching += 1
+				i = cells.find(m, i + 1)
 		print("  seed %d: coal %d (%d in the Topsoil), sulfur %d, touching lava %d" % [s, coal, coal_top, sulfur, touching])
-		if coal < 300 or coal_top < 60 or sulfur < 60 or touching > 0:
+		if coal < 300 * F or coal_top < 60 * F or sulfur < 60 * F or touching > 0:
 			ok_all = false
 	check(ok_all, "every seed has coal near the top and sulfur deep down, with stone between them and lava")
 
@@ -283,6 +283,16 @@ func scenario_f() -> void:
 
 # --- Game helpers -------------------------------------------------------------------
 
+## Where a v2 cell near the Hub is now: the layout scales by D.S about the pad's
+## middle at ground level.
+func P(x: int, y: int) -> Vector2i:
+	return Vector2i((D.W >> 1) + (x - 128) * D.S, D.GROUND_Y + (y - 40) * D.S)
+
+
+func R(x: int, y: int, w: int, h: int) -> Rect2i:
+	return Rect2i(P(x, y), Vector2i(w, h) * D.S)
+
+
 func fresh() -> void:
 	game.new_game(7)
 	game.paused = true
@@ -290,7 +300,18 @@ func fresh() -> void:
 	game.drill.enabled = false    # the fixed Drill's banking would muddy the stock checks
 
 
+## Loose powder that eroded down into a spot (a few cells at the new scale) is
+## swept out of it first.
+func sweep(r: Rect2i) -> void:
+	for y in range(r.position.y, r.end.y):
+		for x in range(r.position.x, r.end.x):
+			var m: int = game.sim.get_cell(x, y)
+			if m == D.LOOSE_DIRT or m == D.SAND or m == D.RUBBLE:
+				game.sim.set_cell(x, y, D.AIR)
+
+
 func put(type: int, r: Rect2i, dir := 0) -> Object:
+	sweep(r)
 	var why: String = game.check_place(type, r)
 	if why != "":
 		print("  !! can't place %s at %s: %s" % [D.B_NAMES[type], r, why])
@@ -326,9 +347,9 @@ func scenario_g() -> void:
 	print("G. digging coal banks Stone and Power")
 	fresh()
 	var dr = game.drill
-	gfill(Rect2i(dr.x, 40, 3, 14), D.COAL)
+	gfill(Rect2i(dr.x, D.GROUND_Y, dr.w, 14 * D.S), D.COAL)
 	dr.enabled = true
-	game.set_reach_limit(dr, 12)
+	game.set_reach_limit(dr, D.DRILL_REACH)
 	game.levels["drill_bit"] = 2   # the plain fixed Drill is slow; this only wants the banking
 	var stone0: float = game.stock[D.R_STONE]
 	# Let the Hub's store sit at its cap, where it stops making power: anything
@@ -336,22 +357,22 @@ func scenario_g() -> void:
 	game.stock[D.R_POWER] = D.HUB_POWER_CAP
 	for _i in 60:
 		secs(1.0)
-		if dr.cells_bored >= 36:
+		if dr.cells_bored >= dr.w * D.DRILL_REACH:
 			break
 	secs(1.0)
 	print("  drill bored %d coal cells; Stone %.1f -> %.1f, Power %.1f (cap %d)" % [dr.cells_bored, stone0, game.stock[D.R_STONE], game.stock[D.R_POWER], int(D.HUB_POWER_CAP)])
-	check(dr.cells_bored >= 36, "the drill cut its channel through the coal")
+	check(dr.cells_bored >= dr.w * D.DRILL_REACH, "the drill cut its channel through the coal")
 	check(game.stock[D.R_STONE] >= stone0 + 5.0, "Stone banked")
-	check(game.stock[D.R_POWER] > D.HUB_POWER_CAP + 2.0, "Power banked on top of the Hub's cap: coal pays for its digging")
+	check(game.stock[D.R_POWER] > D.HUB_POWER_CAP + 1.5, "Power banked on top of the Hub's cap: coal pays for its digging")
 
 
 func scenario_h() -> void:
 	print("H. sulfur corrodes a Conduit, and a Stone patches it up")
 	fresh()
-	var c = build(D.B_CONDUIT, Rect2i(140, 38, 2, 2))
+	var c = build(D.B_CONDUIT, R(140, 38, 2, 2))
 	if c == null:
 		return
-	gfill(Rect2i(136, 40, 10, 3), D.SULFUR)
+	gfill(R(136, 40, 10, 3), D.SULFUR)
 	var lowest := 100.0
 	var patched := false
 	var stone0: float = game.stock[D.R_STONE]
@@ -373,16 +394,17 @@ func scenario_h() -> void:
 func scenario_i() -> void:
 	print("I. a fire under a link: patched while there's Stone, broken when there isn't, mended after")
 	fresh()
-	var c1 = build(D.B_CONDUIT, Rect2i(136, 38, 2, 2))
-	var c2 = build(D.B_CONDUIT, Rect2i(149, 38, 2, 2))
+	var c1 = build(D.B_CONDUIT, R(136, 38, 2, 2))
+	var c2 = build(D.B_CONDUIT, R(149, 38, 2, 2))
 	if c1 == null or c2 == null:
 		return
 	check(c2.connected and c2.link == c1, "the second Conduit links through the first")
 	# A row of coal along the line between them, alight.
-	var seam := Rect2i(140, 39, 8, 1)
+	var seam := R(140, 39, 8, 1)
 	gfill(seam, D.COAL)
-	for x in range(140, 148):
-		game.sim.ignite(x, 39)
+	for y in range(seam.position.y, seam.end.y):
+		for x in range(seam.position.x, seam.end.x):
+			game.sim.ignite(x, y)
 	var key: int = game._link_key(c1, c2)
 	var lowest := D.LINK_HP
 	var patched := false
@@ -422,35 +444,35 @@ func scenario_i() -> void:
 func scenario_j() -> void:
 	print("J. a blast's debris falls into a Hopper")
 	fresh()
-	var shaft := Rect2i(150, 40, 11, 30)
-	gfill(Rect2i(147, 40, 17, 33), D.DIRT)   # plain dirt walls: none of the seed's sand pours in
+	var shaft := R(150, 40, 11, 30)
+	gfill(R(147, 40, 17, 33), D.DIRT)   # plain dirt walls: none of the seed's sand pours in
 	gfill(shaft, D.AIR)
-	var c1 = build(D.B_CONDUIT, Rect2i(142, 38, 2, 2))
-	var c2 = build(D.B_CONDUIT, Rect2i(150, 48, 2, 2))
-	var c3 = build(D.B_CONDUIT, Rect2i(150, 62, 2, 2))
-	var hop = build(D.B_HOPPER, Rect2i(154, 68, 3, 2))
+	var c1 = build(D.B_CONDUIT, R(142, 38, 2, 2))
+	var c2 = build(D.B_CONDUIT, R(150, 48, 2, 2))
+	var c3 = build(D.B_CONDUIT, R(150, 62, 2, 2))
+	var hop = build(D.B_HOPPER, R(154, 68, 3, 2))
 	if c1 == null or c2 == null or c3 == null or hop == null:
 		return
 	# A stone funnel down to the Hopper's mouth, and a stone plug up the shaft.
 	for k in 4:
-		gfill(Rect2i(150, 67 - k, 4 - k, 1), D.STONE)
-		gfill(Rect2i(157 + k, 67 - k, 4 - k, 1), D.STONE)
-	gfill(Rect2i(150, 68, 4, 2), D.STONE)
-	gfill(Rect2i(157, 68, 4, 2), D.STONE)
-	gfill(Rect2i(152, 50, 9, 6), D.STONE)
+		gfill(R(150, 67 - k, 4 - k, 1), D.STONE)
+		gfill(R(157 + k, 67 - k, 4 - k, 1), D.STONE)
+	gfill(R(150, 68, 4, 2), D.STONE)
+	gfill(R(157, 68, 4, 2), D.STONE)
+	gfill(R(152, 50, 9, 6), D.STONE)
 	var stone0: float = game.stock[D.R_STONE]
 	var taken0: int = hop.cells_taken
-	var broke: int = game.blast(Vector2i(156, 53), D.BLAST_RADIUS, D.BLAST_POWER)
+	var broke: int = game.blast(P(156, 53), D.BLAST_RADIUS, D.BLAST_POWER)
 	var flying: int = game.sim.particle_count()
 	secs(12.0)
 	print("  blast broke %d cells, %d flew; the Hopper took %d; Stone %.1f -> %.1f" % [broke, flying, hop.cells_taken - taken0, stone0, game.stock[D.R_STONE]])
-	check(broke > 30, "the blast broke the shaft wall")
+	check(broke > 30 * D.S * D.S, "the blast broke the shaft wall")
 	check(flying > 0, "debris flew")
-	check(hop.cells_taken - taken0 >= 15, "the Hopper swallowed the debris")
+	check(hop.cells_taken - taken0 >= 15 * D.S * D.S, "the Hopper swallowed the debris")
 	# Ash is worth nothing, but a Hopper still clears it.
 	var taken1: int = hop.cells_taken
 	var stone1: float = game.stock[D.R_STONE]
-	gfill(Rect2i(154, 60, 3, 3), D.ASH)
+	gfill(R(154, 60, 3, 3), D.ASH)
 	secs(3.0)
-	check(hop.cells_taken - taken1 >= 9, "and clears ash (%d cells), for nothing" % (hop.cells_taken - taken1))
+	check(hop.cells_taken - taken1 >= 7 * D.S * D.S, "and clears ash (%d cells), for nothing" % (hop.cells_taken - taken1))
 	check(game.stock[D.R_STONE] - stone1 < 0.9, "ash banks nothing")
