@@ -305,3 +305,25 @@ static func buildable_in(m: int) -> bool:
 	ensure()
 	var k := kinds[m]
 	return k == K_EMPTY or k == K_GAS or (k == K_LIQUID and hots[m] == 0)
+
+
+static var _masks := {}
+
+
+## A byte per material id, 1 where `what` holds: "open" (buildable_in), "closed"
+## (not), or "solid" (static or powder). For the engine's rectangle queries.
+static func mask(what: String) -> PackedByteArray:
+	ensure()
+	if not _masks.has(what):
+		var out := PackedByteArray()
+		out.resize(256)
+		for m in 256:
+			var k := kinds[m]
+			var hit := false
+			match what:
+				"open": hit = buildable_in(m)
+				"closed": hit = not buildable_in(m)
+				"solid": hit = k == K_STATIC or k == K_POWDER
+			out[m] = 1 if hit else 0
+		_masks[what] = out
+	return _masks[what]

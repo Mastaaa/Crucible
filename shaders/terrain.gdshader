@@ -5,8 +5,8 @@ render_mode unshaded;
 // second one holding each cell's extra byte (how long it has left to burn, or
 // how long a short-lived gas has left). Colours come from the palette materials.gd
 // builds out of data/materials.json; fog and warnings happen here.
-uniform sampler2D grid_tex : filter_nearest, repeat_disable;
-uniform sampler2D aux_tex : filter_nearest, repeat_disable;
+uniform sampler2DArray grid_tex : filter_nearest, repeat_disable;   // cells, a 256 x 256 tile a layer
+uniform sampler2DArray aux_tex : filter_nearest, repeat_disable;    // each cell's extra byte, tiled the same
 uniform sampler2D pal_tex : filter_nearest, repeat_disable;    // 256 x 4, one column per material
 uniform sampler2D known_tex : filter_linear, repeat_disable;   // a byte per 4x4 block: explored areas
 uniform sampler2D heat_tex : filter_linear, repeat_disable;    // per block: holding lava
@@ -14,10 +14,17 @@ uniform sampler2D sense_tex : filter_linear, repeat_disable;   // per block: wit
 uniform sampler2D vis_tex : filter_linear, repeat_disable;     // per block: shows live (lit and explored)
 uniform sampler2D light_tex : filter_linear, repeat_disable;   // per block: brightness
 uniform float use_light = 0.0;                                  // 0: no per-cell light (GDScript sim)
-uniform sampler2D mem_tex : filter_nearest, repeat_disable;    // the map as last seen
+uniform sampler2DArray mem_tex : filter_nearest, repeat_disable;    // the map as last seen, tiled the same
 uniform float time_s = 0.0;
 uniform float ground_y = 200.0;
 uniform ivec2 map_size = ivec2(768, 5120);
+uniform int tiles_across = 3;
+
+// Where a cell lives in the tiled arrays.
+ivec3 tile_at(ivec2 c) {
+	c = clamp(c, ivec2(0), map_size - 1);
+	return ivec3(c.x & 255, c.y & 255, (c.y >> 8) * tiles_across + (c.x >> 8));
+}
 uniform float reveal_all = 0.0;
 
 // Depth colours were drawn for the 1024-row v2 map; rows scale to it.
@@ -44,15 +51,15 @@ float vnoise(vec2 p) {
 }
 
 int mat_at(ivec2 c) {
-	return int(texelFetch(grid_tex, clamp(c, ivec2(0), map_size - 1), 0).r * 255.0 + 0.5);
+	return int(texelFetch(grid_tex, tile_at(c), 0).r * 255.0 + 0.5);
 }
 
 float aux_at(ivec2 c) {
-	return floor(texelFetch(aux_tex, clamp(c, ivec2(0), map_size - 1), 0).r * 255.0 + 0.5);
+	return floor(texelFetch(aux_tex, tile_at(c), 0).r * 255.0 + 0.5);
 }
 
 int mem_at(ivec2 c) {
-	return int(texelFetch(mem_tex, clamp(c, ivec2(0), map_size - 1), 0).r * 255.0 + 0.5);
+	return int(texelFetch(mem_tex, tile_at(c), 0).r * 255.0 + 0.5);
 }
 
 vec3 sky(float y, vec2 cf) {

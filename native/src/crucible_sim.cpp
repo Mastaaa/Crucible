@@ -166,6 +166,11 @@ void CrucibleSim::set_size(int w, int h) {
 	settle.assign(N, 0);
 	held.assign(N, 0);
 	vel.assign(N, 0);
+	mem.assign(N, 0);
+	TW = (W + (1 << TSHIFT) - 1) >> TSHIFT;
+	TH = (H + (1 << TSHIFT) - 1) >> TSHIFT;
+	tile_dirty.assign((size_t)TW * TH, 1);
+	mem_dirty.assign((size_t)TW * TH, 1);
 	stamp.assign(N, 0);
 	light_lv.clear(); // sized by light_update, a value per 4x4 block
 	light_px.clear();
@@ -536,6 +541,7 @@ void CrucibleSim::step() {
 	if (mark > 250) {
 		mark = 1;
 	}
+	mark_tiles(next);
 	cur = next;
 	next.reset();
 	for (Ctx &cx : ctxs) {
@@ -1199,6 +1205,7 @@ void CrucibleSim::set_cells(const PackedByteArray &data) {
 	std::fill(aux.begin(), aux.end(), (uint8_t)0);
 	std::fill(settle.begin(), settle.end(), 0);
 	std::fill(vel.begin(), vel.end(), (uint8_t)0);
+	std::fill(tile_dirty.begin(), tile_dirty.end(), (uint8_t)1);
 	parts.clear();
 	for (auto &f : lava_dirty) {
 		f.store(1);
@@ -1948,8 +1955,89 @@ PackedByteArray CrucibleSim::light_update(const PackedInt32Array &lights, const 
 		live[b] = (k && (bits[b] & 1)) ? 255 : 0;
 		expl[b] = k ? 255 : 0;
 		seen[b] = s ? 255 : 0;
+		// What shows live now is what will be remembered once it doesn't.
+		if (live[b]) {
+			int bx = b % BW, by = b / BW;
+			bool diff = false;
+			for (int yy = by * 4; yy < by * 4 + 4; yy++) {
+				int i = yy * W + bx * 4;
+				if (memcmp(&mem[i], &cells[i], 4) != 0) {
+					memcpy(&mem[i], &cells[i], 4);
+					diff = true;
+				}
+			}
+			if (diff) {
+				mem_dirty[(size_t)((by * 4) >> TSHIFT) * TW + ((bx * 4) >> TSHIFT)] = 1;
+			}
+		}
 	}
 	return out;
+}
+
+// --- Render tiles -----------------------------------------------------------------
+// The game draws the map from textures cut into 256 x 256 tiles and re-uploads only
+// the tiles that changed: the engine flags a tile when a chunk in it was touched
+// (anything that moves or changes a cell touches its chunk).
+
+void CrucibleSim::mark_tiles(const Rects &r) {
+	const int per = 1 << (TSHIFT - CSHIFT); // chunks across a tile
+	for (int c = 0; c < NCH; c++) {
+		if (r.x1[c] >= 0) {
+			tile_dirty[(size_t)((c / CW) / per) * TW + ((c % CW) / per)] = 1;
+		}
+	}
+}
+
+// Tiles (index ty * tiles_across + tx) whose cells or aux changed since the last
+// call; their flags are cleared.
+PackedInt32Array CrucibleSim::take_dirty_tiles() {
+	mark_tiles(next);
+	PackedInt32Array out;
+	for (int t = 0; t < (int)tile_dirty.size(); t++) {
+		if (tile_dirty[t]) {
+			out.push_back(t);
+			tile_dirty[t] = 0;
+		}
+	}
+	return out;
+}
+
+// Tiles whose remembered cells changed since the last call.
+PackedInt32Array CrucibleSim::take_mem_tiles() {
+	PackedInt32Array out;
+	for (int t = 0; t < (int)mem_dirty.size(); t++) {
+		if (mem_dirty[t]) {
+			out.push_back(t);
+			mem_dirty[t] = 0;
+		}
+	}
+	return out;
+}
+
+// One tile's bytes, 256 x 256 row by row (zeros past the map's edge): `which` 0
+// cells, 1 aux, 2 the remembered map.
+PackedByteArray CrucibleSim::get_tile(int which, int tile) const {
+	const int TS = 1 << TSHIFT;
+	PackedByteArray out;
+	out.resize(TS * TS);
+	uint8_t *o = out.ptrw();
+	memset(o, 0, TS * TS);
+	if (tile < 0 || tile >= TW * TH) {
+		return out;
+	}
+	const std::vector<uint8_t> &src = which == 1 ? aux : (which == 2 ? mem : cells);
+	int x0 = (tile % TW) << TSHIFT, y0 = (tile / TW) << TSHIFT;
+	int w = std::min(TS, W - x0);
+	for (int yy = 0; yy < TS && y0 + yy < H; yy++) {
+		memcpy(o + yy * TS, &src[(size_t)(y0 + yy) * W + x0], w);
+	}
+	return out;
+}
+
+// Forget what was seen: the remembered map becomes the map as it is now.
+void CrucibleSim::reset_memory() {
+	mem = cells;
+	std::fill(mem_dirty.begin(), mem_dirty.end(), (uint8_t)1);
 }
 
 // Explored ground outside this rectangle (cells, end exclusive) no longer pulls its
@@ -2170,6 +2258,98 @@ PackedInt32Array CrucibleSim::segments_batch(const PackedInt32Array &segs) const
 	return out;
 }
 
+// Cells in the rectangle (clipped to the map) whose material `mask` flags (a byte
+// per material id).
+int CrucibleSim::count_in_rect(int x, int y, int w, int h, const PackedByteArray &mask) const {
+	if (mask.size() < 256) {
+		return 0;
+	}
+	const uint8_t *mk = mask.ptr();
+	int n = 0;
+	for (int yy = std::max(y, 0); yy < std::min(y + h, H); yy++) {
+		for (int xx = std::max(x, 0); xx < std::min(x + w, W); xx++) {
+			n += mk[cells[yy * W + xx]] ? 1 : 0;
+		}
+	}
+	return n;
+}
+
+// Where a w x h footprint at (x, y) could go within `radius` cells: every offset
+// (nearest first) where the footprint lies inside the map's 2-cell margin, every
+// cell of it is one `open_mask` flags, and a cell `solid_mask` flags touches one
+// of its sides (above, below, left or right; not the corners). Returns triples
+// (dx, dy, rests), rests being 1 when something solid lies right under it. The game
+// then checks what the engine can't (fog, network reach).
+PackedInt32Array CrucibleSim::place_spots(int x, int y, int w, int h, int radius, const PackedByteArray &open_mask, const PackedByteArray &solid_mask) {
+	PackedInt32Array out;
+	if (open_mask.size() < 256 || solid_mask.size() < 256 || w <= 0 || h <= 0 || radius < 0) {
+		return out;
+	}
+	if (radius != spot_radius) {
+		spot_radius = radius;
+		std::vector<std::pair<int, int>> offs;
+		for (int dy = -radius; dy <= radius; dy++) {
+			for (int dx = -radius; dx <= radius; dx++) {
+				if (dx * dx + dy * dy <= radius * radius) {
+					offs.push_back({ dx, dy });
+				}
+			}
+		}
+		std::stable_sort(offs.begin(), offs.end(), [](const std::pair<int, int> &a, const std::pair<int, int> &b) {
+			return a.first * a.first + a.second * a.second < b.first * b.first + b.second * b.second;
+		});
+		spot_offsets.clear();
+		for (auto &o : offs) {
+			spot_offsets.push_back(o.first);
+			spot_offsets.push_back(o.second);
+		}
+	}
+	// Prefix sums over the window every candidate (and its one-cell border) lies in.
+	const uint8_t *om = open_mask.ptr();
+	const uint8_t *sm = solid_mask.ptr();
+	const int wx0 = x - radius - 1, wy0 = y - radius - 1;
+	const int ww = w + 2 * radius + 2, wh = h + 2 * radius + 2;
+	std::vector<int32_t> bad((size_t)(ww + 1) * (wh + 1), 0), sol((size_t)(ww + 1) * (wh + 1), 0);
+	for (int j = 0; j < wh; j++) {
+		int gy = wy0 + j;
+		int rb = 0, rs = 0;
+		for (int i = 0; i < ww; i++) {
+			int gx = wx0 + i;
+			bool inside = gx >= 0 && gy >= 0 && gx < W && gy < H;
+			uint8_t m = inside ? cells[gy * W + gx] : 1;
+			rb += (inside && om[m]) ? 0 : 1;
+			rs += (inside && sm[m]) ? 1 : 0;
+			size_t k = (size_t)(j + 1) * (ww + 1) + (i + 1);
+			bad[k] = bad[k - (ww + 1)] + rb;
+			sol[k] = sol[k - (ww + 1)] + rs;
+		}
+	}
+	// Sum over window cells [i0, i1) x [j0, j1).
+	auto sum = [&](const std::vector<int32_t> &p, int i0, int j0, int i1, int j1) {
+		return p[(size_t)j1 * (ww + 1) + i1] - p[(size_t)j0 * (ww + 1) + i1] - p[(size_t)j1 * (ww + 1) + i0] + p[(size_t)j0 * (ww + 1) + i0];
+	};
+	for (size_t k = 0; k + 1 < spot_offsets.size(); k += 2) {
+		int dx = spot_offsets[k], dy = spot_offsets[k + 1];
+		int rx = x + dx, ry = y + dy;
+		if (rx < 2 || ry < 2 || rx + w > W - 2 || ry + h > H - 2) {
+			continue;
+		}
+		int i0 = rx - wx0, j0 = ry - wy0;
+		if (sum(bad, i0, j0, i0 + w, j0 + h) != 0) {
+			continue;
+		}
+		int below = sum(sol, i0, j0 + h, i0 + w, j0 + h + 1);
+		int touch = below + sum(sol, i0, j0 - 1, i0 + w, j0) + sum(sol, i0 - 1, j0, i0, j0 + h) + sum(sol, i0 + w, j0, i0 + w + 1, j0 + h);
+		if (touch == 0) {
+			continue;
+		}
+		out.push_back(dx);
+		out.push_back(dy);
+		out.push_back(below > 0 ? 1 : 0);
+	}
+	return out;
+}
+
 // Which materials occur in the 4x4 blocks a mask (W/4 x H/4, like the fog maps)
 // marks: 256 entries, each the index (y * W + x) of one cell of that material
 // found there, or -1. Burning cells show up as the fire material, if there is one.
@@ -2246,6 +2426,12 @@ void CrucibleSim::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("light_update", "lights", "sights", "sun", "known"), &CrucibleSim::light_update);
 	ClassDB::bind_method(D_METHOD("get_light"), &CrucibleSim::get_light);
 	ClassDB::bind_method(D_METHOD("set_light_view", "x0", "y0", "x1", "y1"), &CrucibleSim::set_light_view);
+	ClassDB::bind_method(D_METHOD("take_dirty_tiles"), &CrucibleSim::take_dirty_tiles);
+	ClassDB::bind_method(D_METHOD("take_mem_tiles"), &CrucibleSim::take_mem_tiles);
+	ClassDB::bind_method(D_METHOD("get_tile", "which", "tile"), &CrucibleSim::get_tile);
+	ClassDB::bind_method(D_METHOD("reset_memory"), &CrucibleSim::reset_memory);
+	ClassDB::bind_method(D_METHOD("get_tiles_across"), &CrucibleSim::get_tiles_across);
+	ClassDB::bind_method(D_METHOD("get_tiles_down"), &CrucibleSim::get_tiles_down);
 	ClassDB::bind_method(D_METHOD("count", "material"), &CrucibleSim::count);
 	ClassDB::bind_method(D_METHOD("count_burning"), &CrucibleSim::count_burning);
 	ClassDB::bind_method(D_METHOD("particle_count"), &CrucibleSim::particle_count);
@@ -2256,6 +2442,8 @@ void CrucibleSim::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("hazards_batch", "rects", "reach"), &CrucibleSim::hazards_batch);
 	ClassDB::bind_method(D_METHOD("segments_batch", "segments"), &CrucibleSim::segments_batch);
 	ClassDB::bind_method(D_METHOD("materials_in", "mask"), &CrucibleSim::materials_in);
+	ClassDB::bind_method(D_METHOD("count_in_rect", "x", "y", "w", "h", "mask"), &CrucibleSim::count_in_rect);
+	ClassDB::bind_method(D_METHOD("place_spots", "x", "y", "w", "h", "radius", "open_mask", "solid_mask"), &CrucibleSim::place_spots);
 	ClassDB::bind_method(D_METHOD("set_threads", "n"), &CrucibleSim::set_threads);
 	ClassDB::bind_method(D_METHOD("set_fall", "accel", "max_speed"), &CrucibleSim::set_fall);
 	ClassDB::bind_method(D_METHOD("get_threads"), &CrucibleSim::get_threads);

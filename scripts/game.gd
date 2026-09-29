@@ -20,6 +20,8 @@ const KH := D.H >> 2
 const SIDE_UI := 240.0         # screen width kept free for side panels, per side
 const ZOOM_STEP := 1.25        # a wheel notch or +/- zooms by this much
 const ZOOM_CLOSEST := 6.0      # screen pixels a cell, closest in
+const TILE_SHIFT := 8
+const TILE := 1 << TILE_SHIFT  # the map's textures are cut into tiles this big (the engine's too)
 const DIRS4 := [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]
 const BRUSH_BLAST := -1           # not a material: the brush sets off a blast where you click
 const BRUSH_MATS := [D.WATER, D.LAVA, D.LOOSE_DIRT, D.RUBBLE, D.DIRT, D.PACKED_DIRT, D.GRAVEL, D.SAND,
@@ -142,7 +144,7 @@ var known_changed := true
 var vis := PackedByteArray()      # blocks that show live: lit and explored
 var seen := PackedByteArray()     # blocks lit and within sight of your buildings right now
 var vis_changed := true
-var mem_due := true               # the remembered picture needs refreshing from the live grid
+var mem_due := true               # re-upload every tile of the remembered picture
 var light_due := true             # the light map changed since it was last uploaded
 var sense := PackedByteArray()
 var sense_changed := true
@@ -151,10 +153,16 @@ var reveal_all := false
 # --- Rendering -----------------------------------------------------------------
 var terrain: Sprite2D
 var terrain_mat: ShaderMaterial
-var grid_img: Image
-var grid_tex: ImageTexture
-var aux_img: Image                # each cell's extra byte: burning, or a gas's life
-var aux_tex: ImageTexture
+# The map's cells, their extra byte (burning, or a gas's life) and the map as last
+# seen are drawn from texture arrays, a 256 x 256 tile a layer; only tiles that
+# changed are uploaded, and only near the screen.
+var grid_tex: Texture2DArray
+var aux_tex: Texture2DArray
+var mem_tex: Texture2DArray
+var stale_tiles := {}             # tile -> true: cells changed, not uploaded yet
+var stale_mem := {}               # tile -> true: remembered cells changed, not uploaded yet
+var tiles_x := 1
+var tiles_y := 1
 var pal_tex: ImageTexture         # material colours and styles, from data/materials.json
 var known_img: Image
 var known_tex: ImageTexture
@@ -163,8 +171,6 @@ var vis_tex: ImageTexture
 var light_img: Image              # brightness per 4 x 4 block, from the C++ sim's light map
 var light_tex: ImageTexture
 var has_light := false            # the sim has a light map (the GDScript one only lights blocks)
-var mem_img: Image                # the map as last seen, shown where nothing looks now
-var mem_tex: ImageTexture
 var heat_img: Image
 var heat_tex: ImageTexture
 var sense_img: Image
@@ -194,7 +200,6 @@ var selected: Building = null
 var hover := Vector2i(-1, -1)
 var snap_key: Array = []          # snap_place's last question and answer, reused for a few frames
 var snap_rect := Rect2i()
-var snap_offsets: Array = []      # offsets within PLACE_SNAP, nearest first
 var mouse_screen := Vector2.ZERO
 var sensor_mode := false
 var demolish_target: Building = null
@@ -243,9 +248,17 @@ func _build_nodes() -> void:
 	terrain.material = terrain_mat
 	add_child(terrain)
 
-	grid_img = Image.create(D.W, D.H, false, Image.FORMAT_R8)
-	grid_tex = ImageTexture.create_from_image(grid_img)
-	terrain.texture = grid_tex
+	tiles_x = (D.W + TILE - 1) >> TILE_SHIFT
+	tiles_y = (D.H + TILE - 1) >> TILE_SHIFT
+	var layers: Array[Image] = []
+	for _t in tiles_x * tiles_y:
+		layers.append(Image.create(TILE, TILE, false, Image.FORMAT_R8))
+	grid_tex = Texture2DArray.new()
+	grid_tex.create_from_images(layers)
+	aux_tex = Texture2DArray.new()
+	aux_tex.create_from_images(layers)
+	mem_tex = Texture2DArray.new()
+	mem_tex.create_from_images(layers)
 	known_img = Image.create(KW, KH, false, Image.FORMAT_R8)
 	known_tex = ImageTexture.create_from_image(known_img)
 	heat_img = Image.create(KW, KH, false, Image.FORMAT_R8)
@@ -256,10 +269,9 @@ func _build_nodes() -> void:
 	vis_tex = ImageTexture.create_from_image(vis_img)
 	light_img = Image.create(KW, KH, false, Image.FORMAT_R8)
 	light_tex = ImageTexture.create_from_image(light_img)
-	mem_img = Image.create(D.W, D.H, false, Image.FORMAT_R8)
-	mem_tex = ImageTexture.create_from_image(mem_img)
-	aux_img = Image.create(D.W, D.H, false, Image.FORMAT_R8)
-	aux_tex = ImageTexture.create_from_image(aux_img)
+	# The sprite only gives the map its extent (the shader draws it): the light
+	# texture, a texel per 4 x 4 block, drawn 4x.
+	terrain.texture = light_tex
 	pal_tex = ImageTexture.create_from_image(Mats.palette_image())
 	terrain_mat.set_shader_parameter("grid_tex", grid_tex)
 	terrain_mat.set_shader_parameter("aux_tex", aux_tex)
@@ -272,6 +284,7 @@ func _build_nodes() -> void:
 	terrain_mat.set_shader_parameter("mem_tex", mem_tex)
 	terrain_mat.set_shader_parameter("ground_y", float(D.GROUND_Y))
 	terrain_mat.set_shader_parameter("map_size", Vector2i(D.W, D.H))
+	terrain_mat.set_shader_parameter("tiles_across", tiles_x)
 
 	var layer := CanvasLayer.new()
 	layer.layer = 1
@@ -383,9 +396,9 @@ func new_game(s: int) -> void:
 	vis_changed = true
 	seen = PackedByteArray()
 	seen.resize(KW * KH)
-	if mem_img != null:
-		mem_img.set_data(D.W, D.H, false, Image.FORMAT_R8, sim.get_cells())
-		mem_tex.update(mem_img)
+	sim.reset_memory()
+	stale_tiles.clear()
+	stale_mem.clear()
 	mem_due = true
 	sim.refresh_heat(true)
 	sim.changed = true
@@ -488,12 +501,34 @@ func run_ticks(n: int) -> void:
 
 
 func _upload() -> void:
-	if sim.changed:
-		grid_img.set_data(D.W, D.H, false, Image.FORMAT_R8, sim.get_cells())
-		grid_tex.update(grid_img)
-		aux_img.set_data(D.W, D.H, false, Image.FORMAT_R8, sim.get_aux_bytes())
-		aux_tex.update(aux_img)
-		sim.changed = false
+	for t: int in sim.take_dirty_tiles():
+		stale_tiles[t] = true
+	for t: int in sim.take_mem_tiles():
+		stale_mem[t] = true
+	if mem_due:
+		for t in tiles_x * tiles_y:
+			stale_mem[t] = true
+		mem_due = false
+	sim.changed = false
+	# Tiles near the screen go up now; the rest wait until they come into view.
+	var vr := view_rect(TILE >> 1)
+	var tx0 := vr.position.x >> TILE_SHIFT
+	var tx1 := (vr.end.x - 1) >> TILE_SHIFT
+	var ty0 := vr.position.y >> TILE_SHIFT
+	var ty1 := (vr.end.y - 1) >> TILE_SHIFT
+	for t: int in stale_tiles.keys():
+		var tx := t % tiles_x
+		var ty := floori(t / float(tiles_x))
+		if tx >= tx0 and tx <= tx1 and ty >= ty0 and ty <= ty1:
+			_upload_tile(grid_tex, 0, t)
+			_upload_tile(aux_tex, 1, t)
+			stale_tiles.erase(t)
+	for t: int in stale_mem.keys():
+		var tx := t % tiles_x
+		var ty := floori(t / float(tiles_x))
+		if tx >= tx0 and tx <= tx1 and ty >= ty0 and ty <= ty1:
+			_upload_tile(mem_tex, 2, t)
+			stale_mem.erase(t)
 	if known_changed:
 		known_img.set_data(KW, KH, false, Image.FORMAT_R8, known)
 		known_tex.update(known_img)
@@ -518,9 +553,6 @@ func _upload() -> void:
 			light_tex.update(light_img)
 		terrain_mat.set_shader_parameter("use_light", 1.0 if has_light else 0.0)
 		light_due = false
-	if mem_due:
-		_refresh_memory()
-		mem_due = false
 	terrain_mat.set_shader_parameter("reveal_all", 1.0 if reveal_all else 0.0)
 
 
@@ -572,37 +604,40 @@ func snap_place(type: int, c: Vector2i, horiz: bool) -> Rect2i:
 	var why := check_place(type, r)
 	if why != "Must touch rock" and why != "Needs open air or water":
 		return r
-	if why == "Must touch rock" and not _solid_within(r.grow(D.PLACE_SNAP + 1)):
+	if why == "Must touch rock" and sim.count_in_rect(r.position.x - D.PLACE_SNAP - 1, r.position.y - D.PLACE_SNAP - 1,
+			r.size.x + 2 * D.PLACE_SNAP + 2, r.size.y + 2 * D.PLACE_SNAP + 2, Mats.mask("solid")) == 0:
 		return r
-	if snap_offsets.is_empty():
-		var n := D.PLACE_SNAP
-		for dy in range(-n, n + 1):
-			for dx in range(-n, n + 1):
-				if (dx != 0 or dy != 0) and dx * dx + dy * dy <= n * n:
-					snap_offsets.append(Vector2i(dx, dy))
-		snap_offsets.sort_custom(func(a: Vector2i, b: Vector2i) -> bool: return a.length_squared() < b.length_squared())
+	# The engine lists the spots in reach that are open and touch rock, nearest
+	# first; fog and network reach are checked here.
+	var spots: PackedInt32Array = sim.place_spots(r.position.x, r.position.y, r.size.x, r.size.y, D.PLACE_SNAP,
+			Mats.mask("open"), Mats.mask("solid"))
 	var best_score := INF
-	for o: Vector2i in snap_offsets:
+	for k in range(0, spots.size(), 3):
+		var o := Vector2i(spots[k], spots[k + 1])
+		if o == Vector2i.ZERO:
+			continue
 		var d2 := float(o.length_squared())
 		if d2 >= best_score:
 			break
 		var rr := Rect2i(r.position + o, r.size)
-		if check_place(type, rr) != "":
+		if not _known_rect(rr) or find_link(type, rr) == null:
 			continue
-		var score := d2 if _rests(rr) else d2 + 1.5 * D.S * D.S
+		var score := d2 if spots[k + 2] == 1 else d2 + 1.5 * D.S * D.S
 		if score < best_score:
 			best_score = score
 			snap_rect = rr
 	return snap_rect
 
 
-## Anything solid (or a building) inside `r`.
-func _solid_within(r: Rect2i) -> bool:
-	for yy in range(maxi(r.position.y, 0), mini(r.end.y, D.H)):
-		for xx in range(maxi(r.position.x, 0), mini(r.end.x, D.W)):
-			if D.is_solid(sim.get_cell(xx, yy)):
-				return true
-	return false
+## Every 4 x 4 block under `r` explored.
+func _known_rect(r: Rect2i) -> bool:
+	if reveal_all:
+		return true
+	for ky in range(maxi(r.position.y, 0) >> 2, ((mini(r.end.y, D.H) - 1) >> 2) + 1):
+		for kx in range(maxi(r.position.x, 0) >> 2, ((mini(r.end.x, D.W) - 1) >> 2) + 1):
+			if known[ky * KW + kx] == 0:
+				return false
+	return true
 
 
 ## Something solid (or a building) right under `r`.
@@ -617,12 +652,10 @@ func _rests(r: Rect2i) -> bool:
 func check_place(type: int, r: Rect2i, need_touch := true) -> String:
 	if r.position.x < 2 or r.position.y < 2 or r.end.x > D.W - 2 or r.end.y > D.H - 2:
 		return "Out of bounds"
-	for yy in range(r.position.y, r.end.y):
-		for xx in range(r.position.x, r.end.x):
-			if not Mats.buildable_in(sim.get_cell(xx, yy)):
-				return "Needs open air or water"
-			if not is_known(xx, yy):
-				return "Unexplored"
+	if sim.count_in_rect(r.position.x, r.position.y, r.size.x, r.size.y, Mats.mask("closed")) > 0:
+		return "Needs open air or water"
+	if not _known_rect(r):
+		return "Unexplored"
 	if need_touch and not touches_solid(r):
 		return "Must touch rock"
 	if find_link(type, r) == null:
@@ -3044,7 +3077,6 @@ func _refresh_vision() -> void:
 		known = expl
 		known_changed = true
 	light_due = true
-	mem_due = true
 	var found: PackedInt32Array = sim.materials_in(seen)
 	_sightings(found)
 	if not tiers_open[3] and found[D.LAVA] >= 0:
@@ -3089,22 +3121,8 @@ func is_seen(x: int, y: int) -> bool:
 	return vis[(y >> 2) * KW + (x >> 2)] != 0
 
 
-## Copy what is visible now into the remembered picture, a run of blocks at a time.
-func _refresh_memory() -> void:
-	if grid_img == null:
-		return
-	for ky in KH:
-		var row := ky * KW
-		var kx := 0
-		while kx < KW:
-			if vis[row + kx] == 0:
-				kx += 1
-				continue
-			var start := kx
-			while kx < KW and vis[row + kx] != 0:
-				kx += 1
-			mem_img.blit_rect(grid_img, Rect2i(start * 4, ky * 4, (kx - start) * 4, 4), Vector2i(start * 4, ky * 4))
-	mem_tex.update(mem_img)
+func _upload_tile(arr: Texture2DArray, which: int, t: int) -> void:
+	arr.update_layer(Image.create_from_data(TILE, TILE, false, Image.FORMAT_R8, sim.get_tile(which, t)), t)
 
 
 func _refresh_sense() -> void:
@@ -3266,7 +3284,7 @@ func _update_camera(delta: float) -> void:
 		off = Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * shake * 5.0
 	view_offset = Vector2(map_x, round(-cam_y * zoom)) + off.round()
 	terrain.position = view_offset
-	terrain.scale = Vector2(zoom, zoom)
+	terrain.scale = Vector2(zoom, zoom) * 4.0
 	hover = screen_to_cell(mouse_screen)
 
 

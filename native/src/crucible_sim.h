@@ -53,6 +53,7 @@ public:
 	static constexpr int LFULL = 480; // light at which a block is at full brightness (60 cells in)
 	static constexpr int LMIN = 4; // light at which a block counts as lit
 	static constexpr int LIGHT_MAX_R = 400; // the furthest any light reaches, in cells
+	static constexpr int TSHIFT = 8; // render tiles are 256 x 256 cells
 	static constexpr int NHAZ = 8; // values hazards_at writes per building
 
 	enum Kind : uint8_t {
@@ -172,6 +173,10 @@ private:
 	std::vector<int32_t> settle; // tick until which a freshly exposed solid cell holds still
 	std::vector<uint8_t> held; // how many Struts hold each cell still (weathering, loosening, collapse)
 	std::vector<uint8_t> vel; // falling speed, in sixteenths of a cell a tick (powders and liquids in free fall)
+	std::vector<uint8_t> mem; // the map as last seen: live blocks are copied in by light_update
+	std::vector<uint8_t> tile_dirty; // render tiles whose cells (or aux) changed since take_dirty_tiles
+	std::vector<uint8_t> mem_dirty; // render tiles whose remembered cells changed since take_mem_tiles
+	int TW = 3, TH = 4; // render tiles across and down
 	std::vector<int32_t> shields; // circles (x, y, r) that tremors leave alone
 	std::vector<uint8_t> stamp;
 	std::vector<std::atomic<uint8_t>> lava_dirty;
@@ -181,6 +186,8 @@ private:
 	std::vector<uint16_t> light_cost; // what crossing each block costs (sum of its cells' opacities)
 	std::vector<int32_t> light_stamp; // light_gen when light_cost was worked out
 	int light_gen = 0;
+	std::vector<int32_t> spot_offsets; // (dx, dy) pairs within spot_radius, nearest first
+	int spot_radius = -1;
 	std::vector<std::vector<int32_t>> light_buckets;
 	int view_x0 = 0, view_y0 = 0, view_x1 = 1 << 20, view_y1 = 1 << 20; // explored ground outside isn't lit
 	uint8_t opq[256]; // light cost multiplier per material
@@ -312,6 +319,13 @@ public:
 	PackedByteArray light_update(const PackedInt32Array &lights, const PackedInt32Array &sights, int sun, const PackedByteArray &known);
 	PackedByteArray get_light() const;
 	void set_light_view(int x0, int y0, int x1, int y1);
+	void mark_tiles(const Rects &r);
+	PackedInt32Array take_dirty_tiles();
+	PackedInt32Array take_mem_tiles();
+	PackedByteArray get_tile(int which, int tile) const;
+	void reset_memory();
+	int get_tiles_across() const { return TW; }
+	int get_tiles_down() const { return TH; }
 
 	int count(int m) const;
 	int count_burning() const;
@@ -323,6 +337,8 @@ public:
 	PackedInt32Array hazards_batch(const PackedInt32Array &rects, int reach) const;
 	PackedInt32Array segments_batch(const PackedInt32Array &segs) const;
 	PackedInt32Array materials_in(const PackedByteArray &mask) const;
+	int count_in_rect(int x, int y, int w, int h, const PackedByteArray &mask) const;
+	PackedInt32Array place_spots(int x, int y, int w, int h, int radius, const PackedByteArray &open_mask, const PackedByteArray &solid_mask);
 
 	void set_threads(int n);
 	void set_fall(double accel, double max_speed);

@@ -3,7 +3,7 @@ extends RefCounted
 ## C++ one (native/, loaded from bin/crucible_sim.gdextension) whenever it's there.
 ## This one is several times slower and ignores data/materials.json. Same API.
 ##
-## Falling-sand simulation on a 256 x 1024 byte grid.
+## Falling-sand simulation on a D.W x D.H byte grid.
 ##
 ## The grid is split into 32 x 32 chunks. Every chunk keeps a dirty rectangle:
 ## only cells inside a chunk's rectangle (grown by one cell) are visited next
@@ -20,8 +20,9 @@ extends RefCounted
 
 const D = preload("res://scripts/defs.gd")
 
-const W := 256
-const H := 1024
+const W := D.W
+const H := D.H
+const BW := W >> 2   # blocks (4 x 4 cells) across, for heat and the fog maps
 const CW := 8            # chunks across
 const CH := 32           # chunks down
 const NCH := CW * CH
@@ -84,7 +85,7 @@ func _init() -> void:
 	ax1.fill(-1)
 	ay1.fill(-1)
 	_clear_next()
-	heat.resize(64 * 256)
+	heat.resize(BW * (H >> 2))
 	lava_dirty.resize(NCH)
 	D.M.ensure()
 	_k = D.M.kinds.duplicate()
@@ -545,7 +546,7 @@ func refresh_heat(all: bool) -> void:
 							break
 					if v != 0:
 						break
-				heat[((gy >> 2) + by) * 64 + (gx >> 2) + bx] = v
+				heat[((gy >> 2) + by) * BW + (gx >> 2) + bx] = v
 		heat_changed = true
 
 
@@ -750,13 +751,13 @@ func segments_batch(segs: PackedInt32Array) -> PackedInt32Array:
 
 ## Light, roughly: no shadows, no glow, whole blocks lit within each light's
 ## radius and the sky above the ground. Returns the same three maps as the C++
-## sim (live, explored, seen), 64 x 256 each.
+## sim (live, explored, seen), a byte per 4 x 4 block each.
 func light_update(lights: PackedInt32Array, sights: PackedInt32Array, sun: int, known: PackedByteArray) -> PackedByteArray:
-	var n := 64 * 256
+	var n := BW * (H >> 2)
 	var bits := PackedByteArray()
 	bits.resize(n)
 	if sun > 0:
-		for b in 64 * (D.GROUND_Y >> 2):
+		for b in BW * (D.GROUND_Y >> 2):
 			bits[b] = 1
 	_stamp(bits, lights, 1)
 	_stamp(bits, sights, 2)
@@ -780,12 +781,12 @@ func _stamp(out: PackedByteArray, circles: PackedInt32Array, bit: int) -> void:
 		var py := float(circles[k + 1])
 		var r := float(circles[k + 2])
 		var r2 := (r + 2.0) * (r + 2.0)
-		for ky in range(maxi(int((py - r) / 4.0), 0), mini(int((py + r) / 4.0), 255) + 1):
-			for kx in range(maxi(int((px - r) / 4.0), 0), mini(int((px + r) / 4.0), 63) + 1):
+		for ky in range(maxi(int((py - r) / 4.0), 0), mini(int((py + r) / 4.0), (H >> 2) - 1) + 1):
+			for kx in range(maxi(int((px - r) / 4.0), 0), mini(int((px + r) / 4.0), BW - 1) + 1):
 				var dx := kx * 4 + 2.0 - px
 				var dy := ky * 4 + 2.0 - py
 				if dx * dx + dy * dy <= r2:
-					out[ky * 64 + kx] |= bit
+					out[ky * BW + kx] |= bit
 
 
 ## No per-cell light here: the renderer lights whole blocks instead.
@@ -797,7 +798,91 @@ func get_light() -> PackedByteArray:
 	return PackedByteArray()
 
 
-## Where each material shows up in the blocks a 64 x 256 mask marks (-1: nowhere).
+# Render tiles, the simple way: every tile counts as changed while anything has,
+# and the remembered map is the live one.
+const TS := 256
+var _mem_all := true
+
+
+func get_tiles_across() -> int:
+	return (W + TS - 1) >> 8
+
+
+func get_tiles_down() -> int:
+	return (H + TS - 1) >> 8
+
+
+func take_dirty_tiles() -> PackedInt32Array:
+	var out := PackedInt32Array()
+	if changed:
+		for t in get_tiles_across() * get_tiles_down():
+			out.append(t)
+		_mem_all = true
+	return out
+
+
+func take_mem_tiles() -> PackedInt32Array:
+	var out := PackedInt32Array()
+	if _mem_all:
+		for t in get_tiles_across() * get_tiles_down():
+			out.append(t)
+		_mem_all = false
+	return out
+
+
+func reset_memory() -> void:
+	_mem_all = true
+
+
+func get_tile(which: int, tile: int) -> PackedByteArray:
+	var out := PackedByteArray()
+	out.resize(TS * TS)
+	var src: PackedByteArray = get_aux_bytes() if which == 1 else cells
+	var tw := get_tiles_across()
+	var x0 := (tile % tw) * TS
+	var y0 := floori(tile / float(tw)) * TS
+	var w := mini(TS, W - x0)
+	for yy in mini(TS, H - y0):
+		var i := (y0 + yy) * W + x0
+		var row: PackedByteArray = src.slice(i, i + w)
+		for k in w:
+			out[yy * TS + k] = row[k]
+	return out
+
+
+## Where each material shows up in the blocks a mask marks (-1: nowhere).
+func count_in_rect(x: int, y: int, w: int, h: int, mask: PackedByteArray) -> int:
+	var n := 0
+	for yy in range(maxi(y, 0), mini(y + h, H)):
+		for xx in range(maxi(x, 0), mini(x + w, W)):
+			n += 1 if mask[cells[yy * W + xx]] else 0
+	return n
+
+
+## Spots within `radius` where a w x h footprint is all `open_mask` and touches a
+## `solid_mask` cell on a side, nearest first, as (dx, dy, rests) triples.
+func place_spots(x: int, y: int, w: int, h: int, radius: int, open_mask: PackedByteArray, solid_mask: PackedByteArray) -> PackedInt32Array:
+	var offs: Array = []
+	for dy in range(-radius, radius + 1):
+		for dx in range(-radius, radius + 1):
+			if dx * dx + dy * dy <= radius * radius:
+				offs.append(Vector2i(dx, dy))
+	offs.sort_custom(func(a: Vector2i, b: Vector2i) -> bool: return a.length_squared() < b.length_squared())
+	var out := PackedInt32Array()
+	for o: Vector2i in offs:
+		var rx := x + o.x
+		var ry := y + o.y
+		if rx < 2 or ry < 2 or rx + w > W - 2 or ry + h > H - 2:
+			continue
+		if count_in_rect(rx, ry, w, h, open_mask) != w * h:
+			continue
+		var below := count_in_rect(rx, ry + h, w, 1, solid_mask)
+		if below + count_in_rect(rx, ry - 1, w, 1, solid_mask) + count_in_rect(rx - 1, ry, 1, h, solid_mask) + count_in_rect(rx + w, ry, 1, h, solid_mask) == 0:
+			continue
+		out.append_array([o.x, o.y, 1 if below > 0 else 0])
+	return out
+
+
 func materials_in(mask: PackedByteArray) -> PackedInt32Array:
 	var out := PackedInt32Array()
 	out.resize(256)
@@ -805,8 +890,8 @@ func materials_in(mask: PackedByteArray) -> PackedInt32Array:
 	for b in mask.size():
 		if mask[b] == 0:
 			continue
-		var bx := (b % 64) * 4
-		var by := (b >> 6) * 4
+		var bx := (b % BW) * 4
+		var by := floori(b / float(BW)) * 4
 		for yy in range(by, by + 4):
 			for xx in range(bx, bx + 4):
 				var i := yy * W + xx
