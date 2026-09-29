@@ -11,6 +11,10 @@ const GROUND_Y := 40
 const TICKS_PER_S := 60
 const DT := 1.0 / 60.0
 const CELLS_PER_UNIT := 6.0     # v2 scale: 3-wide channels, so a unit is fewer cells
+# Free fall: powders and liquids with open space under them speed up by this
+# (cells a second, per second) to at most this (cells a second; 15 a tick at most).
+const SIM_FALL_ACCEL := 900.0
+const SIM_FALL_MAX := 600.0
 # How much closer than "whole map width on screen" the camera normally sits.
 const CAMERA_CLOSER := 1.5
 

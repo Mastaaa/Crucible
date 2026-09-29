@@ -137,5 +137,33 @@ func _initialize() -> void:
 				big.set_cell(x, y, D.AIR)
 	var tb := run(big, 120)
 	print("  %.2f ms a tick, %d updates in the last one" % [tb / 120.0, big.stat_updates])
+
+	print("F. free fall (C++): a grain and a splash of water down a 280-row shaft")
+	var ff = make(true, 4)
+	for y in range(318, 603):
+		for x in range(116, 141):
+			var wall := x < 120 or x > 136 or y > 600
+			ff.set_cell(x, y, D.BEDROCK if wall else D.AIR)
+	ff.set_cell(124, 320, D.SAND)
+	for x in range(130, 135):
+		ff.set_cell(x, 320, D.WATER)
+	run(ff, 30)
+	var grain := -1
+	for y in range(320, 601):
+		if ff.get_cell(124, y) == D.SAND:
+			grain = y
+	print("  after 0.5 s the grain is at row %d (one cell a tick: 350)" % grain)
+	check(grain > 380, "a falling grain speeds up past a cell a tick")
+	run(ff, 60)
+	var landed := 0
+	var in_shaft := 0
+	for y in range(320, 601):
+		for x in range(120, 137):
+			if ff.get_cell(x, y) == D.WATER:
+				in_shaft += 1
+				if y == 600:
+					landed += 1
+	check(ff.get_cell(124, 600) == D.SAND, "and lands on the floor within 1.5 s (one cell a tick: 4.7 s)")
+	check(landed == 5 and in_shaft == 5, "the water lands too, none lost (%d of 5 on the floor)" % landed)
 	print("FAILURES: %d" % fails)
 	quit()

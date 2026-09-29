@@ -170,6 +170,7 @@ private:
 	std::vector<uint8_t> aux;
 	std::vector<int32_t> settle; // tick until which a freshly exposed solid cell holds still
 	std::vector<uint8_t> held; // how many Struts hold each cell still (weathering, loosening, collapse)
+	std::vector<uint8_t> vel; // falling speed, in sixteenths of a cell a tick (powders and liquids in free fall)
 	std::vector<int32_t> shields; // circles (x, y, r) that tremors leave alone
 	std::vector<uint8_t> stamp;
 	std::vector<std::atomic<uint8_t>> lava_dirty;
@@ -208,6 +209,11 @@ private:
 	int washed = 0;
 	int last_cave_x = -1, last_cave_y = -1;
 	int threads_wanted = 1;
+	// Free fall (set_fall): speed gained a tick and the most, in sixteenths of a cell
+	// a tick. With fall_g 0 everything falls one cell a tick.
+	int fall_g = 0;
+	int fall_max = 16;
+	static constexpr int FALL_CAP = 15 * 16; // cells a tick: checkerboard chunks sit 32 apart
 
 	// Worker pool for the checkerboard passes.
 	std::vector<std::thread> workers;
@@ -244,6 +250,7 @@ private:
 	bool burn(Ctx &cx, int i, int x, int y, uint8_t m, uint32_t r);
 	void heat_neighbour(Ctx &cx, int i, int x, int y, uint32_t r);
 	void powder(Ctx &cx, int i, int x, int y, uint8_t m, int d);
+	int fall(Ctx &cx, int i, int x, int y); // straight down through open space, gaining speed; cells dropped
 	void liquid(Ctx &cx, int i, int x, int y, uint8_t m, int d, uint32_t r);
 	void spread(Ctx &cx, int i, int x, int y, uint8_t m, int d, uint32_t r);
 	void gas(Ctx &cx, int i, int x, int y, uint8_t m, int d, uint32_t r);
@@ -315,6 +322,7 @@ public:
 	PackedInt32Array materials_in(const PackedByteArray &mask) const;
 
 	void set_threads(int n);
+	void set_fall(double accel, double max_speed);
 	int get_threads() const { return threads_wanted; }
 
 	bool get_changed() const { return changed; }

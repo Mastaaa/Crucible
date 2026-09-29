@@ -165,6 +165,7 @@ void CrucibleSim::set_size(int w, int h) {
 	aux.assign(N, 0);
 	settle.assign(N, 0);
 	held.assign(N, 0);
+	vel.assign(N, 0);
 	stamp.assign(N, 0);
 	light_lv.assign(N, 0);
 	light_px.assign(N, 0);
@@ -401,6 +402,7 @@ void CrucibleSim::put(Ctx *cx, int i, int x, int y, uint8_t m, uint32_t r) {
 	cells[i] = m;
 	aux[i] = init_aux(m, r);
 	settle[i] = 0;
+	vel[i] = 0;
 	stamp[i] = (uint8_t)mark;
 	if (cx) {
 		cx->next.touch(x, y);
@@ -431,6 +433,17 @@ void CrucibleSim::set_threads(int n) {
 	}
 	if (n > 1) {
 		start_pool(n - 1);
+	}
+}
+
+// Free fall for powders and liquids with open space under them: `accel` in cells a
+// second per second, up to `max_speed` cells a second (at most 15 cells a tick). 0
+// for either keeps the old one-cell-a-tick fall.
+void CrucibleSim::set_fall(double accel, double max_speed) {
+	fall_g = std::clamp((int)std::lround(accel * 16.0 / 3600.0), 0, 255);
+	fall_max = std::clamp((int)std::lround(max_speed * 16.0 / 60.0), 16, FALL_CAP);
+	if (fall_g == 0) {
+		fall_max = 16;
 	}
 }
 
@@ -751,6 +764,11 @@ void CrucibleSim::powder(Ctx &cx, int i, int x, int y, uint8_t m, int d) {
 		return T.kind == K_EMPTY || ((T.kind == K_LIQUID || T.kind == K_GAS) && T.density < dens);
 	};
 	int b = i + W;
+	if (thin(cells[b])) {
+		fall(cx, i, x, y);
+		return;
+	}
+	vel[i] = 0;
 	if (sinks(cells[b])) {
 		swap_cells(cx, i, b, x, y, x, y + 1);
 		return;
@@ -762,6 +780,23 @@ void CrucibleSim::powder(Ctx &cx, int i, int x, int y, uint8_t m, int d) {
 	if (sinks(cells[b - d]) && open(i - d)) {
 		swap_cells(cx, i, b - d, x, y, x - d, y + 1);
 	}
+}
+
+// A powder or liquid with open space (air or gas) under it: it gains fall_g of
+// speed and drops as many cells as that carries it (at least one), stopping above
+// anything that isn't open. It keeps its speed for the next tick; it loses it when
+// it lands (powder, liquid) or meets a liquid (it sinks one cell a tick).
+int CrucibleSim::fall(Ctx &cx, int i, int x, int y) {
+	int v = std::min((int)vel[i] + fall_g, fall_max);
+	int n = std::max(1, v >> 4);
+	int k = 1;
+	while (k < n && y + k + 1 < H - 2 && thin(cells[i + (k + 1) * W])) {
+		k++;
+	}
+	int j = i + k * W;
+	swap_cells(cx, i, j, x, y, x, y + k);
+	vel[j] = (uint8_t)v;
+	return k;
 }
 
 // Liquids fall, slip diagonally, then spread sideways. They pass through gases and
@@ -777,6 +812,15 @@ void CrucibleSim::liquid(Ctx &cx, int i, int x, int y, uint8_t m, int d, uint32_
 		return T.kind == K_EMPTY || T.kind == K_GAS || (T.kind == K_LIQUID && T.density < M.density);
 	};
 	int b = i + W;
+	if (thin(cells[b])) {
+		int k = fall(cx, i, x, y);
+		if (M.glows) {
+			mark_lava(x, y);
+			mark_lava(x, y + k);
+		}
+		return;
+	}
+	vel[i] = 0;
 	if (enters(cells[b])) {
 		move_liquid(cx, i, b, x, y, x, y + 1, m);
 		return;
@@ -942,6 +986,7 @@ void CrucibleSim::swap_cells(Ctx &cx, int i, int j, int x, int y, int x2, int y2
 	cells[j] = a;
 	std::swap(aux[i], aux[j]);
 	std::swap(settle[i], settle[j]);
+	std::swap(vel[i], vel[j]);
 	stamp[i] = (uint8_t)mark;
 	stamp[j] = (uint8_t)mark;
 	cx.next.touch(x, y);
@@ -1081,6 +1126,7 @@ void CrucibleSim::set_cell(int x, int y, int m) {
 	cells[i] = (uint8_t)m;
 	aux[i] = init_aux((uint8_t)m, lcg(grng));
 	settle[i] = 0;
+	vel[i] = 0;
 	next.touch(x, y);
 	changed = true;
 	if (mats[old].glows || mats[m].glows) {
@@ -1153,6 +1199,7 @@ void CrucibleSim::set_cells(const PackedByteArray &data) {
 	memcpy(cells.data(), data.ptr(), W * H);
 	std::fill(aux.begin(), aux.end(), (uint8_t)0);
 	std::fill(settle.begin(), settle.end(), 0);
+	std::fill(vel.begin(), vel.end(), (uint8_t)0);
 	parts.clear();
 	for (auto &f : lava_dirty) {
 		f.store(1);
@@ -2209,6 +2256,7 @@ void CrucibleSim::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("segments_batch", "segments"), &CrucibleSim::segments_batch);
 	ClassDB::bind_method(D_METHOD("materials_in", "mask"), &CrucibleSim::materials_in);
 	ClassDB::bind_method(D_METHOD("set_threads", "n"), &CrucibleSim::set_threads);
+	ClassDB::bind_method(D_METHOD("set_fall", "accel", "max_speed"), &CrucibleSim::set_fall);
 	ClassDB::bind_method(D_METHOD("get_threads"), &CrucibleSim::get_threads);
 	ClassDB::bind_method(D_METHOD("get_changed"), &CrucibleSim::get_changed);
 	ClassDB::bind_method(D_METHOD("set_changed", "value"), &CrucibleSim::set_changed);
