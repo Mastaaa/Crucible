@@ -13,6 +13,8 @@ const WorldGen = preload("res://scripts/worldgen.gd")
 const Building = preload("res://scripts/building.gd")
 const Overlay = preload("res://scripts/overlay.gd")
 const Hud = preload("res://scripts/hud.gd")
+const Save = preload("res://scripts/save.gd")
+const Title = preload("res://scripts/title.gd")
 const TERRAIN_SHADER = preload("res://shaders/terrain.gdshader")
 
 const KW := D.W >> 2           # explored/sense/light maps: one byte per 4 x 4 block
@@ -28,6 +30,9 @@ const BRUSH_BLAST := -1           # not a material: the brush sets off a blast w
 const BRUSH_MATS := [D.WATER, D.LAVA, D.LOOSE_DIRT, D.RUBBLE, D.DIRT, D.PACKED_DIRT, D.GRAVEL, D.SAND,
 		D.CLAY, D.STONE, D.COAL, D.SULFUR, D.FIRE, D.STEAM, BRUSH_BLAST, D.AIR]
 const SPEEDS := [1, 2, 4]
+const TICK_BUDGET_US := 25000       # most of a frame the sim may take at a raised speed
+const LINE_MAX := 40                # most buildings one drag lays out
+const LINE_RELAY_SPACING := 0.75    # Conduits and Masts in a dragged line, apart by this much of their range
 const FIX_BUILDING := -2            # Packet.fix for a Stone that repairs the building it goes to
 const BUCKET_SHIFT := 7        # relay grid buckets are 128 x 128 cells (under one relay range)
 const GRID_W := D.W >> BUCKET_SHIFT
@@ -107,8 +112,17 @@ var paused := false
 var speed_idx := 0
 var accum := 0.0
 var won := false
+var carry_on := false             # won, and playing on past it
+var run_lost := false             # the Hub is gone: the run is over
+var lost_cause := ""
 var buildings_lost := 0
 var cells_drilled := 0
+var milestones: Array = []        # {t, text, major}, in the order they happened
+var firsts := {}                  # building type -> true once one has been built
+var deepest := 0                  # deepest row the diggers and the network have reached
+var hub_fix_t := 0.0              # when the Hub last patched itself up with a Stone
+var hub_warned := false           # the "Hub failing" warning has shown since it was last patched
+var sim_rate := 1.0               # game seconds a real second, smoothed (the speed it manages)
 
 # --- Research ------------------------------------------------------------------
 var researched := {}              # tech id -> true (for upgrades: at least one level done)
@@ -186,6 +200,9 @@ var sense_img: Image
 var sense_tex: ImageTexture
 var overlay: Node2D
 var hud: Node
+var title: CanvasLayer             # the title screen (none when headless)
+var save_clock := 0.0              # seconds played since the last save
+var live_run := false              # a run has been started or continued (the title's backdrop world isn't one)
 
 # --- Camera --------------------------------------------------------------------
 var zoom := 2.0                 # screen pixels a cell
@@ -205,6 +222,8 @@ var tool_type := -1
 var tool_dir := 0
 var tool_horizontal := false
 var drag_from := Vector2i(-1, -1)
+var plans: Array = []              # buildings laid out by a drag, waiting for the network: {type, at, dir, horiz, line}
+var next_line := 1
 var selected: Building = null
 var hover := Vector2i(-1, -1)
 var snap_key: Array = []          # snap_place's last question and answer, reused for a few frames
@@ -246,6 +265,14 @@ func _ready() -> void:
 	zoom = default_zoom()
 	_layout()
 	_center_on(hub.center().y + view_rows() * 0.2, true, hub.center().x)
+	# The title screen, over the new world (paused) that Start Run begins on.
+	if not headless:
+		get_tree().set_auto_accept_quit(false)
+		title = Title.new()
+		title.game = self
+		add_child(title)
+		_layout()
+		open_title()
 
 
 func _build_nodes() -> void:
@@ -308,16 +335,26 @@ func _build_nodes() -> void:
 
 
 func new_game(s: int) -> void:
-	seed_value = s
-	rng.seed = s * 7919 + 13
-	spring_tops.clear()
 	sim = SimFactory.create()
 	sim.set_seed(s)
+	_label_sim()
+	info = WorldGen.new().generate(sim, s)
+	_reset(s)
+	_start()
+
+
+func _label_sim() -> void:
 	if SimFactory.native_available():
 		sim_label = "C++ sim, %d thread%s" % [sim.get_threads(), "" if sim.get_threads() == 1 else "s"]
 	else:
 		sim_label = "GDScript sim (the C++ one didn't load)"
-	info = WorldGen.new().generate(sim, s)
+
+
+## Everything a run keeps, back to how a run starts (the world aside).
+func _reset(s: int) -> void:
+	seed_value = s
+	rng.seed = s * 7919 + 13
+	spring_tops.clear()
 	buildings.clear()
 	packets.clear()
 	relays.clear()
@@ -358,9 +395,17 @@ func new_game(s: int) -> void:
 	ticks = 0
 	accum = 0.0
 	won = false
+	carry_on = false
+	run_lost = false
+	lost_cause = ""
 	paused = false
 	buildings_lost = 0
 	cells_drilled = 0
+	milestones.clear()
+	firsts.clear()
+	deepest = 0
+	hub_fix_t = -D.HUB_FIX_S
+	hub_warned = false
 	cstate = 0
 	c_delivered = PackedFloat64Array([0.0, 0.0, 0.0, 0.0, 0.0])
 	c_inflight = PackedInt32Array([0, 0, 0, 0, 0])
@@ -382,7 +427,15 @@ func new_game(s: int) -> void:
 	tool_type = -1
 	sensor_mode = false
 	banner_text = ""
+	save_clock = 0.0
+	plans.clear()
+	next_line = 1
+	drag_from = Vector2i(-1, -1)
 
+
+## A new run on the world just made: the Hub, the Crucible, the fixed Drill and
+## what's known round the Hub.
+func _start() -> void:
 	hub = _make_building(D.B_HUB, info["hub"])
 	hub.built = true
 	crucible = _make_building(D.B_CRUCIBLE, info["crucible"])
@@ -428,21 +481,142 @@ func new_game(s: int) -> void:
 
 
 # ================================================================================
+# Saving (phase 10): one slot, see save.gd
+# ================================================================================
+
+func make_packet() -> Packet:
+	return Packet.new()
+
+
+## Write the run to the save slot. Never in tests or the bot, and never once
+## it's lost (losing erases it).
+func save_run() -> bool:
+	save_clock = 0.0
+	if headless or run_lost or not live_run:
+		return false
+	return Save.write(self)
+
+
+## The title screen, over the world as it stands (saved first, if it's a run).
+func open_title() -> void:
+	if title == null:
+		return
+	save_run()
+	paused = true
+	cancel_tool()
+	hud.visible = false
+	title.open()
+
+
+func _close_title() -> void:
+	title.visible = false
+	hud.visible = true
+	paused = false
+	live_run = true
+
+
+## Start Run: a new run, on the world behind the title if it hasn't been played
+## and no seed was asked for. It replaces the saved one.
+func start_run(seed_text: String) -> void:
+	var s := randi() % 100000
+	if seed_text.strip_edges().is_valid_int():
+		s = seed_text.strip_edges().to_int()
+	elif seed_text.strip_edges() != "":
+		s = absi(seed_text.strip_edges().hash()) % 100000
+	if live_run or ticks > 0 or seed_text.strip_edges() != "":
+		new_game(s)
+		_center_on(hub.center().y + view_rows() * 0.2, true, hub.center().x)
+	Save.erase()
+	_close_title()
+
+
+## Continue: back to the run in hand, or the saved one.
+func continue_game() -> bool:
+	if not live_run and not continue_run():
+		return false
+	_close_title()
+	return true
+
+
+func quit_game() -> void:
+	save_run()
+	get_tree().quit()
+
+
+## The saved run in place of this one; false (this one untouched) if there's
+## none to load.
+func continue_run() -> bool:
+	var data: Dictionary = Save.read()
+	if data.is_empty():
+		return false
+	var s: RefCounted = SimFactory.create()
+	if not s.has_method("load_state") or not s.load_state(data["sim"]):
+		return false
+	sim = s
+	_label_sim()
+	_reset(0)
+	Save.restore(self, data["game"])
+	_loaded()
+	return true
+
+
+## After a load: what's rebuilt rather than saved.
+func _loaded() -> void:
+	mite_bodies.clear()
+	for b: Building in buildings:
+		for mt: Dictionary in b.mites:
+			if mt.body != 0:
+				mite_bodies[mt.body] = mt
+	_refresh_unlocks()
+	scan_dirty = true
+	net_dirty = true
+	known_changed = true
+	vis_changed = true
+	sense_changed = true
+	light_due = true
+	stale_tiles.clear()
+	stale_mem.clear()
+	mem_due = true
+	sim.refresh_heat(true)
+	sim.changed = true
+	_rebuild_network()
+	accum = 0.0
+	_clamp_cam()
+	_clamp_cam_x()
+	if hud:
+		hud.on_new_game()
+		if frozen():
+			hud.show_end()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		quit_game()
+
+
+# ================================================================================
 # Frame loop
 # ================================================================================
 
 func _process(delta: float) -> void:
 	var f0 := Time.get_ticks_usec()
 	_held_keys(delta)
-	if not paused and not won:
+	if not paused and not frozen():
 		var spd: int = SPEEDS[speed_idx]
 		accum += delta * spd
 		var n := 0
-		while accum >= D.DT and n < 2 * spd:
+		# Ticks stop for the frame once they've used up its budget, so a busy sim
+		# slows the game down rather than the frame rate.
+		while accum >= D.DT and n < 2 * spd and Time.get_ticks_usec() - f0 < TICK_BUDGET_US:
 			_tick()
 			accum -= D.DT
 			n += 1
 		accum = minf(accum, D.DT * 2.0)
+		if delta > 0.0:
+			sim_rate = lerpf(sim_rate, n * D.DT / delta, 0.05)
+		save_clock += delta
+		if save_clock >= Save.AUTOSAVE_S:
+			save_run()
 	_update_demolish(delta)
 	if grab != null:
 		if grab.dead:
@@ -504,6 +678,10 @@ func _tick() -> void:
 		sim.refresh_heat(false)
 	if ticks % 30 == 0:
 		_refresh_sense()
+	if ticks % 60 == 7:
+		_track_depth()
+	if ticks % 30 == 11 and not plans.is_empty():
+		_try_plans()
 	if ticks % 15 == 0:
 		_refresh_vision()
 	if cstate == 1:
@@ -512,10 +690,58 @@ func _tick() -> void:
 	perf_tick_ms = lerpf(perf_tick_ms, (Time.get_ticks_usec() - t0) * 0.001, 0.05)
 
 
-## Advance the game by `n` ticks without rendering (used by tests).
+## Advance the game by `n` ticks without rendering (used by tests). Nothing
+## moves once the run is lost.
 func run_ticks(n: int) -> void:
 	for _i in n:
+		if run_lost:
+			return
 		_tick()
+
+
+## The world stands still: the run is lost, or won and not played on.
+func frozen() -> bool:
+	return run_lost or (won and not carry_on)
+
+
+## Play on after the Crucible is lit.
+func keep_going() -> void:
+	carry_on = true
+
+
+## The run is over: the Hub is gone.
+func _lose(cause: String) -> void:
+	if run_lost:
+		return
+	run_lost = true
+	lost_cause = cause
+	mark("The Hub was destroyed by %s" % cause)
+	if not headless:
+		Save.erase()
+	alert("destroyed", "The Hub was destroyed by %s. The run is over." % cause, hub.center())
+	if hud:
+		hud.show_end()
+
+
+## Something worth remembering about the run, for the summary at the end (major
+## ones) and the bot's timeline (all of them).
+func mark(text: String, major := true) -> void:
+	milestones.append({"t": game_time, "text": text, "major": major})
+
+
+## Depth milestones: the deepest the Drill, the diggers and the network have got.
+func _track_depth() -> void:
+	var y := int(drill.drill_head().y)
+	for b: Building in buildings:
+		if b.built and not b.dead and not b.falling and b.type != D.B_CRUCIBLE:
+			y = maxi(y, b.y + b.h)
+	if y <= deepest:
+		return
+	for k in range(2, D.LAYERS.size()):
+		var top: int = D.LAYERS[k]["top"]
+		if deepest < top and y >= top:
+			mark("Reached the %s band (depth %d)" % [D.LAYERS[k]["name"], top])
+	deepest = y
 
 
 func _upload() -> void:
@@ -776,10 +1002,90 @@ func _complete(b: Building) -> void:
 	b.built = true
 	b.flash = 0.6
 	scan_dirty = true
+	if not firsts.has(b.type):
+		firsts[b.type] = true
+		mark("First %s built" % D.B_NAMES[b.type], b.type == D.B_LAB)
 	if D.is_relay_type(b.type) or b.is_source():
 		net_dirty = true
 	if b.type == D.B_DRILL:
 		_refresh_sense()
+
+
+# --- Lines (phase 10) ------------------------------------------------------------------
+# A drag with a build tool lays out a line of buildings: Conduits and Masts far
+# enough apart to link (with room to snap), Lamps a light's reach apart, the rest
+# side by side. Each one is a plan until the network reaches its spot; then it's
+# a blueprint like any other, so a chain of Conduits goes down one after another.
+
+## Centres of the buildings a line from `a` to `b` lays out, `a` first.
+func line_points(type: int, a: Vector2i, b: Vector2i, horiz := false) -> Array:
+	var out: Array = [a]
+	var d := Vector2(b - a)
+	var length := d.length()
+	if length < 1.0:
+		return out
+	var u := d / length
+	var step := 0.0
+	if D.is_conduit(type):
+		step = D.relay_range(type) * LINE_RELAY_SPACING
+	elif type == D.B_LAMP:
+		step = D.LIGHT_LAMP
+	else:
+		var sz := Vector2(footprint(type, Vector2i.ZERO, horiz).size)
+		step = minf(sz.x / maxf(absf(u.x), 0.001), sz.y / maxf(absf(u.y), 0.001))
+	for k in range(1, mini(floori(length / step), LINE_MAX - 1) + 1):
+		out.append(a + Vector2i((u * step * k).round()))
+	return out
+
+
+## Lay a line of `type` from `a` to `b` with the tool's heading. Returns how many
+## went down as blueprints at once; the rest wait as plans.
+func lay_line(type: int, a: Vector2i, b: Vector2i) -> int:
+	var line := next_line
+	next_line += 1
+	var pts := line_points(type, a, b, tool_horizontal)
+	for c: Vector2i in pts:
+		plans.append({"type": type, "at": c, "dir": tool_dir, "horiz": tool_horizontal, "line": line})
+	var now := _try_plans()
+	if now < pts.size():
+		show_banner("%d of %d %ss laid; the rest go down as the network reaches them. Right-click one to cut the line there." % [
+				now, pts.size(), D.B_NAMES[type]], 3.0)
+	return now
+
+
+## Plans whose spot the network now reaches become blueprints, oldest first.
+func _try_plans() -> int:
+	var placed := 0
+	var k := 0
+	while k < plans.size():
+		var p: Dictionary = plans[k]
+		var r := snap_place(p.type, p.at, p.horiz)
+		if check_place(p.type, r) == "":
+			place(p.type, r, p.dir, p.horiz)
+			plans.remove_at(k)
+			placed += 1
+			continue
+		k += 1
+	return placed
+
+
+## The plan under `c`, or -1.
+func plan_at(c: Vector2i) -> int:
+	for k in plans.size():
+		var p: Dictionary = plans[k]
+		if footprint(p.type, p.at, p.horiz).grow(2).has_point(c):
+			return k
+	return -1
+
+
+## Drop plan `k` and the ones laid after it in the same line.
+func cut_plans(k: int) -> void:
+	var line: int = plans[k].line
+	var i := plans.size() - 1
+	while i >= k:
+		if plans[i].line == line:
+			plans.remove_at(i)
+		i -= 1
 
 
 # --- Struts ---------------------------------------------------------------------------
@@ -918,7 +1224,7 @@ func _bodies() -> void:
 		if hits[k + 4] == 0:
 			continue
 		var b := building_at(Vector2i(hits[k], hits[k + 1]))
-		if b == null or b.dead or b.type == D.B_HUB or b.type == D.B_CRUCIBLE or b.fixed:
+		if b == null or b.dead or b.type == D.B_CRUCIBLE or b.fixed:
 			continue
 		_hurt(b, D.CRUSH_DAMAGE * hits[k + 3] * hits[k + 2], "falling rock")
 	if ticks % 3 == 0 and (sim.body_count() > 0 or not crushed.is_empty()):
@@ -996,6 +1302,10 @@ func demolish(b: Building) -> void:
 
 func _destroy(b: Building, cause: String) -> void:
 	if b.dead:
+		return
+	if b == hub:
+		_remove(b, D.RUBBLE)
+		_lose(cause)
 		return
 	buildings_lost += 1
 	alert("destroyed", "%s destroyed by %s at depth %d" % [b.title(), cause, int(b.center().y)], b.center())
@@ -1698,7 +2008,7 @@ func _bump(b: Building, hit_v: float, at: Vector2i) -> void:
 		return
 	var dmg := over * D.THUMP_BUMP_DAMAGE
 	var o := building_at(at) if sim.get_cell(at.x, at.y) == D.BUILDING else null
-	if o != null and o != b and not o.dead and o.type != D.B_HUB and o.type != D.B_CRUCIBLE and not o.fixed:
+	if o != null and o != b and not o.dead and o.type != D.B_CRUCIBLE and not o.fixed:
 		_hurt(o, dmg, "a collision")
 	_hurt(b, dmg, "a collision")
 
@@ -2023,6 +2333,7 @@ func set_gate(b: Building, open: bool) -> void:
 ## Lava, fire, corrosion, steam and drowning checks, ten times a second; then
 ## the same for links.
 func _damage_scan() -> void:
+	_hub_upkeep()
 	if scan_dirty:
 		_rebuild_scan()
 	if scan_list.is_empty():
@@ -2041,8 +2352,9 @@ func _damage_scan() -> void:
 		var steam := hz[o + 2]
 		var corrode := hz[o + 5]
 		var b: Building = list[k]
-		# Nothing solid touching it: held up only if a building beside it is.
-		if hz[o + 6] == 0 and not b.falling and not b.dead and not _clinging(b):
+		# Nothing solid touching it: held up only if a building beside it is. The
+		# Hub stands whatever happens under it.
+		if hz[o + 6] == 0 and not b.falling and not b.dead and b != hub and not _clinging(b):
 			unheld.append(b)
 		# Most buildings, most of the time: nothing near them, nothing to count down.
 		if lava == 0 and fire == 0 and steam == 0 and corrode == 0 \
@@ -2100,6 +2412,19 @@ func _damage_scan() -> void:
 				b.wet_scans = 0
 	if not unheld.is_empty():
 		_settle(unheld)
+
+
+## The Hub has no link to send it a Stone, so it patches itself from its own
+## stock: one Stone at a time, HUB_FIX_S apart, while it's under REPAIR_BELOW.
+func _hub_upkeep() -> void:
+	if hub.dead or hub.hp >= hub.max_hp * D.REPAIR_BELOW:
+		return
+	if stock[D.R_STONE] >= 1.0 and game_time - hub_fix_t >= D.HUB_FIX_S:
+		stock[D.R_STONE] -= 1.0
+		hub.hp = minf(hub.max_hp, hub.hp + hub.max_hp * D.REPAIR_HP)
+		hub_fix_t = game_time
+		hub.flash = 0.4
+		hub_warned = false
 
 
 ## The hazard scans' inputs, rebuilt when buildings come or go or links change.
@@ -2165,7 +2490,7 @@ func _rebuild_scan() -> void:
 		b.seg_idx = -1
 		if b.dead:
 			continue
-		if b.type != D.B_HUB and b.type != D.B_CRUCIBLE and not b.fixed:
+		if b.type != D.B_CRUCIBLE and not b.fixed:
 			if b.type == D.B_FLOODGATE:
 				scan_gates.append(scan_list.size())
 			b.scan_idx = scan_list.size()
@@ -2300,7 +2625,7 @@ func _land(b: Building) -> void:
 	if hurt > 0.0:
 		var under := Vector2i(b.x + (b.w >> 1), b.y + b.h)
 		var o := building_at(under) if sim.get_cell(under.x, under.y) == D.BUILDING else null
-		if o != null and not o.dead and o.type != D.B_HUB and o.type != D.B_CRUCIBLE and not o.fixed:
+		if o != null and not o.dead and o.type != D.B_CRUCIBLE and not o.fixed:
 			_hurt(o, hurt, "a fall")
 		b.alert_cd = maxf(b.alert_cd, 1.0)    # the landing's own alert says so
 		_hurt(b, hurt, "a fall")
@@ -2328,6 +2653,9 @@ func _hurt(b: Building, amount: float, cause: String) -> void:
 	b.hp -= amount
 	damaged[b] = true
 	b.flash = 0.25
+	if b == hub and b.hp < b.max_hp * D.HUB_WARN and b.hp > 0.0 and not hub_warned:
+		hub_warned = true
+		show_banner("The Hub is failing (%d%% left). If it goes, the run is over." % roundi(100.0 * b.hp / b.max_hp), 5.0)
 	# A Thumper singes itself on its own flash every blast: only say so once it's in trouble.
 	var routine: bool = b.type == D.B_THUMPER and (cause == "fire" or cause == "blast") and b.hp > b.max_hp * 0.5
 	if b.alert_cd <= 0.0 and not routine:
@@ -2452,7 +2780,7 @@ func blast(at: Vector2i, radius: float, power: int, source: Building = null) -> 
 				WR.loosen(self, mt, Vector2.ZERO)
 	var broke: int = sim.explode(at.x, at.y, radius, power)
 	for b: Building in buildings.duplicate():
-		if b.dead or b.type == D.B_HUB or b.type == D.B_CRUCIBLE or b.fixed or b == source:
+		if b.dead or b.type == D.B_CRUCIBLE or b.fixed or b == source:
 			continue
 		var d := dist_to_rect(p, b.rect())
 		if d <= radius:
@@ -2609,6 +2937,7 @@ func _rebuild_network() -> void:
 		alert("link", "%d building%s lost %s link" % [lost, "" if lost == 1 else "s", "its" if lost == 1 else "their"], lost_at)
 	if crucible.connected and not crucible_linked_once:
 		crucible_linked_once = true
+		mark("The Crucible is connected")
 		alert("crucible", "The Crucible is connected. Stock up, then Activate.", crucible.center())
 	_validate_packets()
 
@@ -3336,6 +3665,7 @@ func _finish_research(id: String) -> void:
 	if lab != null:
 		at = lab.center()
 	alert("research", "Research done: %s" % tname, at)
+	mark("Researched %s" % tname, false)
 	show_banner("Research done: %s. %s" % [tname, t["text"]], 4.0)
 	if id == "drill_shaft" and drill != null and drill.reach_limit >= old_reach:
 		# The Drill carries on down to its new reach unless it was held short.
@@ -3347,6 +3677,7 @@ func discover(tier: int, at: Vector2) -> void:
 	if tiers_open[tier]:
 		return
 	tiers_open[tier] = true
+	mark("Tier %d open: %s" % [tier, D.TIER_DISCOVERY[tier]])
 	alert("research", "Discovery: %s. Tier %d research is open." % [D.TIER_FOUND[tier], tier], at)
 	show_banner("Discovery: %s. Tier %d research is open (T)." % [D.TIER_FOUND[tier], tier], 5.0)
 
@@ -3366,6 +3697,7 @@ func activate_crucible() -> void:
 	c_powered_t = game_time
 	c_starved = false
 	tremor_timer = D.TREMOR_EVERY_S
+	mark("The Crucible started charging")
 	alert("crucible", "The Crucible is charging. Keep it fed.", crucible.center())
 
 
@@ -3405,9 +3737,10 @@ func _update_crucible() -> void:
 			return
 	cstate = 2
 	won = true
+	mark("The Crucible is lit")
 	alert("crucible", "The Crucible is lit.", crucible.center())
 	if hud:
-		hud.show_win()
+		hud.show_end()
 
 
 # ================================================================================
@@ -3585,6 +3918,8 @@ func _layout() -> void:
 	_apply_cam_x()
 	if hud:
 		hud.apply_layout(vs, ui_scale)
+	if title:
+		title.apply_layout(vs, ui_scale)
 	_clamp_cam()
 
 
@@ -3747,6 +4082,11 @@ func cycle_speed() -> void:
 	speed_idx = (speed_idx + 1) % SPEEDS.size()
 
 
+func set_speed(i: int) -> void:
+	speed_idx = clampi(i, 0, SPEEDS.size() - 1)
+	paused = false
+
+
 func speed() -> int:
 	return SPEEDS[speed_idx]
 
@@ -3781,6 +4121,12 @@ func bulkhead_line(a: Vector2i, b: Vector2i) -> Array:
 	return out
 
 
+## A drag from `a` to `b` long enough to lay a line (else it's a click).
+func dragged_line(a: Vector2i, b: Vector2i) -> bool:
+	var sz: Vector2i = D.B_SIZES[tool_type]
+	return Vector2(b - a).length() >= maxf(sz.x, sz.y) * 0.75 + 2.0
+
+
 ## Which blocks of a line can be placed, and whether the line as a whole touches rock.
 func bulkhead_valid(rects: Array) -> Array:
 	var ok: Array = []
@@ -3797,6 +4143,8 @@ func bulkhead_valid(rects: Array) -> Array:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if title != null and title.visible:
+		return
 	if event is InputEventMouseMotion:
 		mouse_screen = event.position
 		hover = screen_to_cell(mouse_screen)
@@ -3851,6 +4199,8 @@ func _mouse_button(e: InputEventMouseButton) -> void:
 				painting = 2
 			elif tool_type >= 0 or sensor_mode:
 				cancel_tool()
+			elif plan_at(hover) >= 0 and building_at(hover) == null:
+				cut_plans(plan_at(hover))
 			else:
 				demolish_target = building_at(hover)
 				demolish_hold = 0.0
@@ -3895,12 +4245,7 @@ func _left_press() -> void:
 			show_banner(swhy, 1.5)
 		return
 	if tool_type >= 0:
-		var r := snap_place(tool_type, hover, tool_horizontal)
-		var why := check_place(tool_type, r)
-		if why == "":
-			place(tool_type, r, tool_dir, tool_horizontal)
-		else:
-			show_banner(why, 1.5)
+		drag_from = hover     # placed on release: one where it was pressed, or a line
 		return
 	selected = building_at(hover)
 	# A built Thumper under the press gets dragged once the mouse moves off it a little.
@@ -3925,6 +4270,18 @@ func _left_release() -> void:
 		if placed == 0:
 			show_banner("No wall here: blocks need open air, rock contact and network range.", 2.0)
 		drag_from = Vector2i(-1, -1)
+	elif tool_type >= 0 and drag_from.x >= 0:
+		var a := drag_from
+		drag_from = Vector2i(-1, -1)
+		if dragged_line(a, hover):
+			lay_line(tool_type, a, hover)
+			return
+		var r := snap_place(tool_type, a, tool_horizontal)
+		var why := check_place(tool_type, r)
+		if why == "":
+			place(tool_type, r, tool_dir, tool_horizontal)
+		else:
+			show_banner(why, 1.5)
 
 
 func _key(e: InputEventKey) -> void:
@@ -3944,8 +4301,10 @@ func _key(e: InputEventKey) -> void:
 			cancel_tool()
 		elif brush_mode:
 			brush_mode = false
-		else:
+		elif selected != null:
 			selected = null
+		else:
+			open_title()
 	elif k == KEY_R:
 		if tool_type == D.B_DRILL:
 			tool_dir = (tool_dir + 1) % 3

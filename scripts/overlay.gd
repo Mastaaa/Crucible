@@ -42,6 +42,7 @@ func _draw() -> void:
 	for b: Building in g.buildings:
 		_draw_building(g, b, z, t, screen)
 	_draw_packets(g, z)
+	_draw_plans(g, z)
 	_draw_sensors(g, z)
 	if g.selected != null and not g.selected.dead:
 		var s: Building = g.selected
@@ -423,6 +424,17 @@ func _draw_ghost(g, z: float) -> void:
 	if type == D.B_STRUT:
 		_draw_strut_ghost(g, z)
 		return
+	if type != D.B_BULKHEAD and g.drag_from.x >= 0 and g.dragged_line(g.drag_from, g.hover):
+		var pts: Array = g.line_points(type, g.drag_from, g.hover, g.tool_horizontal)
+		var col: Color = D.B_COLORS[type]
+		for c: Vector2i in pts:
+			var fr: Rect2i = g.footprint(type, c, g.tool_horizontal)
+			var pr := Rect2(g.to_screen(Vector2(fr.position)), Vector2(fr.size) * z)
+			draw_rect(pr, Color(col, 0.18))
+			_dashed_outline(pr, Color(col, 0.8), 1.0)
+		_label(g.mouse_screen + Vector2(18, 10), "%d %s%s: %s each" % [pts.size(), D.B_NAMES[type], "" if pts.size() == 1 else "s",
+				_cost_text(type)], Color(0.85, 0.9, 1.0), 12)
+		return
 	if type == D.B_BULKHEAD and g.drag_from.x >= 0:
 		var rects: Array = g.bulkhead_line(g.drag_from, g.hover)
 		var ok: Array = g.bulkhead_valid(rects)
@@ -501,6 +513,16 @@ func _draw_ghost(g, z: float) -> void:
 		_label(g.mouse_screen + Vector2(18, 10), why, BAD_COL, 13)
 	else:
 		_label(g.mouse_screen + Vector2(18, 10), cost_txt, Color(0.85, 0.9, 1.0), 12)
+
+
+## Buildings a dragged line has yet to lay: dashed outlines where they'll go.
+func _draw_plans(g, z: float) -> void:
+	for p: Dictionary in g.plans:
+		var fr: Rect2i = g.footprint(p["type"], p["at"], p["horiz"])
+		var pr := Rect2(g.to_screen(Vector2(fr.position)), Vector2(fr.size) * z)
+		var col: Color = D.B_COLORS[p["type"]]
+		draw_rect(pr, Color(col, 0.08))
+		_dashed_outline(pr, Color(col, 0.55), 1.0)
 
 
 ## A Strut: a pale beam with cross-braces every couple of cells.

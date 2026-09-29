@@ -478,6 +478,11 @@ const CORRODE_FULL := 12.0 * S * S
 # Stone, which puts back REPAIR_HP of its HP.
 const REPAIR_BELOW := 0.6
 const REPAIR_HP := 0.4
+# The Hub (phase 10): hurt like any building, and the run is lost when it goes. It
+# patches itself with a Stone of its own at most every HUB_FIX_S seconds, and warns
+# once under HUB_WARN of its HP.
+const HUB_FIX_S := 10.0
+const HUB_WARN := 0.35
 # Links (each building's line to the relay it draws through) wear down too; a
 # broken one is out of the network until a Stone arrives to mend it.
 const LINK_HP := 20.0

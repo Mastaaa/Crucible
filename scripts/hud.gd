@@ -119,8 +119,13 @@ var c_status: Label
 var banner_panel: PanelContainer
 var banner: Label
 var help_panel: PanelContainer
-var win_panel: PanelContainer
-var win_label: Label
+var end_panel: PanelContainer
+var end_title: Label
+var end_sub: Label
+var end_lines: GridContainer
+var end_stats: Label
+var end_keep: Button
+var speed_buttons: Array = []
 var perf_label: Label
 var breach_check: CheckBox
 var research_button: Button
@@ -146,7 +151,7 @@ func _ready() -> void:
 	_build_banner()
 	_build_help()
 	_build_research()
-	_build_win()
+	_build_end()
 	perf_label = Label.new()
 	perf_label.visible = false
 	perf_label.add_theme_font_size_override("font_size", 12)
@@ -164,8 +169,8 @@ func apply_layout(vs: Vector2, ui_scale: float) -> void:
 func on_new_game() -> void:
 	info_for = null
 	alerts_dirty = true
-	if win_panel:
-		win_panel.visible = false
+	if end_panel:
+		end_panel.visible = false
 
 
 # --- Construction ---------------------------------------------------------------
@@ -258,7 +263,7 @@ func _build_top_bar() -> void:
 	_anchor(bar, 0.0, 0.0, 1.0, 0.0, 0, 0, 0, 34)
 	root.add_child(bar)
 	var hb := HBoxContainer.new()
-	hb.add_theme_constant_override("separation", 16)
+	hb.add_theme_constant_override("separation", 12)
 	bar.add_child(hb)
 	for r in D.NRES:
 		var box := HBoxContainer.new()
@@ -279,6 +284,25 @@ func _build_top_bar() -> void:
 			box.tooltip_text = "%s held at the Hub and in Caches." % D.RES_NAMES[r]
 	hub_label = _label("", 14, DIM)
 	hb.add_child(hub_label)
+	# Pause and the speeds (Space and Tab do the same).
+	var sp := HBoxContainer.new()
+	sp.add_theme_constant_override("separation", 2)
+	hb.add_child(sp)
+	var names := ["||"]
+	for v: int in game.SPEEDS:
+		names.append("%dx" % v)
+	for k in names.size():
+		var sb := _button(names[k])
+		sb.toggle_mode = true
+		sb.custom_minimum_size.x = 30
+		sb.tooltip_text = "Pause (Space)" if k == 0 else "Speed %s (Tab cycles)" % names[k]
+		sb.pressed.connect(func() -> void:
+			if k == 0:
+				game.toggle_pause()
+			else:
+				game.set_speed(k - 1))
+		sp.add_child(sb)
+		speed_buttons.append(sb)
 	speed_label = _label("", 14)
 	hb.add_child(speed_label)
 	time_label = _label("", 14, DIM)
@@ -445,21 +469,23 @@ func _build_help() -> void:
 		["Ctrl + wheel, + / -", "Zoom in and out"],
 		["1 - 9, 0, B, M, G, X", "Pick a building from the Build list"],
 		["R", "Turn a Borer, Floodgate or Strut before placing it"],
-		["Left click", "Place; drag to lay Bulkheads; click a building for its settings"],
+		["Left click", "Place; click a building for its settings"],
+		["Drag to place", "A line: Conduits and Masts spaced to link, Lamps a light apart, the rest side by side (Bulkheads: a wall). Dashed ones go down as the network reaches them"],
 		["Drag a Thumper", "Move it anywhere open; let go mid-swing to throw it (not too hard into rock)"],
-		["Right click", "Cancel placement; hold on a building to demolish it (50% back)"],
-		["Space / Tab", "Pause / cycle 1x, 2x and 4x speed"],
+		["Right click", "Cancel placement; cut a dashed line there; hold on a building to demolish it (50% back)"],
+		["Space / Tab", "Pause / cycle 1x, 2x and 4x speed (or the buttons up top)"],
 		["T", "Research: pick what the Labs work on"],
 		["N", "Network overlay: ranges and links"],
 		["Home / End", "Jump to the Hub / your deepest building"],
 		["F5 / Shift+F5", "Restart this seed / new seed"],
+		["Esc", "Close what's open; with nothing open, the title screen (the run is saved)"],
 		["F9, [ ]", "Sandbox brush: materials, Coal, Sulfur, Fire, Blast (right-drag erases)"],
 		["F3 / F10 / F11", "Performance / reveal the map / fullscreen"],
 	]
 	for row in rows:
 		grid.add_child(_label(row[0], 13, GOLD))
 		grid.add_child(_label(row[1], 13))
-	var tips := _label(("Conduits link within %d cells (Relay Masts %d); everything else must sit within %d of one. " % [int(D.RELAY_RANGE), int(D.MAST_RANGE), int(D.LINK_RANGE)]) + "A Conduit under water stops relaying, and lava destroys it.\n\nUnderground is dark. Sunlight falls straight down open shafts, lava, fire and glimmer glow, and every machine carries a small light; a Lamp lights %d cells, and rock casts shadows. What's lit near your buildings gets explored; explored ground shows live while it's lit and as you last saw it when it isn't.\n\nEverything you build needs rock, or a building that's held up, touching it (corners count). Dig that away and it falls until it lands on something, off the network on the way down; a long fall hurts it (water breaks the fall). When placing, the outline snaps to the nearest spot within %d cells that touches rock.\n\n" % [int(D.LIGHT_LAMP), D.PLACE_SNAP] + "Machines run on power: each keeps a small reserve and the network refills it by packet, from the nearest Hub, Cache or Waterwheel that has some. A machine with an empty reserve stops where it stands. The Hub makes 2 power/s on its own; a Waterwheel makes more from water falling through it, a Steam Turbine from steam rising through it, and springs keep aquifers topped up. Caches hold power and materials out at the front and keep a cut-off stretch running for a while.\n\n" + "Labs turn power into research (T); new tiers open as you find Glimmer, lava and the Crucible. Upgrades come in levels, each dearer than the last.\n\nThe Drill beside the Hub bores a 30-wide shaft straight down on its own; Drill Bit and Drill Shaft research make it faster and deeper, down to the bedrock over the chamber. A Thumper blasts the ground under it every few seconds and throws itself up; what it breaks flies as rubble for Hoppers to catch, and its blasts hurt anything of yours nearby. A Borer tunnels the way it's pointed until its power runs out or it meets bedrock, a building or a lava body; out past the network it runs on its reserve, so lay Conduits behind it (Homing brings it back to recharge). Obsidian stops the Drill and Borers until the Obsidian Saw.\n\n" + ("From about %d down the rock is hot. It stops the Drill and Borers until the Coolant Jacket, and then each pays 1 Water per %d cells of it, sent to it by packet; the water goes up behind it as steam, which scalds Conduits and can turn a Steam Turbine. Mites dig it with Ember Brood. Water boils on hot rock, and enough of it slowly quenches the rock to stone.\n\n" % [D.HOT_TOP, roundi(1.0 / D.COOLANT_WATER_PER_CELL)]) + ("A Warren's mites hollow out a chamber over it, then tunnel toward the marker you set in its panel, finding their own way, and dig out a small circle there, carrying each cell home to bank. They dig whatever is in their way, even the wall between them and an aquifer, until Sounding, but never what holds the Warren up. They cling to any surface; when their hold goes they drop, and a blast throws them (a long fall kills one). Water drowns them, fumes choke them, lava and steam kill them, falling rock crushes them, and one that catches fire runs about lighting things until it burns out. A lost mite is replaced every %d s for a Stone. Freshly dug ground settles for %d s before it can crumble or slide, so there's time to prop a new hole up.\n\n" % [int(D.WARREN_BREED_S), int(D.SETTLE_S)]) + "Coal banks Stone and Power when dug, and burns: lava or flames light it, and fire needs air, so a buried or flooded seam goes out. Sulfur banks Stone and Glimmer, but it eats buildings and links a few cells off and burns into fumes that sink and pool. Fire, sulfur and lava wear links down; a broken one drops out of the network until a Stone arrives to mend it, and worn links and damaged buildings ask for their Stone on their own. Ceilings shed the odd cell, dirt far more often than stone.\n\n" + ("Every kind of ground has a span: the widest gap it can roof over (gravel 40, dirt 70, coal and sulfur 90, clay 110, stone 150, packed dirt 240; glimmer, obsidian and bedrock any). Open up a room wider than that and its ceiling breaks off from the middle in slabs that tumble down and shatter into rubble, until what's left is an arch or its own rubble props it (over a crawlspace it crumbles instead). Falling rock hurts what it hits by its weight and speed, cuts links it falls through and crushes mites, and the rubble can bury whatever is under it. Rock, rubble and buildings under a ceiling all hold it up; water doesn't. A Strut (X) spans a gap up to %d cells, rock to rock, flat or upright: it props whatever rests on it, and nothing within %d cells of either end caves in or crumbles. It costs %d Stone from the Hub, goes up at once and needs no link or upkeep, but it snaps if either end loses its rock. With Tremor Dampers, the Crucible's tremors spare stone within %d cells of a Strut.\n\nGround differs. Gravel comes down fast, coal twice as fast as dirt, packed dirt hardly ever. Stone hangs only from stone: a lump held up by dirt alone drops once it's undermined. Sand pours the moment it's opened up. Water slowly wears stone into dirt and dirt into sand, and carries sand off; gravel and clay shrug it off, and clay lines the aquifers.\n\n" % [D.STRUT_MAX, D.STRUT_HOLD, D.B_COSTS[D.B_STRUT][0], int(D.STRUT_DAMP_R)]) + "The Crucible wants %d Obsidian (water on lava, then cut or blast the crust), %d Glimmer and %d Water, delivered while it charges, and draws %d power/s the whole time. Keep it fed and powered or the charge drains." % [D.RECIPE[D.R_OBSIDIAN], D.RECIPE[D.R_GLIMMER], D.RECIPE[D.R_WATER], int(D.CRUCIBLE_POWER_PER_S)], 13, DIM)
+	var tips := _label(("Conduits link within %d cells (Relay Masts %d); everything else must sit within %d of one. " % [int(D.RELAY_RANGE), int(D.MAST_RANGE), int(D.LINK_RANGE)]) + "A Conduit under water stops relaying, and lava destroys it.\n\nUnderground is dark. Sunlight falls straight down open shafts, lava, fire and glimmer glow, and every machine carries a small light; a Lamp lights %d cells, and rock casts shadows. What's lit near your buildings gets explored; explored ground shows live while it's lit and as you last saw it when it isn't.\n\nEverything you build needs rock, or a building that's held up, touching it (corners count). Dig that away and it falls until it lands on something, off the network on the way down; a long fall hurts it (water breaks the fall). When placing, the outline snaps to the nearest spot within %d cells that touches rock.\n\n" % [int(D.LIGHT_LAMP), D.PLACE_SNAP] + "Machines run on power: each keeps a small reserve and the network refills it by packet, from the nearest Hub, Cache or Waterwheel that has some. A machine with an empty reserve stops where it stands. The Hub makes 2 power/s on its own; a Waterwheel makes more from water falling through it, a Steam Turbine from steam rising through it, and springs keep aquifers topped up. Caches hold power and materials out at the front and keep a cut-off stretch running for a while.\n\n" + "Labs turn power into research (T); new tiers open as you find Glimmer, lava and the Crucible. Upgrades come in levels, each dearer than the last.\n\nThe Drill beside the Hub bores a 30-wide shaft straight down on its own; Drill Bit and Drill Shaft research make it faster and deeper, down to the bedrock over the chamber. A Thumper blasts the ground under it every few seconds and throws itself up; what it breaks flies as rubble for Hoppers to catch, and its blasts hurt anything of yours nearby. A Borer tunnels the way it's pointed until its power runs out or it meets bedrock, a building or a lava body; out past the network it runs on its reserve, so lay Conduits behind it (Homing brings it back to recharge). Obsidian stops the Drill and Borers until the Obsidian Saw.\n\n" + ("From about %d down the rock is hot. It stops the Drill and Borers until the Coolant Jacket, and then each pays 1 Water per %d cells of it, sent to it by packet; the water goes up behind it as steam, which scalds Conduits and can turn a Steam Turbine. Mites dig it with Ember Brood. Water boils on hot rock, and enough of it slowly quenches the rock to stone.\n\n" % [D.HOT_TOP, roundi(1.0 / D.COOLANT_WATER_PER_CELL)]) + ("A Warren's mites hollow out a chamber over it, then tunnel toward the marker you set in its panel, finding their own way, and dig out a small circle there, carrying each cell home to bank. They dig whatever is in their way, even the wall between them and an aquifer, until Sounding, but never what holds the Warren up. They cling to any surface; when their hold goes they drop, and a blast throws them (a long fall kills one). Water drowns them, fumes choke them, lava and steam kill them, falling rock crushes them, and one that catches fire runs about lighting things until it burns out. A lost mite is replaced every %d s for a Stone. Freshly dug ground settles for %d s before it can crumble or slide, so there's time to prop a new hole up.\n\n" % [int(D.WARREN_BREED_S), int(D.SETTLE_S)]) + "Coal banks Stone and Power when dug, and burns: lava or flames light it, and fire needs air, so a buried or flooded seam goes out. Sulfur banks Stone and Glimmer, but it eats buildings and links a few cells off and burns into fumes that sink and pool. Fire, sulfur and lava wear links down; a broken one drops out of the network until a Stone arrives to mend it, and worn links and damaged buildings ask for their Stone on their own. Ceilings shed the odd cell, dirt far more often than stone.\n\n" + ("Every kind of ground has a span: the widest gap it can roof over (gravel 40, dirt 70, coal and sulfur 90, clay 110, stone 150, packed dirt 240; glimmer, obsidian and bedrock any). Open up a room wider than that and its ceiling breaks off from the middle in slabs that tumble down and shatter into rubble, until what's left is an arch or its own rubble props it (over a crawlspace it crumbles instead). Falling rock hurts what it hits by its weight and speed, cuts links it falls through and crushes mites, and the rubble can bury whatever is under it. Rock, rubble and buildings under a ceiling all hold it up; water doesn't. A Strut (X) spans a gap up to %d cells, rock to rock, flat or upright: it props whatever rests on it, and nothing within %d cells of either end caves in or crumbles. It costs %d Stone from the Hub, goes up at once and needs no link or upkeep, but it snaps if either end loses its rock. With Tremor Dampers, the Crucible's tremors spare stone within %d cells of a Strut.\n\nGround differs. Gravel comes down fast, coal twice as fast as dirt, packed dirt hardly ever. Stone hangs only from stone: a lump held up by dirt alone drops once it's undermined. Sand pours the moment it's opened up. Water slowly wears stone into dirt and dirt into sand, and carries sand off; gravel and clay shrug it off, and clay lines the aquifers.\n\n" % [D.STRUT_MAX, D.STRUT_HOLD, D.B_COSTS[D.B_STRUT][0], int(D.STRUT_DAMP_R)]) + "The Crucible wants %d Obsidian (water on lava, then cut or blast the crust), %d Glimmer and %d Water, delivered while it charges, and draws %d power/s the whole time. Keep it fed and powered or the charge drains.\n\nThe Hub is a building like the rest: blasts, falling rock, fire, lava and sulfur hurt it, and it patches itself with one of its own Stones at most every %d s. If it's destroyed, the run is over. The run saves itself every few minutes and when you quit or go back to the title." % [D.RECIPE[D.R_OBSIDIAN], D.RECIPE[D.R_GLIMMER], D.RECIPE[D.R_WATER], int(D.CRUCIBLE_POWER_PER_S), int(D.HUB_FIX_S)], 13, DIM)
 	tips.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	tips.custom_minimum_size = Vector2(620, 0)
 	body.add_child(tips)
@@ -701,31 +727,53 @@ func _refresh_research() -> void:
 		card.add_theme_stylebox_override("panel", card_current if current else card_plain)
 
 
-func _build_win() -> void:
-	win_panel = PanelContainer.new()
-	win_panel.visible = false
-	_anchor(win_panel, 0.5, 0.5, 0.5, 0.5, -230, -110, 230, 110)
-	root.add_child(win_panel)
+## The end of a run, won or lost: how long it took, what happened when, and
+## where to go from here.
+func _build_end() -> void:
+	end_panel = PanelContainer.new()
+	end_panel.visible = false
+	_anchor(end_panel, 0.5, 0.5, 0.5, 0.5, -280, -250, 280, 250)
+	root.add_child(end_panel)
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 10)
 	vb.alignment = BoxContainer.ALIGNMENT_CENTER
-	win_panel.add_child(vb)
-	var title := _label("The Crucible is lit.", 24, GOLD)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vb.add_child(title)
-	win_label = _label("", 14)
-	win_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vb.add_child(win_label)
+	end_panel.add_child(vb)
+	end_title = _label("", 24, GOLD)
+	end_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(end_title)
+	end_sub = _label("", 14, DIM)
+	end_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(end_sub)
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(0, 260)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	vb.add_child(scroll)
+	end_lines = GridContainer.new()
+	end_lines.columns = 2
+	end_lines.add_theme_constant_override("h_separation", 14)
+	end_lines.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(end_lines)
+	end_stats = _label("", 13, DIM)
+	end_stats.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(end_stats)
 	var hb := HBoxContainer.new()
 	hb.alignment = BoxContainer.ALIGNMENT_CENTER
 	hb.add_theme_constant_override("separation", 12)
 	vb.add_child(hb)
+	end_keep = _button("Keep going")
+	end_keep.pressed.connect(func() -> void:
+		game.keep_going()
+		end_panel.visible = false)
+	hb.add_child(end_keep)
 	var same := _button("Replay this seed")
 	same.pressed.connect(func() -> void: game.restart(true))
 	hb.add_child(same)
 	var fresh := _button("New seed")
 	fresh.pressed.connect(func() -> void: game.restart(false))
 	hb.add_child(fresh)
+	var menu := _button("Title")
+	menu.pressed.connect(func() -> void: game.open_title())
+	hb.add_child(menu)
 
 
 # --- Per-frame refresh ---------------------------------------------------------------
@@ -738,13 +786,18 @@ func refresh() -> void:
 	var short: bool = g.power_used > g.power_made + 0.05 and g.total(D.R_POWER) < 20.0
 	res_labels[D.R_POWER].add_theme_color_override("font_color", Color(1.0, 0.55, 0.4) if short else Color(0.88, 0.9, 0.95))
 	hub_label.text = "Hub %d / 6 pkt/s" % g.hub_output()
-	if g.won:
+	for k in speed_buttons.size():
+		var sb: Button = speed_buttons[k]
+		sb.set_pressed_no_signal(g.paused if k == 0 else (not g.paused and g.speed_idx == k - 1))
+	if g.run_lost:
+		speed_label.text = "Lost"
+	elif g.won and not g.carry_on:
 		speed_label.text = "Lit"
-	elif g.paused:
-		speed_label.text = "Paused"
+	elif not g.paused and g.speed() > 1 and g.sim_rate < g.speed() * 0.9:
+		speed_label.text = "(%.1fx)" % g.sim_rate     # what the sim is managing
 	else:
-		speed_label.text = "Speed %dx" % g.speed()
-	speed_label.add_theme_color_override("font_color", Color(1.0, 0.8, 0.4) if g.paused else Color(0.88, 0.9, 0.95))
+		speed_label.text = ""
+	speed_label.add_theme_color_override("font_color", Color(1.0, 0.8, 0.4))
 	time_label.text = _clock(g.game_time)
 	seed_label.text = "Seed %d" % g.seed_value
 	var hv: Vector2i = g.hover
@@ -787,7 +840,7 @@ func refresh() -> void:
 	var btext: String = ""
 	if g.banner_time > 0.0:
 		btext = g.banner_text
-	elif g.paused and not g.won:
+	elif g.paused and not g.frozen():
 		btext = "Paused. Space to carry on."
 	banner_panel.visible = btext != ""
 	banner.text = btext
@@ -800,13 +853,31 @@ func refresh() -> void:
 
 func _clock(t: float) -> String:
 	var s := int(t)
+	if s >= 3600:
+		return "%d:%02d:%02d" % [int(s / 3600.0), int(s / 60.0) % 60, s % 60]
 	return "%02d:%02d" % [int(s / 60.0), s % 60]
 
 
-func show_win() -> void:
+## The summary at the end of a run: the major milestones with their times.
+func show_end() -> void:
 	var g = game
-	win_label.text = "Time %s    Buildings lost %d\nCells drilled %d    Seed %d" % [_clock(g.game_time), g.buildings_lost, g.cells_drilled, g.seed_value]
-	win_panel.visible = true
+	end_title.text = "The Crucible is lit." if g.won else "The Hub is gone."
+	end_title.add_theme_color_override("font_color", GOLD if g.won else Color(1.0, 0.45, 0.35))
+	end_sub.text = ("A run of %s on seed %d." if g.won else "The run is over after %s, on seed %d.") % [_clock(g.game_time), g.seed_value]
+	for c in end_lines.get_children():
+		c.queue_free()
+	for m: Dictionary in g.milestones:
+		if not m["major"]:
+			continue
+		end_lines.add_child(_label(_clock(m["t"]), 13, DIM))
+		end_lines.add_child(_label(m["text"], 13))
+	var techs := 0
+	for m: Dictionary in g.milestones:
+		if String(m["text"]).begins_with("Researched "):
+			techs += 1
+	end_stats.text = "Research done %d    Buildings lost %d    Cells drilled %d" % [techs, g.buildings_lost, g.cells_drilled]
+	end_keep.visible = g.won
+	end_panel.visible = true
 
 
 func toggle_research() -> void:

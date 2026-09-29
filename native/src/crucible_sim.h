@@ -437,6 +437,9 @@ public:
 	bool set_creature(int id, bool on);
 	bool remove_body(int id);
 
+	PackedByteArray save_state() const; // save.cpp
+	bool load_state(const PackedByteArray &data);
+
 	void set_threads(int n);
 	void set_fall(double accel, double max_speed);
 	int get_threads() const { return threads_wanted; }
