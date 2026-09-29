@@ -458,3 +458,36 @@ const BLAST_RADIUS := 6.0 * S
 const BLAST_POWER := 6
 const BLAST_DAMAGE := 10.0          # per point of power, to a building at the centre
 const LINK_BLAST := 3.0             # per point of power, to a link through the centre
+# Rigid bodies (phase 8c). A ceiling that caves in breaks off in pieces that fall as
+# bodies (stretches narrower than 4 cells still crumble). A body shatters into what
+# its ground crumbles into when it hits something faster than its toughness, and
+# turns back into ground once it comes to rest. Speeds in cells a second.
+const BODY_SHATTER := 90.0          # every body's toughness...
+const BODY_SHATTER_PER_DUR := 20.0  # ... plus this per point of its ground's durability (dirt 130: a
+                                    # drop of 9 cells; stone 190: 20)
+const BODY_MIN_CELLS := 12          # a piece smaller than this crumbles instead
+const PIECE_WIDTH := Vector2i(24, 64)   # how wide a piece breaking off a ceiling is, in cells
+const PIECE_THICK := Vector2i(6, 20)    # ... and how deep
+const PIECE_ROOM := 2 * S           # a ceiling over a lower gap than this (a crawlspace) crumbles instead
+# Crushing: an impact of at least CRUSH_MIN_V hurts the building it lands on by
+# CRUSH_DAMAGE per cell of the body per cell a second; a body crossing a link wears
+# it by CRUSH_LINK the same way (once a crossing).
+const CRUSH_MIN_V := 60.0
+const CRUSH_DAMAGE := 6.0e-4        # an 800-cell slab at 300: 144
+const CRUSH_LINK := 1.0e-4          # ... and 24 to a link
+# Falling buildings are hurt landing: nothing up to FALL_SAFE_V, then up to
+# FALL_HURT of their HP at FALL_MAX.
+const FALL_SAFE_V := 200.0         # a fall of about 33 cells
+const FALL_HURT := 0.75
+# Thumper collisions: hitting rock or a building sideways or upward faster than
+# THUMP_BUMP_SAFE hurts it, and the building, by THUMP_BUMP_DAMAGE per cell a second over.
+const THUMP_BUMP_SAFE := 30.0 * S
+const THUMP_BUMP_DAMAGE := 0.25   # the hardest flick (450) into rock: 37 of its 80
+
+
+## What the engine's bodies are set up with (sim_factory).
+static func body_params() -> Dictionary:
+	return {"accel": SIM_FALL_ACCEL, "max_speed": SIM_FALL_MAX, "shatter": BODY_SHATTER,
+			"shatter_per_durability": BODY_SHATTER_PER_DUR, "crush_min": CRUSH_MIN_V,
+			"min_cells": BODY_MIN_CELLS, "piece_min": PIECE_WIDTH.x, "piece_max": PIECE_WIDTH.y,
+			"thick_min": PIECE_THICK.x, "thick_max": PIECE_THICK.y, "piece_room": PIECE_ROOM, "pieces": true}

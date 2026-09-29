@@ -1,4 +1,5 @@
 #include "crucible_sim.h"
+#include "rng.h"
 
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/variant/dictionary.hpp>
@@ -19,35 +20,10 @@ constexpr uint8_t AIR = 0, BEDROCK = 1, STONE = 2, GLIMMER = 3, OBSIDIAN = 4, BU
 constexpr float GRAVITY = 0.045f; // particles, cells per tick per tick
 constexpr float MAX_SPEED = 4.0f;
 
-inline uint32_t hash3(uint32_t a, uint32_t b, uint32_t c) {
-	uint32_t h = a * 0x9E3779B1u ^ (b + 0x7F4A7C15u) * 0x85EBCA77u ^ (c + 0x165667B1u) * 0xC2B2AE3Du;
-	h ^= h >> 16;
-	h *= 0x7FEB352Du;
-	h ^= h >> 15;
-	h *= 0x846CA68Bu;
-	h ^= h >> 16;
-	return h | 1u;
-}
-
-inline uint32_t lcg(uint32_t &s) {
-	s = s * 1103515245u + 12345u;
-	return s >> 1; // 31 bits, like the old GDScript stream
-}
-
-// A roll against a chance out of 65536.
-inline bool roll(uint32_t &s, uint32_t chance) {
-	if (chance >= 65536u) {
-		return true;
-	}
-	if (chance == 0) {
-		return false;
-	}
-	return ((lcg(s) >> 7) & 0xFFFFu) < chance;
-}
-
-inline float frand(uint32_t &s) {
-	return (float)((lcg(s) >> 7) & 0xFFFFu) / 65535.0f;
-}
+using crucible::frand;
+using crucible::hash3;
+using crucible::lcg;
+using crucible::roll;
 
 const int N8X[8] = { 0, 0, -1, 1, -1, 1, -1, 1 };
 const int N8Y[8] = { -1, 1, 0, 0, -1, -1, 1, 1 };
@@ -166,6 +142,9 @@ void CrucibleSim::set_size(int w, int h) {
 	settle.assign(N, 0);
 	held.assign(N, 0);
 	vel.assign(N, 0);
+	owner.assign(N, 0);
+	bodies.clear();
+	impacts.clear();
 	mem.assign(N, 0);
 	TW = (W + (1 << TSHIFT) - 1) >> TSHIFT;
 	TH = (H + (1 << TSHIFT) - 1) >> TSHIFT;
@@ -585,6 +564,7 @@ void CrucibleSim::step() {
 	}
 	stat_chunks = chunks;
 	stat_updates = updates;
+	step_bodies();
 	step_particles();
 }
 
@@ -1008,7 +988,7 @@ void CrucibleSim::swap_cells(Ctx &cx, int i, int j, int x, int y, int x2, int y2
 // nothing either side.
 void CrucibleSim::loosen_check(Ctx *cx, int i, int x, int y) {
 	int to = mats[cells[i]].loosens_to;
-	if (to < 0 || settle[i] > tick || held[i]) {
+	if (to < 0 || settle[i] > tick || held[i] || owner[i]) {
 		return;
 	}
 	if (solid(cells[i + W]) || solid(cells[i - 1]) || solid(cells[i + 1])) {
@@ -1207,6 +1187,7 @@ void CrucibleSim::set_cells(const PackedByteArray &data) {
 	std::fill(aux.begin(), aux.end(), (uint8_t)0);
 	std::fill(settle.begin(), settle.end(), 0);
 	std::fill(vel.begin(), vel.end(), (uint8_t)0);
+	clear_bodies();
 	std::fill(tile_dirty.begin(), tile_dirty.end(), (uint8_t)1);
 	std::fill(corr_valid.begin(), corr_valid.end(), (uint8_t)0);
 	parts.clear();
@@ -1246,7 +1227,7 @@ void CrucibleSim::erode(int samples, int y_min, int y_max) {
 		}
 		int i = y * W + x;
 		int to = mats[cells[i]].erodes_to;
-		if (to < 0 || settle[i] > tick || held[i]) {
+		if (to < 0 || settle[i] > tick || held[i] || owner[i]) {
 			continue;
 		}
 		if (cells[i + W] == AIR || (cells[i - 1] == AIR && cells[i + W - 1] == AIR) || (cells[i + 1] == AIR && cells[i + W + 1] == AIR)) {
@@ -1294,7 +1275,7 @@ int CrucibleSim::weather(int samples) {
 		int y = 3 + (int)((lcg(grng) >> 4) % (uint32_t)(H - 6));
 		int i = y * W + x;
 		const Mat &M = mats[cells[i]];
-		if (M.crumble == 0 || M.kind != K_STATIC || settle[i] > tick || held[i]) {
+		if (M.crumble == 0 || M.kind != K_STATIC || settle[i] > tick || held[i] || owner[i]) {
 			continue;
 		}
 		if (!thin(cells[i + W])) {
@@ -1332,9 +1313,11 @@ int CrucibleSim::weather(int samples) {
 // while it's within its overhang of either end of that run (so a wide ceiling
 // goes from the middle and leaves an arch). Solid ground, powder and buildings
 // under it hold it up. Held cells (Struts) and freshly dug ground stay put.
-// One row: in play a cell that should go does so with COLLAPSE_CHANCE a sweep and
-// becomes what it crumbles into, which falls; with to_air (worldgen) it's just
-// cleared, so the row above sees the hole straight away. Returns cells that went.
+// One row. In play, each unbroken stretch of cells that should go gives way
+// together (give_way: wide ones break off a piece at a time as rigid bodies);
+// with to_air (worldgen) each is just cleared as it's found, so the row above sees
+// the hole straight away. Pieces falling are still solid under a row for the tick
+// they're there. Returns cells that went.
 int CrucibleSim::collapse_row(int y, bool to_air) {
 	if (y < 2 || y >= H - 3) {
 		return 0;
@@ -1356,73 +1339,58 @@ int CrucibleSim::collapse_row(int y, bool to_air) {
 		if (w <= min_span && !any_cohesive) {
 			continue;
 		}
-		for (int xx = a; xx <= b; xx++) {
-			int i = y * W + xx;
-			const Mat &M = mats[cells[i]];
-			if (M.span == 0 || M.kind != K_STATIC) {
-				continue;
-			}
-			if (M.cohesive) {
-				// Held up only through its own kind: the nearest cell of it along the
-				// row that has something under it, walking through nothing else.
-				int cap = M.span + 1;
-				int dl = cling(i, -1, cap), dr = cling(i, 1, cap);
-				int d = std::min(dl, dr);
-				if (d <= M.overhang || (dl <= cap && dr <= cap && dl + dr - 1 <= M.span)) {
-					continue;
-				}
-			} else {
-				if (w <= M.span) {
-					continue;
-				}
-				int d = std::min(xx - a + 1, b - xx + 1);
-				if (d <= M.overhang) {
-					continue;
-				}
-			}
-			if (held[i] || settle[i] > tick) {
-				continue;
-			}
-			if (to_air) {
-				cells[i] = AIR;
-				aux[i] = 0;
+		int s = -1; // start of the stretch due to go
+		for (int xx = a; xx <= b + 1; xx++) {
+			bool go = xx <= b && due(y * W + xx, xx, a, b, w);
+			if (go && to_air) {
+				cells[y * W + xx] = AIR;
+				aux[y * W + xx] = 0;
 				n++;
-				continue;
+			} else if (go) {
+				if (s < 0) {
+					s = xx;
+				}
+			} else if (s >= 0) {
+				n += give_way(y, s, xx - 1);
+				s = -1;
 			}
-			if (!roll(grng, M.cave)) {
-				continue;
-			}
-			uint8_t m = cells[i];
-			int into = M.crumbles_into >= 0 ? M.crumbles_into : (M.loosens_to >= 0 ? M.loosens_to : m);
-			// A burning piece keeps burning on the way down.
-			uint8_t a2 = (M.burn_life && aux[i] && mats[into].burn_life) ? aux[i] : init_aux((uint8_t)into, lcg(grng));
-			if (M.glows) {
-				mark_lava(xx, y);
-			}
-			if (mats[into].kind == K_POWDER) {
-				cells[i] = (uint8_t)into;
-				aux[i] = a2;
-			} else {
-				cells[i] = AIR;
-				aux[i] = 0;
-				spawn(xx + 0.5f, y + 0.6f, 0.0f, 0.2f, (uint8_t)into, a2);
-			}
-			settle[i] = 0;
-			next.touch(xx, y);
-			changed = true;
-			last_cave_x = xx;
-			last_cave_y = y;
-			n++;
 		}
 	}
 	return n;
 }
 
+// Whether ceiling cell i (at xx, over the open run a..b, w wide) should come down.
+bool CrucibleSim::due(int i, int xx, int a, int b, int w) const {
+	const Mat &M = mats[cells[i]];
+	if (M.span == 0 || M.kind != K_STATIC || owner[i]) {
+		return false;
+	}
+	if (M.cohesive) {
+		// Held up only through its own kind: the nearest cell of it along the
+		// row that has something under it, walking through nothing else.
+		int cap = M.span + 1;
+		int dl = cling(i, -1, cap), dr = cling(i, 1, cap);
+		int d = std::min(dl, dr);
+		if (d <= M.overhang || (dl <= cap && dr <= cap && dl + dr - 1 <= M.span)) {
+			return false;
+		}
+	} else {
+		if (w <= M.span) {
+			return false;
+		}
+		int d = std::min(xx - a + 1, b - xx + 1);
+		if (d <= M.overhang) {
+			return false;
+		}
+	}
+	return !held[i] && settle[i] <= tick;
+}
+
 // How far along the row (step -1 or 1) the nearest cell holding cohesive cell i up
 // is: one of its own kind with something solid under it, or rock that never gives
 // way (no span: bedrock, obsidian, glimmer, buildings). Walks only through its own
-// kind, and past gaps with its own kind right above them; cap + 1 when there's
-// none within cap.
+// kind, and past gaps with its own kind within BRIDGE_UP above them; cap + 1 when
+// there's none within cap.
 int CrucibleSim::cling(int i, int step, int cap) const {
 	const uint8_t m = cells[i];
 	int x = i % W;
@@ -1438,9 +1406,20 @@ int CrucibleSim::cling(int i, int step, int cap) const {
 			if (C.kind == K_STATIC && C.span == 0) {
 				return k;
 			}
-			// A gap its own kind bridges from just above (a cell weathered out of a
+			// A gap its own kind bridges from not far above (a notch weathered into a
 			// thick roof) doesn't cut the row.
-			if (cells[j - W] == m) {
+			bool bridged = false;
+			for (int up = 1; up <= BRIDGE_UP && j - up * W >= 0; up++) {
+				uint8_t u = cells[j - up * W];
+				if (u == m) {
+					bridged = true;
+					break;
+				}
+				if (solid(u)) {
+					break;
+				}
+			}
+			if (bridged) {
 				continue;
 			}
 			return cap + 1;
@@ -1462,7 +1441,7 @@ int CrucibleSim::wash(int samples) {
 		int y = 3 + (int)((lcg(grng) >> 4) % (uint32_t)(H - 6));
 		int i = y * W + x;
 		const Mat &M = mats[cells[i]];
-		if (M.wash == 0 || M.wash_to < 0 || held[i] || settle[i] > tick) {
+		if (M.wash == 0 || M.wash_to < 0 || held[i] || settle[i] > tick || owner[i]) {
 			continue;
 		}
 		const int offs[4] = { -W, W, -1, 1 };
@@ -1557,7 +1536,7 @@ int CrucibleSim::tremor(int wanted, int y_min, int y_max) {
 		}
 		int i = y * W + x;
 		int to = mats[cells[i]].crumbles_to;
-		if (to < 0) {
+		if (to < 0 || owner[i]) {
 			continue;
 		}
 		bool shielded = false;
@@ -1685,6 +1664,7 @@ int CrucibleSim::explode(int x, int y, double radius, int power) {
 			}
 		}
 	}
+	push_bodies(x + 0.5f, y + 0.5f, rad, power);
 	return broken;
 }
 
@@ -2600,6 +2580,16 @@ void CrucibleSim::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("dig_rect", "x", "y", "w", "h", "mask", "settle_r", "settle_ticks"), &CrucibleSim::dig_rect);
 	ClassDB::bind_method(D_METHOD("block_circles", "circles"), &CrucibleSim::block_circles);
 	ClassDB::bind_method(D_METHOD("place_spots", "x", "y", "w", "h", "radius", "open_mask", "solid_mask"), &CrucibleSim::place_spots);
+	ClassDB::bind_method(D_METHOD("set_body_params", "params"), &CrucibleSim::set_body_params);
+	ClassDB::bind_method(D_METHOD("make_body", "x", "y", "w", "h", "vx", "vy", "spin"), &CrucibleSim::make_body);
+	ClassDB::bind_method(D_METHOD("body_count"), &CrucibleSim::body_count);
+	ClassDB::bind_method(D_METHOD("get_bodies"), &CrucibleSim::get_bodies);
+	ClassDB::bind_method(D_METHOD("body_state", "id"), &CrucibleSim::body_state);
+	ClassDB::bind_method(D_METHOD("take_impacts"), &CrucibleSim::take_impacts);
+	ClassDB::bind_method(D_METHOD("get_bodies_made"), &CrucibleSim::get_bodies_made);
+	ClassDB::bind_method(D_METHOD("get_bodies_shattered"), &CrucibleSim::get_bodies_shattered);
+	ClassDB::bind_method(D_METHOD("get_bodies_settled"), &CrucibleSim::get_bodies_settled);
+	ClassDB::bind_method(D_METHOD("get_owner", "x", "y"), &CrucibleSim::get_owner);
 	ClassDB::bind_method(D_METHOD("set_threads", "n"), &CrucibleSim::set_threads);
 	ClassDB::bind_method(D_METHOD("set_fall", "accel", "max_speed"), &CrucibleSim::set_fall);
 	ClassDB::bind_method(D_METHOD("get_threads"), &CrucibleSim::get_threads);

@@ -1,4 +1,4 @@
-# Crucible: code map (as of phase 8b)
+# Crucible: code map (as of phase 8c)
 
 Where things are, so a new session can go straight to the right function instead of
 grepping. Line numbers drift; names don't. Coordinates are cells: x across (0..767),
@@ -32,11 +32,14 @@ index as [Stone, Glimmer, Obsidian, Water, Power].
 - `shaders/terrain.gdshader`: cells, aux and memory from Texture2DArrays (a 256 x 256
   tile a layer, `tile_at`), palette, and block textures (light, fog, heat, sense).
 - `native/src/crucible_sim.{h,cpp}`: the engine (CrucibleSim, a RefCounted).
+- `native/src/bodies.cpp`: rigid bodies and collapse into pieces (members of CrucibleSim);
+  `native/src/rng.h`: the random helpers both share.
 - Session tooling in `native/`: `cloud_setup.sh` (run by `.claude/hooks/session-start.sh`),
   `build.sh`, `run_tests.sh`, `lsp_check.py`, `cache/godot-cpp-built.tar.gz`.
 
 ## The tick (`game._tick`, 60 a second)
-sim.step, erode (every 2nd), weather, wash, collapse (+ `_cave_ins` alert), network
+sim.step (cells, then bodies, then particles), `_bodies` (impacts hurt buildings;
+links crossed every 3rd tick), erode (every 2nd), weather, wash, collapse (+ `_cave_ins` alert), network
 rebuild if dirty, springs, falling buildings, fliers (Thumpers), `_update_buildings`
 (each machine; Warrens via `WR.tick`), research, Hub trickles, dispatch and packets,
 `_damage_scan` + `_check_struts` (tick % 6 == 0), `_link_scan` (% 6 == 3), heat (20),
@@ -64,14 +67,25 @@ sense (30), vision/light (15), Crucible.
 - Scans for the game: `hazards_batch(rects, reach)` (NHAZ = 8 ints per building: hot
   liquid, fire, scald, liquid, open, corrosive, ground, structure), `segments_batch`,
   `building_hazards`, `segment_hazards`, `ring_counts`, `materials_in(mask)`.
+- Bodies: `set_body_params(dict)` (from `D.body_params()`), `make_body(x, y, w, h, vx, vy,
+  spin)`, `body_count`, `get_bodies` (7 ints each: id, box, speed, cells), `body_state(id)`
+  (10 floats: pose, speeds, cells, age, rest), `take_impacts` (5 ints each: x, y, speed, cells,
+  hit a building), `get_owner(x, y)`, `get_bodies_made/shattered/settled`.
 - Stats: `stat_chunks`, `stat_updates`, `reactions`, `ignitions`, `eroded`, `crumbled`,
   `get_caved`, `get_washed`, `get_last_cave`, `get_tick`; `changed`/`heat_changed` flags.
 - Setup: `configure(materials, reactions)`, `set_seed`, `set_threads`.
 - Inside: 32x32 chunks with dirty rects, four checkerboard passes (threads), per-chunk
   RNG from (seed, tick, chunk); game-side passes use one stream (`grng`). Nothing moves
   more than 15 cells a tick (`fall`, liquid `spread`), so passes stay independent.
-  `collapse_row` holds the span rule and `cling` the cohesive (stone) rule;
+  `collapse_row` holds the span rule (`due` per cell) and `cling` the cohesive (stone)
+  rule; in play each stretch due to go goes to `give_way` (bodies.cpp): narrow or low
+  ones crumble a cell at a time, others `break_off` a piece as a body.
   `hazards_at` caches corrosive counts per chunk.
+- Bodies (bodies.cpp): a `Body` keeps a bitmap and a pose; its pixels sit in the grid as
+  ordinary cells tagged in `owner` (the slow passes skip tagged cells). `body_tick`: drop
+  lost pixels, gravity and liquid drag, move in half-cell substeps (`overlap` on edge
+  pixels, `body_hit` impulse and friction, push out along the normal), then settle
+  (`settle_body`), shatter (`shatter`) or `restamp`. `push_bodies` from `explode`.
 
 ## Key game functions
 - Placing: `footprint`, `snap_place` (engine `place_spots`, then fog and link),
@@ -83,7 +97,9 @@ sense (30), vision/light (15), Crucible.
 - Drawing: `_upload` (dirty tiles near the view), `view_rect(pad)`, float `zoom`.
 - Losing: `demolish` (50% back), `_destroy(b, cause)` (alert, rubble), `_remove`.
 - Anchoring: `_damage_scan` finds unheld buildings, `_settle` keeps those joined to a
-  held one, `_come_loose` drops the rest (`_update_falling`, `_land`).
+  held one, `_come_loose` drops the rest (`_update_falling`, `_land`: fall damage).
+- Bodies: `_bodies` (impacts on buildings), `_crush_links`; Thumper bumps in
+  `_update_fliers` via `_bump`.
 - Damage: `_hurt(b, amount, cause)`, `hurt_link`, repairs via `_requests`.
 - Network: `_rebuild_network` (relays, sources, links), `_dispatch`, `_route`,
   `_deliver`, `_bank(pos, res, amount)` (to the nearest Cache in reach, else Hub).
@@ -101,3 +117,5 @@ scenarios on frame 2 and prints `FAILURES: n`. Helpers each file defines: `fresh
 `secs(s)` (run_ticks(60 * s)), `build(type, r)` (place, then tick until built).
 Phase 8b tests also define `P(x, y)` / `R(x, y, w, h)`: a v2 cell or rectangle near the
 Hub, scaled by D.S about the pad's middle at ground level.
+scenario_bodies walls its rooms in bedrock (`arena`), which never caves, and counts bodies
+locally (`bodies_in`): the seed's own caves shed pieces all over the map.

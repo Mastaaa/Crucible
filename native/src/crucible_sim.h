@@ -26,7 +26,9 @@
 
 #include <godot_cpp/classes/ref_counted.hpp>
 #include <godot_cpp/variant/array.hpp>
+#include <godot_cpp/variant/dictionary.hpp>
 #include <godot_cpp/variant/packed_byte_array.hpp>
+#include <godot_cpp/variant/packed_float32_array.hpp>
 #include <godot_cpp/variant/packed_int32_array.hpp>
 #include <godot_cpp/variant/vector2i.hpp>
 #include <godot_cpp/variant/vector4i.hpp>
@@ -55,6 +57,7 @@ public:
 	static constexpr int LIGHT_MAX_R = 400; // the furthest any light reaches, in cells
 	static constexpr int TSHIFT = 8; // render tiles are 256 x 256 cells
 	static constexpr int NHAZ = 8; // values hazards_at writes per building
+	static constexpr int BRIDGE_UP = 8; // a cohesive row bridges a notch its own kind roofs this near above
 
 	enum Kind : uint8_t {
 		K_EMPTY = 0,
@@ -139,6 +142,34 @@ public:
 		uint8_t mat, aux;
 	};
 
+	// A rigid body: a piece of ground that broke off (bodies.cpp). Its pixels live in
+	// the grid as ordinary cells tagged with its id (`owner`), so everything else
+	// treats it as rock; each tick it's lifted out, moved and stamped back.
+	struct Body {
+		int id = 0;
+		int w = 0, h = 0; // its own bitmap
+		std::vector<uint8_t> mat, aux; // row-major, mat 0 is empty
+		std::vector<int32_t> edge; // pixels with an empty side (what collides)
+		float cx = 0, cy = 0; // centre of mass, in its bitmap
+		float x = 0, y = 0, a = 0; // where the centre of mass is, and the angle
+		float vx = 0, vy = 0, spin = 0; // cells and radians a tick
+		float mass = 0, inertia = 0, radius = 0, toughness = 0;
+		int count = 0;
+		float sx = 0, sy = 0, sa = 0; // the pose it was last stamped at
+		std::vector<int32_t> at; // grid cells it's stamped into
+		std::vector<int32_t> from; // ... and the pixel each came from
+		float ax = 0, ay = 0, aa = 0; // where it was when it last started being still
+		int age = 0, rest = 0, last_hit = -100;
+	};
+
+	struct Contact {
+		int n = 0; // pixels in the way
+		float px = 0, py = 0; // their sum
+		float gx = 0, gy = 0; // which way the ground they hit lies
+		int nb = 0; // ... of them in a building
+		float bx = 0, by = 0;
+	};
+
 	// Dirty rectangles, one per chunk.
 	struct Rects {
 		int w = 0, h = 0, cw = 0, n = 0;
@@ -196,6 +227,23 @@ private:
 	int view_x0 = 0, view_y0 = 0, view_x1 = 1 << 20, view_y1 = 1 << 20; // explored ground outside isn't lit
 	uint8_t opq[256]; // light cost multiplier per material
 	std::vector<Particle> parts;
+	// Rigid bodies (bodies.cpp).
+	std::vector<Body> bodies;
+	std::vector<uint16_t> owner; // the body a cell belongs to (0: none)
+	int next_body_id = 1;
+	std::vector<int32_t> impacts; // x, y, speed (cells a second), mass, hit a building: 5 per hit
+	float body_g = 0.25f; // cells a tick, per tick
+	float body_max = 10.0f; // cells a tick
+	float shatter_base = 1.5f; // impact speed (cells a tick) that breaks a body up...
+	float shatter_per = 0.33f; // ... plus this per point of its ground's durability
+	float crush_min = 1.0f; // slower impacts than this aren't reported
+	int body_min = 12; // pieces smaller than this crumble instead
+	int piece_min = 24, piece_max = 64; // how wide a piece breaking off a ceiling is
+	int thick_min = 6, thick_max = 20; // ... and how thick
+	int piece_room = 20; // open cells a ceiling needs under it to drop a piece (else it crumbles)
+	bool pieces = true; // collapse breaks ceilings off in pieces (false: cell by cell)
+	int bodies_made = 0, bodies_shattered = 0, bodies_settled = 0;
+	static constexpr int MAX_BODIES = 200;
 	Rects cur;
 	Rects next;
 	Mat mats[256];
@@ -272,6 +320,7 @@ private:
 	void move_liquid(Ctx &cx, int i, int j, int x, int y, int x2, int y2, uint8_t m);
 	void loosen_check(Ctx *cx, int i, int x, int y);
 	int collapse_row(int y, bool to_air);
+	bool due(int i, int xx, int a, int b, int w) const;
 	int cling(int i, int step, int cap) const;
 	void rebuild_spans();
 	void hazards_at(int x, int y, int w, int h, bool inside, int reach, int32_t *out) const;
@@ -279,6 +328,28 @@ private:
 	void step_particles();
 	void spawn(float x, float y, float vx, float vy, uint8_t m, uint8_t a);
 	void land(Particle &p, int px, int py);
+
+	// Bodies (bodies.cpp).
+	inline bool can_break_off(int i) const {
+		const Mat &M = mats[cells[i]];
+		return M.kind == K_STATIC && M.span > 0 && !held[i] && settle[i] <= tick && owner[i] == 0;
+	}
+	int give_way(int y, int s, int e);
+	int break_off(int y, int s, int e);
+	int crumble_cell(int i, int x, int y);
+	int make_body_from(const std::vector<int32_t> &list, float vx, float vy, float spin);
+	bool body_shape(Body &b);
+	void step_bodies();
+	bool body_tick(Body &b);
+	bool overlap(const Body &b, float x, float y, float a, const std::vector<int32_t> &skip, Contact &c,
+			std::vector<int32_t> *collect) const;
+	bool body_hit(Body &b, const Contact &c, float &nx, float &ny);
+	void unstamp(Body &b);
+	void restamp(Body &b);
+	void shatter(Body &b);
+	void settle_body(Body &b);
+	void clear_bodies();
+	void push_bodies(float x, float y, float rad, int power);
 
 protected:
 	static void _bind_methods();
@@ -347,6 +418,17 @@ public:
 	PackedInt32Array dig_rect(int x, int y, int w, int h, const PackedByteArray &mask, int settle_r, int settle_ticks);
 	PackedByteArray block_circles(const PackedInt32Array &circles) const;
 	PackedInt32Array place_spots(int x, int y, int w, int h, int radius, const PackedByteArray &open_mask, const PackedByteArray &solid_mask);
+
+	void set_body_params(const Dictionary &p);
+	int make_body(int x, int y, int w, int h, double vx, double vy, double spin);
+	int body_count() const { return (int)bodies.size(); }
+	PackedInt32Array get_bodies() const;
+	PackedFloat32Array body_state(int id) const;
+	PackedInt32Array take_impacts();
+	int get_bodies_made() const { return bodies_made; }
+	int get_bodies_shattered() const { return bodies_shattered; }
+	int get_bodies_settled() const { return bodies_settled; }
+	int get_owner(int x, int y) const;
 
 	void set_threads(int n);
 	void set_fall(double accel, double max_speed);

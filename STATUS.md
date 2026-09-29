@@ -4,6 +4,44 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## Phase 8c done: rigid bodies (8d, mites as bodies, is next)
+
+Tests: nine suites (`bash native/run_tests.sh`, about 7 minutes, now with
+scenario_bodies) end `FAILURES: 0`. The engine changed: close Godot before pulling, and
+restart it after.
+- Rigid bodies in the engine (native/src/bodies.cpp). A body is a piece of ground with its
+  own bitmap and pose, sitting in the grid as ordinary cells tagged with its id, so
+  powder piles on it, water flows round it and buildings rest on it. It falls (900
+  cells/s^2, up to 600), turns, bounces a little, slides and tips over edges, sinks
+  slowly through liquid (pushing it up out of the way) and is shoved by blasts.
+- Ceilings cave in as pieces: a stretch of ceiling due to come down breaks off a slab
+  (24-64 wide, 6-20 deep, ragged on top, narrowing upward like the arch it leaves) with
+  its material's cave rate a sweep. The arch still forms, faster than before. Stretches
+  under 4 wide, or over a gap under 20 tall (a crawlspace, like a mite tunnel), crumble a
+  cell at a time as before.
+- A body that hits something faster than its toughness shatters into what its ground
+  crumbles into (dirt at 130 cells/s, a drop of about 9 cells; stone at 190, about 20);
+  a gentler landing leaves it lying, and it turns back into ground after half a second
+  still. Blasts and drills take cells off it; under 12 left and it crumbles.
+- Crushing: falling rock hurts the building it hits by its weight and speed (an
+  800-cell slab at 300 cells/s does 144 HP; a Conduit has 100), wears a link it falls
+  through, and kills mites.
+- Falling buildings (still upright boxes, falling straight down) are hurt landing past
+  200 cells/s, up to 75% of their HP at 400, and so is a building they land on; water
+  breaks the fall. They relink where they land, as before.
+- Thumper collisions: thrown or blasted into rock or a building sideways or upward past
+  300 cells/s, it's hurt, and so is the building (the hardest flick costs 37 of its 80
+  HP). Its own blasts launch it at most 220, and landing never hurts.
+- Stone roofs: a notch weathered into one no longer cuts it if stone roofs the notch
+  within 8 cells (before, any notch two deep brought a whole stone roof down).
+- Tools: tests/bench_bodies.gd (cost of many bodies), tests/shot_bodies.gd (screenshots
+  of a ceiling breaking up). Removed five orphaned tmp_*.gd.uid files.
+- Numbers (this container measures main's build at 1.3 ms a fresh-game tick, where the
+  last one measured 0.7): a fresh game ticks the same as main; the network bench
+  averages the same (worst ticks are network rebuilds, ~38 ms, as before); 100 slabs
+  in the air at once cost 3.5 ms a tick (worst 14), 180 cost 6.3. Descent probe
+  unchanged: 700 at 2 min, 1000 at 5, 1400 at 7.
+
 ## Phase 8b done: the rescale (8c, rigid bodies, is next)
 
 Tests: all eight suites (`bash native/run_tests.sh`, about 6 minutes) end

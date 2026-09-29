@@ -945,3 +945,33 @@ func materials_in(mask: PackedByteArray) -> PackedInt32Array:
 				if out[cells[i]] < 0:
 					out[cells[i]] = i
 	return out
+
+
+# Rigid bodies (phase 8c) live only in the C++ sim: this one has no collapse to
+# break pieces off, so there are never any.
+func set_body_params(_p: Dictionary) -> void:
+	pass
+
+
+func make_body(_x: int, _y: int, _w: int, _h: int, _vx: float, _vy: float, _spin: float) -> int:
+	return -1
+
+
+func body_count() -> int:
+	return 0
+
+
+func get_bodies() -> PackedInt32Array:
+	return PackedInt32Array()
+
+
+func take_impacts() -> PackedInt32Array:
+	return PackedInt32Array()
+
+
+func get_owner(_x: int, _y: int) -> int:
+	return 0
+
+
+func body_state(_id: int) -> PackedFloat32Array:
+	return PackedFloat32Array()

@@ -37,8 +37,9 @@ No directory listings needed.
    must be closed before pulling and restarted after, so it loads the new library.
 
 ## Traps
-- Tests that carve rooms into seed 7 wall them with plain dirt first; measure collapse
-  locally, not with the global `get_caved()`. Lay v2-style set-pieces out with P / R
+- Tests that carve rooms into seed 7 wall them with plain dirt first (or bedrock, which
+  never caves); measure collapse and bodies locally, not with the global `get_caved()` or
+  `get_bodies_*` counters: the seed's own caves shed pieces all over the map. Lay v2-style set-pieces out with P / R
   (see claude/CODE_MAP.md); the map is only 768 wide, so far-out pieces need their own
   origin or to go below the Hub.
 - Anything per cell in GDScript is 100x the work it was in v2: count, dig or mark in

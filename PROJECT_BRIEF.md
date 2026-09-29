@@ -74,9 +74,13 @@ uncover elements, deposits and curios; exploit reactions or get blindsided by th
    - Free fall for powders and liquids; mites nibble in 4x4 bites.
    - Light, fog and rendering reworked for the size (blocks, tiles).
 
-8c. Rigid bodies: next. Falling chunks, falling buildings, Thumper collisions.
+8c. Rigid bodies: done.
+   - Engine bodies: pixel pieces stamped into the grid, turning, bouncing, shattering on
+     hard impacts, settling back into ground at rest; blasts shove them.
+   - Ceilings break off in pieces (crawlspaces still crumble).
+   - Falling rock crushes buildings, links and mites; falls hurt buildings; Thumper collisions.
 
-8d. Mites as bodies (claude/IDEAS.md entry 4).
+8d. Mites as bodies (claude/IDEAS.md entry 4): next.
 
 9. Depth: heat, deeper materials, Crucible power draw.
 
@@ -91,19 +95,21 @@ uncover elements, deposits and curios; exploit reactions or get blindsided by th
 - Underground is dark: light (Hub, Lamps, pilot lights, glowing materials, sunlight down open shafts) plus a
   building's sight explores; explored ground shows live only while lit (Terraria-style).
 - Every building except Hub and Crucible must stay anchored (rock or a held-up building touching, corners
-  count); dislodged ones fall and re-anchor. Real rigid-body physics for this comes with phase 8c.
+  count); dislodged ones fall straight down, are hurt by a long fall, and re-anchor.
 - The Drill is one fixed machine on the Hub's right: a 30-wide shaft straight down, never buildable.
 - Scale (8b): everything built is D.S (10) times its v2 size against the cells; ranges, speeds and
   radii S times, amounts in cells S * S times. World features scale with the world (4x), not the
   buildings. Overhang is a slope and stays as in v2.
 - Rigid bodies (8c): unsupported spans break off as solid chunks that shatter to rubble on
-  impact; buildings that lose footing fall, take fall damage and relink where they land;
-  chunks crush buildings, links and mites by mass and speed.
+  impact (a gentle landing settles back into ground; a ceiling over a crawlspace crumbles);
+  buildings that lose footing fall, take fall damage and relink where they land; chunks
+  crush buildings, links and mites by mass and speed. Buildings stay upright boxes.
 - Falling has speed (free fall); mites are small and nibble 4x4 bites in bursts of up to 8.
-- Thumper: holds a reserve and links when it lands near a relay; the player can drag and throw it (collision
-  damage comes with rigid bodies); it yields debris only, for Hoppers. Thumper and Borer are Tier 1.
+- Thumper: holds a reserve and links when it lands near a relay; the player can drag and throw it (hitting
+  rock or a building sideways or upward past 300 cells/s hurts both; landing never does); it yields debris
+  only, for Hoppers. Thumper and Borer are Tier 1.
 - Upgrades are techs with levels, each dearer than the last, later levels gated by tier.
-- Collapse: a ceiling wider than its material's span caves from the middle into an arch; Struts are
+- Collapse: a ceiling wider than its material's span caves from the middle into an arch (in pieces, 8c); Struts are
   instant, linkless beams rock to rock that hold rock near both ends. Stone hangs only from stone.
 - Ground is mundane data (physics and water only): packed dirt, dirt, sand, gravel, clay, stone.
 - Settling: cells next to anything a building digs hold still for SETTLE_S (20 s) before weathering,

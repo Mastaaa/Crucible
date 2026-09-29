@@ -90,6 +90,7 @@ var scan_gates := PackedInt32Array()  # indexes in scan_list of Floodgates (open
 var link_list: Array = []         # buildings whose link is checked
 var fallers: Array = []           # buildings falling right now
 var fliers: Array = []            # Thumpers in the air, or being dragged
+var crushed := {}                 # body id -> {link key: true} for the links it has already hit
 var scan_stale := false           # a mover changed its link: rebuild the scan lists soon
 var by_id := {}                   # building id -> building, rebuilt with the scan cache
 var still_lights := PackedInt32Array()  # lights and sights that don't move or switch, with the cache
@@ -324,6 +325,7 @@ func new_game(s: int) -> void:
 	damaged.clear()
 	fallers.clear()
 	fliers.clear()
+	crushed.clear()
 	scan_stale = false
 	scan_dirty = true
 	send_log.clear()
@@ -453,6 +455,7 @@ func _tick() -> void:
 	game_time += D.DT
 	sim.step()
 	var t1 := Time.get_ticks_usec()
+	_bodies()
 	if ticks % 2 == 0:
 		sim.erode(D.ERODE_SAMPLES, D.GROUND_Y + 6 * D.S, D.LAYERS[1]["bottom"] + 150)
 	sim.weather(D.WEATHER_SAMPLES)
@@ -888,6 +891,66 @@ func _cave_ins(n: int) -> void:
 	if cave_t >= 2.0:
 		cave_cells = 0
 		cave_t = 0.0
+
+
+## Rigid bodies (pieces of ground falling): a building one lands on is hurt by its
+## mass and speed; links it crosses fast are worn (every third tick).
+func _bodies() -> void:
+	var hits: PackedInt32Array = sim.take_impacts()
+	for k in range(0, hits.size(), 5):
+		if hits[k + 4] == 0:
+			continue
+		var b := building_at(Vector2i(hits[k], hits[k + 1]))
+		if b == null or b.dead or b.type == D.B_HUB or b.type == D.B_CRUCIBLE or b.fixed:
+			continue
+		_hurt(b, D.CRUSH_DAMAGE * hits[k + 3] * hits[k + 2], "falling rock")
+	if ticks % 3 == 0 and (sim.body_count() > 0 or not crushed.is_empty()):
+		_crush_links()
+
+
+func _crush_links() -> void:
+	if scan_dirty:
+		_rebuild_scan()
+	var bl: PackedInt32Array = sim.get_bodies()
+	var live := {}
+	for k in range(0, bl.size(), 7):
+		var id := bl[k]
+		live[id] = true
+		var v := bl[k + 5]
+		if v < D.CRUSH_MIN_V:
+			continue
+		var box := Rect2(bl[k + 1], bl[k + 2], bl[k + 3] - bl[k + 1] + 1, bl[k + 4] - bl[k + 2] + 1)
+		var done: Dictionary = crushed.get(id, {})
+		for j in link_list.size():
+			var a := Vector2(link_segs[j * 4], link_segs[j * 4 + 1])
+			var c := Vector2(link_segs[j * 4 + 2], link_segs[j * 4 + 3])
+			if not _segment_hits_rect(a, c, box):
+				continue
+			var lb: Building = link_list[j]
+			if lb.dead or lb.link == null or lb.link.dead:
+				continue
+			var key := _link_key(lb, lb.link)
+			if done.has(key):
+				continue
+			done[key] = true
+			hurt_link(lb, lb.link, D.CRUSH_LINK * bl[k + 6] * v, "falling rock")
+		if not done.is_empty():
+			crushed[id] = done
+	for id: int in crushed.keys():
+		if not live.has(id):
+			crushed.erase(id)
+
+
+static func _segment_hits_rect(a: Vector2, b: Vector2, r: Rect2) -> bool:
+	if minf(a.x, b.x) > r.end.x or maxf(a.x, b.x) < r.position.x or minf(a.y, b.y) > r.end.y or maxf(a.y, b.y) < r.position.y:
+		return false
+	if r.has_point(a) or r.has_point(b):
+		return true
+	var corners := [r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)]
+	for i in 4:
+		if Geometry2D.segment_intersects_segment(a, b, corners[i], corners[(i + 1) % 4]) != null:
+			return true
+	return false
 
 
 func demolish(b: Building) -> void:
@@ -1471,6 +1534,8 @@ func _update_fliers() -> void:
 				if _can_shift(b, sx, 0):
 					_shift(b, sx, 0)
 				else:
+					if not b.held:
+						_bump(b, absf(b.vx), Vector2i(b.x + b.w if sx > 0 else b.x - 1, b.y + (b.h >> 1)))
 					b.vx = 0.0 if b.held else -b.vx * 0.3
 					b.fx = b.x
 					tx = b.x
@@ -1479,12 +1544,33 @@ func _update_fliers() -> void:
 				if _can_shift(b, 0, sy):
 					_shift(b, 0, sy)
 				else:
+					if sy < 0 and not b.held:
+						_bump(b, -b.vy, Vector2i(b.x + (b.w >> 1), b.y - 1))
 					b.vy = 0.0
 					b.fy = b.y
 					ty = b.y
+			if b.dead:
+				break
+		if b.dead:
+			fliers.erase(b)
+			continue
 		if not b.held and b.vy >= 0.0 and not _can_shift(b, 0, 1):
 			fliers.remove_at(k)
 			_land_flier(b)
+
+
+## A flying Thumper hitting rock or a building (at cell `at`) sideways or upward at
+## `hit_v`: past THUMP_BUMP_SAFE it's hurt, and so is the building. Landing on its
+## feet never hurts; it's built to.
+func _bump(b: Building, hit_v: float, at: Vector2i) -> void:
+	var over := hit_v - D.THUMP_BUMP_SAFE
+	if over <= 0.0:
+		return
+	var dmg := over * D.THUMP_BUMP_DAMAGE
+	var o := building_at(at) if sim.get_cell(at.x, at.y) == D.BUILDING else null
+	if o != null and o != b and not o.dead and o.type != D.B_HUB and o.type != D.B_CRUCIBLE and not o.fixed:
+		_hurt(o, dmg, "a collision")
+	_hurt(b, dmg, "a collision")
 
 
 func _land_flier(b: Building) -> void:
@@ -2002,7 +2088,8 @@ func _come_loose(b: Building) -> void:
 
 
 ## Falling buildings drop a cell at a time, swapping places with the air, gas or
-## liquid under them, until something solid (or another building) is underneath.
+## liquid under them (which slows them), until something solid (or another
+## building) is underneath.
 func _update_falling() -> void:
 	for k in range(fallers.size() - 1, -1, -1):
 		var b: Building = fallers[k]
@@ -2010,6 +2097,8 @@ func _update_falling() -> void:
 			fallers.remove_at(k)
 			continue
 		b.fall_v = minf(b.fall_v + D.FALL_ACCEL * D.DT, D.FALL_MAX)
+		if _wet(b):
+			b.fall_v = minf(b.fall_v, D.FLY_WATER_MAX)
 		b.fall_acc += b.fall_v * D.DT
 		var landed := false
 		while b.fall_acc >= 1.0:
@@ -2052,7 +2141,10 @@ func _drop(b: Building) -> void:
 	scan_dirty = true
 
 
+## Down: past FALL_SAFE_V it's hurt by how fast it hit (up to FALL_HURT of its HP),
+## and so is a building it landed on. It links up again where it is.
 func _land(b: Building) -> void:
+	var hurt := D.FALL_HURT * clampf((b.fall_v - D.FALL_SAFE_V) / (D.FALL_MAX - D.FALL_SAFE_V), 0.0, 1.0) * b.max_hp
 	b.falling = false
 	b.fall_v = 0.0
 	b.fall_acc = 0.0
@@ -2062,7 +2154,17 @@ func _land(b: Building) -> void:
 	net_dirty = true
 	scan_dirty = true
 	b.flash = 0.5
-	alert("loose", "%s landed %d cells down, at depth %d" % [b.title(), b.fell, b.y], b.center())
+	if hurt > 0.0:
+		var under := Vector2i(b.x + (b.w >> 1), b.y + b.h)
+		var o := building_at(under) if sim.get_cell(under.x, under.y) == D.BUILDING else null
+		if o != null and not o.dead and o.type != D.B_HUB and o.type != D.B_CRUCIBLE and not o.fixed:
+			_hurt(o, hurt, "a fall")
+		b.alert_cd = maxf(b.alert_cd, 1.0)    # the landing's own alert says so
+		_hurt(b, hurt, "a fall")
+		if b.dead:
+			return
+	var how := "" if hurt <= 0.0 else ", hurt (%d%% left)" % roundi(100.0 * b.hp / b.max_hp)
+	alert("loose", "%s landed %d cells down, at depth %d%s" % [b.title(), b.fell, b.y, how], b.center())
 	if b.type == D.B_DRILL:
 		_refresh_sense()
 
@@ -2073,6 +2175,9 @@ const HURT_ALERTS := {
 	"fire": ["fire", "Fire burning a %s at depth %d"],
 	"corrosion": ["corrosion", "Sulfur corroding a %s at depth %d"],
 	"blast": ["blast", "Blast hit a %s at depth %d"],
+	"falling rock": ["crush", "Falling rock hit a %s at depth %d"],
+	"a fall": ["loose", "A %s was hurt in a fall at depth %d"],
+	"a collision": ["crush", "A %s hit something hard at depth %d"],
 }
 
 
