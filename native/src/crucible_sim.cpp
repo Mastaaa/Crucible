@@ -2274,6 +2274,38 @@ int CrucibleSim::count_in_rect(int x, int y, int w, int h, const PackedByteArray
 	return n;
 }
 
+// For each 4x4 block in the bw x bh blocks from block (bx, by), how many of its
+// cells `mask` flags (0..16), row by row. Blocks off the map count 0.
+PackedByteArray CrucibleSim::block_counts(int bx, int by, int bw, int bh, const PackedByteArray &mask) const {
+	PackedByteArray out;
+	if (bw <= 0 || bh <= 0 || mask.size() < 256) {
+		return out;
+	}
+	out.resize((int64_t)bw * bh);
+	uint8_t *o = out.ptrw();
+	memset(o, 0, (size_t)bw * bh);
+	const uint8_t *mk = mask.ptr();
+	for (int j = 0; j < bh; j++) {
+		int y0 = (by + j) * 4;
+		if (y0 < 0 || y0 + 4 > H) {
+			continue;
+		}
+		for (int i = 0; i < bw; i++) {
+			int x0 = (bx + i) * 4;
+			if (x0 < 0 || x0 + 4 > W) {
+				continue;
+			}
+			int n = 0;
+			for (int yy = y0; yy < y0 + 4; yy++) {
+				const uint8_t *row = &cells[(size_t)yy * W + x0];
+				n += (mk[row[0]] ? 1 : 0) + (mk[row[1]] ? 1 : 0) + (mk[row[2]] ? 1 : 0) + (mk[row[3]] ? 1 : 0);
+			}
+			o[j * bw + i] = (uint8_t)n;
+		}
+	}
+	return out;
+}
+
 // Where a w x h footprint at (x, y) could go within `radius` cells: every offset
 // (nearest first) where the footprint lies inside the map's 2-cell margin, every
 // cell of it is one `open_mask` flags, and a cell `solid_mask` flags touches one
@@ -2443,6 +2475,7 @@ void CrucibleSim::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("segments_batch", "segments"), &CrucibleSim::segments_batch);
 	ClassDB::bind_method(D_METHOD("materials_in", "mask"), &CrucibleSim::materials_in);
 	ClassDB::bind_method(D_METHOD("count_in_rect", "x", "y", "w", "h", "mask"), &CrucibleSim::count_in_rect);
+	ClassDB::bind_method(D_METHOD("block_counts", "bx", "by", "bw", "bh", "mask"), &CrucibleSim::block_counts);
 	ClassDB::bind_method(D_METHOD("place_spots", "x", "y", "w", "h", "radius", "open_mask", "solid_mask"), &CrucibleSim::place_spots);
 	ClassDB::bind_method(D_METHOD("set_threads", "n"), &CrucibleSim::set_threads);
 	ClassDB::bind_method(D_METHOD("set_fall", "accel", "max_speed"), &CrucibleSim::set_fall);

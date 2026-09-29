@@ -859,6 +859,15 @@ func count_in_rect(x: int, y: int, w: int, h: int, mask: PackedByteArray) -> int
 	return n
 
 
+func block_counts(bx: int, by: int, bw: int, bh: int, mask: PackedByteArray) -> PackedByteArray:
+	var out := PackedByteArray()
+	out.resize(bw * bh)
+	for j in bh:
+		for i in bw:
+			out[j * bw + i] = count_in_rect((bx + i) * 4, (by + j) * 4, 4, 4, mask)
+	return out
+
+
 ## Spots within `radius` where a w x h footprint is all `open_mask` and touches a
 ## `solid_mask` cell on a side, nearest first, as (dx, dy, rests) triples.
 func place_spots(x: int, y: int, w: int, h: int, radius: int, open_mask: PackedByteArray, solid_mask: PackedByteArray) -> PackedInt32Array:

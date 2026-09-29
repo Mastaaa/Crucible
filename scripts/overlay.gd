@@ -568,16 +568,17 @@ func _draw_marker(g, b: Building, z: float) -> void:
 	draw_polyline(pts, col, 1.5)
 
 
-## Its mites, a cell each: pale, darker with a load, flickering orange alight.
+## Its mites, a speck in the middle of the bite each is in: pale, darker with a
+## load, flickering orange alight.
 func _draw_mites(g, b: Building, z: float, t: float) -> void:
-	var s := maxf(z, 2.0)
+	var s := maxf(z * (WR.BITE - 1), 2.0)
 	for mt: Dictionary in b.mites:
 		var col := MITE_COL
 		if mt.state == WR.S_PANIC:
 			col = Color(1.0, 0.5 + 0.3 * sin(t * 30.0), 0.15)
-		elif mt.load >= 0:
+		elif not mt.load.is_empty():
 			col = MITE_LOAD_COL
-		draw_rect(Rect2(g.to_screen(Vector2(mt.p)), Vector2(s, s)), col)
+		draw_rect(Rect2(g.to_screen(WR.mite_cell(mt)), Vector2(s, s)), col)
 
 
 func _dashed_outline(r: Rect2, col: Color, w: float) -> void:

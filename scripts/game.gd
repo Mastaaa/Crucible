@@ -1027,16 +1027,30 @@ func _drill(b: Building) -> void:
 ## yet, keep looking next tick"; (-1, -1) that the channel is clear to `reach`.
 func _drill_find(b: Building) -> Vector2i:
 	var end := mini(b.reach, b.scan_from + D.DRILL_SCAN_ROWS)
-	for r in range(b.scan_from, end):
+	var mask := Mats.mask("dig" if researched.has("obsidian_saw") else "dig_no_obsidian")
+	var lo := b.scan_from
+	var hi := end
+	if hi > lo and _count_in(b.channel_span(lo, hi), mask) > 0:
+		# Halve the stretch down to the first row with something to cut.
+		while hi - lo > 1:
+			var mid := (lo + hi) >> 1
+			if _count_in(b.channel_span(lo, mid), mask) > 0:
+				hi = mid
+			else:
+				lo = mid
 		for k in b.lanes():
-			var c := b.channel_cell(r, k)
+			var c := b.channel_cell(lo, k)
 			if can_cut(sim.get_cell(c.x, c.y)):
-				b.scan_from = r
+				b.scan_from = lo
 				return c
 	b.scan_from = end
 	if end < b.reach:
 		return Vector2i(-2, -2)
 	return Vector2i(-1, -1)
+
+
+func _count_in(r: Rect2i, mask: PackedByteArray) -> int:
+	return sim.count_in_rect(r.position.x, r.position.y, r.size.x, r.size.y, mask)
 
 
 ## What the Drill and Borers can cut: anything diggable, obsidian only with the Saw.
@@ -1105,7 +1119,7 @@ func _breach_check(b: Building, c: Vector2i) -> void:
 ## worth something or not (so ash doesn't clog them), and drink water from their
 ## sides too, so one dropped into a flood drains it.
 func _hopper(b: Building) -> void:
-	b.intake = minf(b.intake + D.HOPPER_RATE * D.DT, 3.0)
+	b.intake = minf(b.intake + D.HOPPER_RATE * D.DT, maxf(3.0, D.HOPPER_RATE * D.DT * 2.0))
 	if b.intake < 1.0 or b.y - 1 < 2:
 		return
 	var bw := b.w
@@ -1921,11 +1935,12 @@ func _can_drop(b: Building) -> bool:
 
 
 func _drop(b: Building) -> void:
+	# The footprint is all building: only the row it drops into and the row it
+	# leaves change, what was under it going to the top.
 	var yb := b.y + b.h
 	for xx in range(b.x, b.x + b.w):
 		var below: int = sim.get_cell(xx, yb)
-		for yy in range(yb, b.y, -1):
-			sim.set_cell(xx, yy, sim.get_cell(xx, yy - 1))
+		sim.set_cell(xx, yb, D.BUILDING)
 		sim.set_cell(xx, b.y, below)
 	b.y += 1
 	b.fell += 1

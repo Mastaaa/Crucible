@@ -1,38 +1,92 @@
 extends RefCounted
-## The Warren's mites (phase 7). Static helpers the game calls with itself as
-## `game`; each mite is a Dictionary, so a colony is a plain Array on the Warren.
+## The Warren's mites (phase 7, reworked for the phase 8b scale). Static helpers the
+## game calls with itself as `game`; each mite is a Dictionary, so a colony is a
+## plain Array on the Warren.
 ##
 ## They dig a half-circle chamber over the Warren, then tunnel toward its marker
-## (if one's set) by a simple rule, and hollow out a small circle there. One
-## breadth-first search from the Warren's doorstep finds what they can reach and
-## the way to it. Mites never dig what holds the Warren up; if the ground goes
-## anyway, the Warren falls like any building.
+## (if one's set) by a simple rule, and hollow out a small circle there. Mites are
+## small and work in bites, BITE x BITE cells (the fog's 4x4 blocks): a mite
+## nibbles a bite out a cell at a time, moves on to a bite beside it, and after a
+## short burst of bites (MITE_BURST) carries the lot home. One breadth-first search
+## over bites from the Warren's doorstep finds what they can reach and the way to
+## it. Mites never dig what holds the Warren up; if the ground goes anyway, the
+## Warren falls like any building.
 
 const D = preload("res://scripts/defs.gd")
 
 const S_HOME := 0       # on the doorstep, waiting for work or power
-const S_OUT := 1        # walking its path to a cell
-const S_DIG := 2        # digging it
-const S_BACK := 3       # hauling it home
+const S_OUT := 1        # walking its path to a bite
+const S_DIG := 2        # nibbling it out
+const S_BACK := 3       # hauling its load home
 const S_PANIC := 4      # alight and running
 
+const BSHIFT := 2
+const BITE := 1 << BSHIFT   # cells across a bite
 const N4 := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
 const N8 := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1),
 		Vector2i(1, 1), Vector2i(-1, 1), Vector2i(1, -1), Vector2i(-1, -1)]
 const SEARCH_EVERY := 1.0   # seconds between searches when nothing has changed
-const SEARCH_SOON := 0.2    # soonest a search reruns after a dig
+const SEARCH_SOON := 0.5    # soonest a search reruns after a bite
 const LOST_S := 8.0         # a mite that can't find its way home this long is gone
-const REVEAL_R := 3.0       # fog a mite clears where it digs
+const REVEAL_R := 3.0 * D.S # fog a mite clears where it digs
+const BURST_HOP := 2        # the next bite of a burst is at most this many bites off
 const LOSS_TEXT := {"crushed": "A mite was crushed", "drowned": "A mite drowned",
 		"choked": "A mite choked on fumes", "burned": "A mite burned up", "lava": "A mite fell in lava",
 		"steam": "A mite was scalded", "lost": "A mite strayed and was lost"}
 
 
+# --- Bites -------------------------------------------------------------------------
+
+## The bite a cell is in.
+static func bite_of(c: Vector2i) -> Vector2i:
+	return Vector2i(c.x >> BSHIFT, c.y >> BSHIFT)
+
+
+## The cells of a bite.
+static func bite_rect(q: Vector2i) -> Rect2i:
+	return Rect2i(q * BITE, Vector2i(BITE, BITE))
+
+
+## A bite's middle, in cells.
+static func bite_centre(q: Vector2i) -> Vector2:
+	return Vector2(q * BITE) + Vector2(BITE, BITE) * 0.5
+
+
+## Where to draw a mite (its top-left cell).
+static func mite_cell(mt: Dictionary) -> Vector2:
+	return Vector2(mt.p * BITE) + Vector2(0.5, 0.5)
+
+
+static var _masks := {}
+
+
+## A byte per material for the engine's counts: "pass" (open to a mite),
+## "pass_ember" (with fire too), "hold" (solid, or a building), "liquid", "fire",
+## "soft" (what mites dig) and "teeth" (with Hard Teeth).
+static func mask(what: String) -> PackedByteArray:
+	if not _masks.has(what):
+		var out := PackedByteArray()
+		out.resize(256)
+		for m in 256:
+			var hit := false
+			match what:
+				"pass": hit = passable(m, false)
+				"pass_ember": hit = passable(m, true)
+				"hold": hit = m == D.BUILDING or D.is_solid(m)
+				"liquid": hit = D.is_liquid(m)
+				"fire": hit = m == D.FIRE
+				"soft": hit = can_dig(m, false)
+				"teeth": hit = can_dig(m, true)
+			out[m] = 1 if hit else 0
+		_masks[what] = out
+	return _masks[what]
+
+
 # --- Where they dig ------------------------------------------------------------------
 # First a half-circle chamber over the Warren (its floor line is the flat side, so
 # the ground it stands on stays). Then, with a marker set, a tunnel toward it: each
-# free mite takes the cell it can reach that's nearest the marker, give or take a
-# quirk of that cell (WARREN_WOBBLE), within WARREN_TUNNEL_SLACK of the straight
+# free mite takes the bite it can reach that's nearest the marker, give or take a
+# quirk of that bite (WARREN_WOBBLE), within WARREN_TUNNEL_SLACK of the straight
 # line. Once one gets within reach of the marker, a small circle there.
 
 static func scale(game) -> float:
@@ -47,36 +101,47 @@ static func dome_centre(b) -> Vector2:
 	return Vector2(b.x + b.w * 0.5, b.y + b.h)
 
 
-## The chamber: cells above the Warren's floor line within the dome's radius of
-## the middle of that line, less the Warren itself; clipped to the map.
-static func dome_cells(b, teeth_scale: float) -> Array[Vector2i]:
+## The Warren's own bites (any bite holding a cell of it).
+static func home_rect(b) -> Rect2i:
+	var q0 := bite_of(Vector2i(b.x, b.y))
+	var q1 := bite_of(Vector2i(b.x + b.w - 1, b.y + b.h - 1))
+	return Rect2i(q0, q1 - q0 + Vector2i.ONE)
+
+
+## The chamber: bites whose middle lies above the Warren's floor line within the
+## dome's radius of the middle of that line, less the Warren's own bites.
+static func dome_bites(b, teeth_scale: float) -> Array[Vector2i]:
 	var out: Array[Vector2i] = []
 	var c := dome_centre(b)
 	var r := dome_radius(teeth_scale)
-	var ri := ceili(r)
-	for yy in range(b.y + b.h - ri, b.y + b.h):
-		for xx in range(floori(c.x) - ri, ceili(c.x) + ri + 1):
-			if xx >= b.x and xx < b.x + b.w and yy >= b.y:
+	var home := home_rect(b)
+	var q0 := bite_of(Vector2i(floori(c.x - r), floori(c.y - r)))
+	var q1 := bite_of(Vector2i(ceili(c.x + r), b.y + b.h - 1))
+	for qy in range(maxi(q0.y, 0), q1.y + 1):
+		for qx in range(maxi(q0.x, 0), mini(q1.x, (D.W >> BSHIFT) - 1) + 1):
+			var q := Vector2i(qx, qy)
+			if home.has_point(q):
 				continue
-			if xx < 1 or xx >= D.W - 1 or yy < 1:
-				continue
-			if Vector2(xx + 0.5, yy + 0.5).distance_to(c) <= r:
-				out.append(Vector2i(xx, yy))
+			var m := bite_centre(q)
+			if m.y < b.y + b.h and m.distance_to(c) <= r:
+				out.append(q)
 	return out
 
 
 ## The circle dug out at the marker.
-static func marker_cells(b, teeth_scale: float) -> Array[Vector2i]:
+static func marker_bites(b, teeth_scale: float) -> Array[Vector2i]:
 	var out: Array[Vector2i] = []
 	if b.marker.x < 0:
 		return out
 	var c := Vector2(b.marker) + Vector2(0.5, 0.5)
 	var r := D.WARREN_MARKER_R * teeth_scale
-	var ri := ceili(r)
-	for yy in range(b.marker.y - ri, b.marker.y + ri + 1):
-		for xx in range(b.marker.x - ri, b.marker.x + ri + 1):
-			if xx >= 1 and xx < D.W - 1 and yy >= 1 and yy < D.H - 1 and Vector2(xx + 0.5, yy + 0.5).distance_to(c) <= r:
-				out.append(Vector2i(xx, yy))
+	var q0 := bite_of(Vector2i(floori(c.x - r), floori(c.y - r)))
+	var q1 := bite_of(Vector2i(ceili(c.x + r), ceili(c.y + r)))
+	for qy in range(maxi(q0.y, 0), mini(q1.y, (D.H >> BSHIFT) - 1) + 1):
+		for qx in range(maxi(q0.x, 0), mini(q1.x, (D.W >> BSHIFT) - 1) + 1):
+			var q := Vector2i(qx, qy)
+			if bite_centre(q).distance_to(c) <= r:
+				out.append(q)
 	return out
 
 
@@ -100,10 +165,10 @@ static func off_line(b, p: Vector2) -> float:
 	return p.distance_to(a + ab * t)
 
 
-## A cell's own quirk, 0..1: fixed for that cell and that Warren, so the tunnel
+## A bite's own quirk, 0..1: fixed for that bite and that Warren, so the tunnel
 ## wanders the same way each time it's searched rather than flickering.
-static func quirk(b, p: Vector2i) -> float:
-	var h: int = hash(Vector3i(p.x, p.y, b.id))
+static func quirk(b, q: Vector2i) -> float:
+	var h: int = hash(Vector3i(q.x, q.y, b.id))
 	return float(h & 0xffff) / 65535.0
 
 
@@ -123,56 +188,34 @@ static func passable(m: int, ember := false) -> bool:
 	return D.is_thin(m) or D.is_liquid(m)
 
 
-## A cell a mite can stand in: passable, with something solid or built touching it.
-static func walkable(sim, c: Vector2i, ember := false) -> bool:
-	if c.x < 0 or c.y < 0 or c.x >= D.W or c.y >= D.H:
-		return false
-	if not passable(sim.get_cell(c.x, c.y), ember):
-		return false
-	for o: Vector2i in N8:
-		var n := c + o
-		if n.x < 0 or n.y < 0 or n.x >= D.W or n.y >= D.H:
-			return true             # the map's edge holds it
-		var m: int = sim.get_cell(n.x, n.y)
-		if m == D.BUILDING or D.is_solid(m):
-			return true
-	return false
-
-
-## Liquid beside `c` (up, down, left or right): Sounding leaves a skin there.
-static func by_liquid(sim, c: Vector2i) -> bool:
-	for o: Vector2i in N4:
-		var n := c + o
-		if n.x >= 0 and n.y >= 0 and n.x < D.W and n.y < D.H and D.is_liquid(sim.get_cell(n.x, n.y)):
-			return true
-	return false
-
-
-## What holds the Warren up, which mites leave alone: the solid cells under it,
-## or, when nothing is under it, every solid cell touching it (corners count).
-static func anchor_cells(sim, b) -> Dictionary:
+## What holds the Warren up, which mites leave alone: the bites of the row right
+## under it when anything solid is there, else the bites round it.
+static func anchor_bites(sim, b) -> Dictionary:
 	var keep := {}
-	var fy: int = b.y + b.h
-	for xx in range(b.x, b.x + b.w):
-		if D.is_solid(sim.get_cell(xx, fy)):
-			keep[Vector2i(xx, fy)] = true
-	if not keep.is_empty():
+	var home := home_rect(b)
+	var under: int = sim.count_in_rect(b.x, b.y + b.h, b.w, 1, mask("hold"))
+	if under > 0:
+		var qy: int = (b.y + b.h) >> BSHIFT
+		for qx in range(home.position.x, home.end.x):
+			keep[Vector2i(qx, qy)] = true
+			keep[Vector2i(qx, qy + 1)] = true
 		return keep
-	for yy in range(b.y - 1, b.y + b.h + 1):
-		for xx in range(b.x - 1, b.x + b.w + 1):
-			var ring: bool = xx == b.x - 1 or xx == b.x + b.w or yy == b.y - 1 or yy == b.y + b.h
-			if ring and D.is_solid(sim.get_cell(xx, yy)):
-				keep[Vector2i(xx, yy)] = true
+	for qy in range(home.position.y - 1, home.end.y + 1):
+		for qx in range(home.position.x - 1, home.end.x + 1):
+			if not home.has_point(Vector2i(qx, qy)):
+				keep[Vector2i(qx, qy)] = true
 	return keep
 
 
 # --- Search ----------------------------------------------------------------------
 
-## Breadth-first from the Warren's doorstep (walkable cells touching its
-## footprint) over walkable cells near the dome, the tunnel's corridor and the
-## marker. Returns {"dist": {cell: steps}, "prev": {cell: cell toward home},
-## "targets": [[dig cell, cell to stand in], ...] best first, "left": cells still
-## to dig in the dome and at the marker, "stage": what they're on}.
+## Breadth-first over bites from the Warren's doorstep (walkable bites beside it)
+## through walkable bites near the dome, the tunnel's corridor and the marker. A
+## bite is walkable when every cell of it is open to a mite and something solid or
+## built is in a bite beside it. Returns {"box": the bites searched, "dist": steps
+## home per bite of the box (-1 unreached), "prev": the bite one step nearer home,
+## "targets": [[dig bite, bite to stand in], ...] best first, "left": bites still to
+## dig in the dome and at the marker, "stage": what they're on}.
 ## Stages: "dome", "tunnel", "marker", "done" (marker dug out), "idle" (dome done,
 ## no marker), "blocked" (nothing they can reach gets them nearer the marker).
 static func search(game, b) -> Dictionary:
@@ -181,77 +224,129 @@ static func search(game, b) -> Dictionary:
 	var sc := scale(game)
 	var ember: bool = game.researched.has("ember_brood")
 	var sounding: bool = game.researched.has("sounding")
-	var keep := anchor_cells(sim, b)
-	var ok := func(q: Vector2i) -> bool:
-		return can_dig(sim.get_cell(q.x, q.y), teeth) and not keep.has(q) and not (sounding and by_liquid(sim, q))
-	var in_dome := {}
-	var in_circle := {}
-	var box := Rect2i(b.x, b.y, b.w, b.h)
-	var left := 0
-	for p in dome_cells(b, sc):
-		box = box.expand(p)
-		if ok.call(p):
-			in_dome[p] = true
-			left += 1
+	var home := home_rect(b)
+	var dome := dome_bites(b, sc)
+	var circle := marker_bites(b, sc)
 	var has_marker: bool = b.marker.x >= 0
 	var mpos := Vector2(b.marker) + Vector2(0.5, 0.5)
-	var reach_r := D.WARREN_MARKER_R * sc + 1.0
+	var reach_r := D.WARREN_MARKER_R * sc + BITE
+	# The bites looked at, with a margin for walking round and a bite beyond that
+	# for the neighbour counts.
+	var box := home
+	for q in dome:
+		box = box.expand(q)
 	if has_marker:
-		for p in marker_cells(b, sc):
-			box = box.expand(p)
-			if ok.call(p):
-				in_circle[p] = true
-				left += 1
-		var sl := ceili(D.WARREN_TUNNEL_SLACK)
-		box = box.merge(Rect2i(b.marker - Vector2i(sl, sl), Vector2i(sl * 2 + 1, sl * 2 + 1)))
-		box = box.merge(Rect2i(Vector2i(b.center()) - Vector2i(sl, sl), Vector2i(sl * 2 + 1, sl * 2 + 1)))
-	box = box.grow(D.WARREN_REACH_MARGIN).intersection(Rect2i(1, 1, D.W - 2, D.H - 2))
-	var dist := {}
-	var prev := {}
-	var queue: Array[Vector2i] = []
-	for yy in range(b.y - 1, b.y + b.h + 1):
-		for xx in range(b.x - 1, b.x + b.w + 1):
-			var edge: bool = xx == b.x - 1 or xx == b.x + b.w or yy == b.y - 1 or yy == b.y + b.h
-			var corner: bool = (xx == b.x - 1 or xx == b.x + b.w) and (yy == b.y - 1 or yy == b.y + b.h)
-			var p := Vector2i(xx, yy)
-			if edge and not corner and walkable(sim, p, ember):
-				dist[p] = 0
-				queue.append(p)
+		for q in circle:
+			box = box.expand(q)
+		var sl := ceili(D.WARREN_TUNNEL_SLACK) >> BSHIFT
+		box = box.merge(Rect2i(bite_of(b.marker) - Vector2i(sl, sl), Vector2i(sl * 2 + 1, sl * 2 + 1)))
+		box = box.merge(Rect2i(bite_of(Vector2i(b.center())) - Vector2i(sl, sl), Vector2i(sl * 2 + 1, sl * 2 + 1)))
+	box = box.grow((D.WARREN_REACH_MARGIN >> BSHIFT) + 1).intersection(Rect2i(0, 0, D.W >> BSHIFT, D.H >> BSHIFT))
+	var bw := box.size.x
+	var n := bw * box.size.y
+	var ox := box.position.x
+	var oy := box.position.y
+	var pass_n: PackedByteArray = sim.block_counts(ox, oy, bw, box.size.y, mask("pass_ember" if ember else "pass"))
+	var hold_n: PackedByteArray = sim.block_counts(ox, oy, bw, box.size.y, mask("hold"))
+	var dig_n: PackedByteArray = sim.block_counts(ox, oy, bw, box.size.y, mask("teeth" if teeth else "soft"))
+	var wet_n := PackedByteArray()
+	if sounding:
+		wet_n = sim.block_counts(ox, oy, bw, box.size.y, mask("liquid"))
+	var inner := box.grow(-1)
+	var walkable := PackedByteArray()
+	walkable.resize(n)
+	for j in range(1, box.size.y - 1):
+		for i in range(1, bw - 1):
+			var k := j * bw + i
+			if pass_n[k] < 16:
+				continue
+			for o: Vector2i in N8:
+				if hold_n[k + o.y * bw + o.x] > 0:
+					walkable[k] = 1
+					break
+	var keep := anchor_bites(sim, b)
+	var skin := ceili(D.WARREN_SKIN / float(BITE))
+	var ok := func(q: Vector2i) -> bool:
+		if not inner.has_point(q) or keep.has(q):
+			return false
+		var k := (q.y - oy) * bw + (q.x - ox)
+		if dig_n[k] == 0:
+			return false
+		if sounding:
+			for dy in range(-skin, skin + 1):
+				for dx in range(-skin, skin + 1):
+					var qq := q + Vector2i(dx, dy)
+					if box.has_point(qq) and wet_n[(qq.y - oy) * bw + (qq.x - ox)] > 0:
+						return false
+		return true
+	var in_dome := {}
+	var in_circle := {}
+	var left := 0
+	for q in dome:
+		if ok.call(q):
+			in_dome[q] = true
+			left += 1
+	for q in circle:
+		if ok.call(q):
+			in_circle[q] = true
+			left += 1
+	var dist := PackedInt32Array()
+	dist.resize(n)
+	dist.fill(-1)
+	var prev := PackedInt32Array()
+	prev.resize(n)
+	prev.fill(-1)
+	var queue := PackedInt32Array()
+	# The doorstep: walkable bites beside the Warren's own (not at its corners).
+	for qy in range(home.position.y - 1, home.end.y + 1):
+		for qx in range(home.position.x - 1, home.end.x + 1):
+			var q := Vector2i(qx, qy)
+			var edge := not home.has_point(q)
+			var corner := (qx == home.position.x - 1 or qx == home.end.x) and (qy == home.position.y - 1 or qy == home.end.y)
+			if edge and not corner and inner.has_point(q):
+				var k := (qy - oy) * bw + (qx - ox)
+				if walkable[k] and dist[k] < 0:
+					dist[k] = 0
+					queue.append(k)
 	var dome_t: Array = []
-	var tunnel_t: Array = []     # [dig cell, cell to stand in, score, distance to the marker]
+	var tunnel_t: Array = []     # [dig bite, bite to stand in, score, distance to the marker]
 	var listed := {}
 	var reached := false
 	var best_d := INF            # nearest they've got to the marker
 	var head := 0
 	while head < queue.size():
-		var p: Vector2i = queue[head]
+		var k := queue[head]
 		head += 1
+		var p := Vector2i(ox + k % bw, oy + floori(k / float(bw)))
 		if has_marker:
-			var pd := (Vector2(p) + Vector2(0.5, 0.5)).distance_to(mpos)
+			var pd := bite_centre(p).distance_to(mpos)
 			best_d = minf(best_d, pd)
 			if pd <= reach_r:
 				reached = true
 		for o: Vector2i in N4:
 			var q: Vector2i = p + o
+			if not inner.has_point(q):
+				continue
 			if not listed.has(q):
 				if in_dome.has(q):
 					listed[q] = true
 					dome_t.append([q, p])
 				elif in_circle.has(q):
 					listed[q] = true
-					var cd := (Vector2(q) + Vector2(0.5, 0.5)).distance_to(mpos)
+					var cd := bite_centre(q).distance_to(mpos)
 					tunnel_t.append([q, p, cd, cd])
-				elif has_marker and box.has_point(q) and ok.call(q):
-					var qc := Vector2(q) + Vector2(0.5, 0.5)
+				elif has_marker and ok.call(q):
+					var qc := bite_centre(q)
 					if off_line(b, qc) <= D.WARREN_TUNNEL_SLACK:
 						listed[q] = true
 						var qd := qc.distance_to(mpos)
 						tunnel_t.append([q, p, qd + D.WARREN_WOBBLE * quirk(b, q), qd])
-			if dist.has(q) or not box.has_point(q) or not walkable(sim, q, ember):
+			var kq := k + o.y * bw + o.x
+			if dist[kq] >= 0 or not walkable[kq]:
 				continue
-			dist[q] = dist[p] + 1
-			prev[q] = p
-			queue.append(q)
+			dist[kq] = dist[k] + 1
+			prev[kq] = k
+			queue.append(kq)
 	var targets: Array = []
 	var stage := "idle"
 	if not dome_t.is_empty():
@@ -269,41 +364,53 @@ static func search(game, b) -> Dictionary:
 		targets = tunnel_t.filter(func(e: Array) -> bool: return e[3] <= best_d + D.WARREN_DETOUR)
 		targets.sort_custom(func(u: Array, v: Array) -> bool: return u[2] < v[2])
 		stage = "tunnel" if not targets.is_empty() else "blocked"
-	return {"dist": dist, "prev": prev, "targets": targets, "left": left, "stage": stage}
+	return {"box": box, "dist": dist, "prev": prev, "targets": targets, "left": left, "stage": stage}
+
+
+## Steps home from bite `q` in a search (-1: it didn't reach there).
+static func home_dist(found: Dictionary, q: Vector2i) -> int:
+	var box: Rect2i = found.box
+	if not box.has_point(q):
+		return -1
+	return found.dist[(q.y - box.position.y) * box.size.x + (q.x - box.position.x)]
 
 
 ## The way from the doorstep to `stand`, doorstep first.
 static func path_to(found: Dictionary, stand: Vector2i) -> Array[Vector2i]:
 	var path: Array[Vector2i] = []
-	var p := stand
-	var prev: Dictionary = found.prev
-	path.append(p)
-	while prev.has(p):
-		p = prev[p]
-		path.append(p)
+	var box: Rect2i = found.box
+	var bw := box.size.x
+	var k := (stand.y - box.position.y) * bw + (stand.x - box.position.x)
+	while k >= 0:
+		path.append(Vector2i(box.position.x + k % bw, box.position.y + floori(k / float(bw))))
+		k = found.prev[k]
 	path.reverse()
 	return path
+
+
+## A doorstep bite for a new mite, or (-1, -1) if the Warren is walled in.
+static func doorstep(b) -> Vector2i:
+	var found: Dictionary = b.search
+	if found.is_empty():
+		return Vector2i(-1, -1)
+	var box: Rect2i = found.box
+	var dist: PackedInt32Array = found.dist
+	for k in dist.size():
+		if dist[k] == 0:
+			return Vector2i(box.position.x + k % box.size.x, box.position.y + floori(k / float(box.size.x)))
+	return Vector2i(-1, -1)
 
 
 # --- Mites ------------------------------------------------------------------------
 
 static func new_mite(at: Vector2i) -> Dictionary:
 	return {"p": at, "state": S_HOME, "t": Vector2i(-1, -1), "path": [], "i": 0, "move": 0.0,
-			"work": 0.0, "load": -1, "wet": 0.0, "choke": 0.0, "burn": 0.0, "lost": 0.0}
+			"work": 0.0, "load": {}, "burst": 0, "wet": 0.0, "choke": 0.0, "burn": 0.0, "lost": 0.0}
 
 
 ## How many mites this Warren keeps.
 static func colony_size(game) -> int:
 	return D.WARREN_MITES_EMBER if game.researched.has("ember_brood") else D.WARREN_MITES
-
-
-## A doorstep cell for a new mite, or (-1, -1) if the Warren is walled in.
-static func doorstep(b) -> Vector2i:
-	var found: Dictionary = b.search
-	for p: Vector2i in found.get("dist", {}):
-		if found.dist[p] == 0:
-			return p
-	return Vector2i(-1, -1)
 
 
 ## One tick of a built Warren and its colony.
@@ -354,11 +461,11 @@ static func tick(game, b) -> void:
 		i -= 1
 
 
-## Whatever is killing it, or "".
+## Whatever is killing it, or "". What's at the middle of its bite is what it's in.
 static func _hazards(game, mt: Dictionary) -> String:
 	var sim = game.sim
-	var p: Vector2i = mt.p
-	var m: int = sim.get_cell(p.x, p.y)
+	var c := Vector2i(bite_centre(mt.p))
+	var m: int = sim.get_cell(c.x, c.y)
 	if m == D.LAVA:
 		return "lava"
 	if m >= D.STEAM and m <= D.STEAM_LAST:
@@ -377,27 +484,45 @@ static func _hazards(game, mt: Dictionary) -> String:
 		mt.burn -= D.DT
 		if mt.burn <= 0.0:
 			return "burned"
-	elif (m == D.FIRE or _near(sim, p, D.FIRE)) and not game.researched.has("ember_brood"):
-		mt.state = S_PANIC
-		mt.burn = D.MITE_BURN_S
-		mt.load = -1
+	elif not game.researched.has("ember_brood"):
+		var r := bite_rect(mt.p).grow(1)
+		if sim.count_in_rect(r.position.x, r.position.y, r.size.x, r.size.y, mask("fire")) > 0:
+			mt.state = S_PANIC
+			mt.burn = D.MITE_BURN_S
+			mt.load = {}
 	return ""
 
 
-static func _near(sim, p: Vector2i, want: int) -> bool:
-	for o: Vector2i in N8:
-		var n := p + o
-		if n.x >= 0 and n.y >= 0 and n.x < D.W and n.y < D.H and sim.get_cell(n.x, n.y) == want:
-			return true
-	return false
+## Every cell of the bite open to a mite.
+static func _open(sim, q: Vector2i, ember: bool) -> bool:
+	var r := bite_rect(q)
+	return sim.count_in_rect(r.position.x, r.position.y, BITE, BITE, mask("pass_ember" if ember else "pass")) == BITE * BITE
 
 
-## Cells it may move this tick.
+## Bites it may move this tick.
 static func _moves(mt: Dictionary) -> int:
-	mt.move = mt.move + D.MITE_MOVE_PER_S * D.DT
+	mt.move = mt.move + D.MITE_MOVE_PER_S * D.DT / BITE
 	var n := floori(mt.move)
 	mt.move -= n
 	return n
+
+
+## The next bite of a burst: the nearest one still to dig that nobody has claimed,
+## within BURST_HOP bites of `q` (the bite just eaten) or `p` (where it stands).
+static func _next_bite(found: Dictionary, q: Vector2i, p: Vector2i, claimed: Dictionary) -> Array:
+	var best: Array = []
+	var best_d := BURST_HOP + 1
+	for tg: Array in found.targets:
+		var c: Vector2i = tg[0]
+		if claimed.has(c) or c == q:
+			continue
+		var dq := (c - q).abs()
+		var dp := (c - p).abs()
+		var d := mini(maxi(dq.x, dq.y), maxi(dp.x, dp.y))
+		if d < best_d:
+			best_d = d
+			best = tg
+	return best
 
 
 static func _step(game, b, mt: Dictionary, claimed: Dictionary) -> void:
@@ -412,14 +537,11 @@ static func _step(game, b, mt: Dictionary, claimed: Dictionary) -> void:
 				var c: Vector2i = tg[0]
 				if claimed.has(c):
 					continue
-				var cost: float = D.power_per_cell(sim.get_cell(c.x, c.y)) * D.WARREN_POWER_FRAC
-				if b.power < cost:
-					b.starved = true
-					return
 				mt.t = c
 				mt.path = path_to(found, tg[1])
 				mt.i = 0
 				mt.p = mt.path[0]
+				mt.burst = 0
 				mt.state = S_OUT
 				claimed[c] = true
 				return
@@ -430,53 +552,33 @@ static func _step(game, b, mt: Dictionary, claimed: Dictionary) -> void:
 					mt.work = 0.0
 					break
 				var nx: Vector2i = mt.path[mt.i + 1]
-				if not walkable(sim, nx, ember):
+				if not _open(sim, nx, ember):
 					mt.state = S_BACK
 					b.search_due = true
 					break
 				mt.i += 1
 				mt.p = nx
 		S_DIG:
-			var c: Vector2i = mt.t
-			var m: int = sim.get_cell(c.x, c.y)
-			var teeth: bool = game.researched.has("hard_teeth")
-			if not can_dig(m, teeth) or (game.researched.has("sounding") and by_liquid(sim, c)):
-				mt.state = S_BACK
-				b.search_due = true
-				return
-			mt.work = minf(mt.work + D.DT, 4.0)
-			if mt.work < 1.0 / (D.bore_rate(m) * D.MITE_SPEED):
-				return
-			var cost: float = D.power_per_cell(m) * D.WARREN_POWER_FRAC
-			if b.power < cost:
-				b.starved = true
-				return
-			b.power -= cost
-			game.used_acc += cost
-			sim.set_cell(c.x, c.y, D.AIR)
-			game.excavated(c)
-			game.reveal(Vector2(c) + Vector2(0.5, 0.5), REVEAL_R)
-			mt.load = m
-			b.cells_dug += 1
-			game.cells_drilled += 1
-			b.search_due = true
-			mt.state = S_BACK
+			_nibble(game, b, mt, claimed)
 		S_BACK:
 			for _k in _moves(mt):
 				var p: Vector2i = mt.p
-				if found.dist.get(p, -1) == 0:
+				if home_dist(found, p) == 0:
 					_arrive(game, b, mt)
 					return
 				var best := p
-				var best_d: int = found.dist.get(p, 1 << 30)
+				var best_d: int = home_dist(found, p)
+				if best_d < 0:
+					best_d = 1 << 30
 				for o: Vector2i in N4:
 					var q: Vector2i = p + o
-					var d: int = found.dist.get(q, 1 << 30)
-					if d < best_d and walkable(sim, q, ember):
+					var d := home_dist(found, q)
+					if d >= 0 and d < best_d and _open(sim, q, ember):
 						best_d = d
 						best = q
 				if best == p:
-					# Off the known map (the ground moved): wait for the next search.
+					# Off the known map (the ground moved, or it's in a bite it just
+					# dug): wait for the next search.
 					mt.lost += D.DT
 					b.search_due = true
 					return
@@ -487,21 +589,76 @@ static func _step(game, b, mt: Dictionary, claimed: Dictionary) -> void:
 				var opts: Array[Vector2i] = []
 				for o: Vector2i in N8:
 					var q: Vector2i = mt.p + o
-					if q.x >= 0 and q.y >= 0 and q.x < D.W and q.y < D.H:
-						var m: int = sim.get_cell(q.x, q.y)
-						if walkable(sim, q, true):
-							opts.append(q)
-						elif not (D.is_thin(m) or D.is_liquid(m)):
-							sim.ignite(q.x, q.y)
+					if q.x < 0 or q.y < 0 or q.x >= D.W >> BSHIFT or q.y >= D.H >> BSHIFT:
+						continue
+					if _open(sim, q, true):
+						opts.append(q)
+					else:
+						var c := Vector2i(bite_centre(q))
+						sim.ignite(c.x, c.y)
 				if not opts.is_empty():
 					mt.p = opts[game.rng.randi() % opts.size()]
 
 
+## Nibble the target bite, a cell at a time; when it's done, go on to a bite beside
+## it (up to MITE_BURST bites a trip) or head home with the load.
+static func _nibble(game, b, mt: Dictionary, claimed: Dictionary) -> void:
+	var sim = game.sim
+	var q: Vector2i = mt.t
+	var teeth: bool = game.researched.has("hard_teeth")
+	mt.work = minf(mt.work + D.DT, 4.0)
+	var r := bite_rect(q)
+	var any := false
+	for yy in range(r.position.y, r.end.y):
+		for xx in range(r.position.x, r.end.x):
+			var m: int = sim.get_cell(xx, yy)
+			if not can_dig(m, teeth):
+				continue
+			any = true
+			var cost := 1.0 / (D.bore_rate(m) * D.MITE_SPEED)
+			if mt.work < cost:
+				return
+			var pc: float = D.power_per_cell(m) * D.WARREN_POWER_FRAC
+			if b.power < pc:
+				b.starved = true
+				return
+			mt.work -= cost
+			b.power -= pc
+			game.used_acc += pc
+			sim.set_cell(xx, yy, D.AIR)
+			game.excavated(Vector2i(xx, yy))
+			mt.load[m] = mt.load.get(m, 0) + 1
+			b.cells_dug += 1
+			game.cells_drilled += 1
+	if any:
+		# Everything it can take here went this tick; look again next tick.
+		return
+	# The bite is done.
+	game.reveal(bite_centre(q), REVEAL_R)
+	b.search_due = true
+	mt.burst += 1
+	if mt.burst < D.MITE_BURST and not b.search.is_empty():
+		var tg := _next_bite(b.search, q, mt.p, claimed)
+		if not tg.is_empty():
+			var c: Vector2i = tg[0]
+			var stand: Vector2i = tg[1]
+			if (stand - mt.p).abs().x <= BURST_HOP and (stand - mt.p).abs().y <= BURST_HOP:
+				mt.p = stand     # hop to where that bite is dug from
+			elif _open(sim, q, game.researched.has("ember_brood")):
+				mt.p = q         # or into the bite it just ate
+			claimed.erase(q)
+			claimed[c] = true
+			mt.t = c
+			mt.work = 0.0
+			return
+	mt.state = S_BACK
+
+
 ## Home with its load: bank it here (the nearest Cache in reach, else the Hub).
 static func _arrive(game, b, mt: Dictionary) -> void:
-	if mt.load >= 0:
-		for r: int in D.mat_yields(mt.load):
-			game._bank(b.center(), r, 1.0 / D.CELLS_PER_UNIT)
-		mt.load = -1
+	for m: int in mt.load:
+		for r: int in D.mat_yields(m):
+			game._bank(b.center(), r, mt.load[m] / D.CELLS_PER_UNIT)
+	mt.load = {}
 	mt.state = S_HOME
 	mt.t = Vector2i(-1, -1)

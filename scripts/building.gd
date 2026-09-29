@@ -207,6 +207,16 @@ func channel_row(c: Vector2i) -> int:
 	return c.y - (y + h)
 
 
+## Channel rows r0 to r1 - 1 as a rectangle.
+func channel_span(r0: int, r1: int) -> Rect2i:
+	match dir:
+		1:
+			return Rect2i(x - r1, y, r1 - r0, h)
+		2:
+			return Rect2i(x + w + r0, y, r1 - r0, h)
+	return Rect2i(x, y + h + r0, w, r1 - r0)
+
+
 ## The full channel as a rectangle (for drawing), out to `rows`.
 func channel_rect(rows: int) -> Rect2i:
 	match dir:

@@ -338,6 +338,7 @@ public:
 	PackedInt32Array segments_batch(const PackedInt32Array &segs) const;
 	PackedInt32Array materials_in(const PackedByteArray &mask) const;
 	int count_in_rect(int x, int y, int w, int h, const PackedByteArray &mask) const;
+	PackedByteArray block_counts(int bx, int by, int bw, int bh, const PackedByteArray &mask) const;
 	PackedInt32Array place_spots(int x, int y, int w, int h, int radius, const PackedByteArray &open_mask, const PackedByteArray &solid_mask);
 
 	void set_threads(int n);
