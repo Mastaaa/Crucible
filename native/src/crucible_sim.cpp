@@ -167,9 +167,8 @@ void CrucibleSim::set_size(int w, int h) {
 	held.assign(N, 0);
 	vel.assign(N, 0);
 	stamp.assign(N, 0);
-	light_lv.assign(N, 0);
-	light_px.assign(N, 0);
-	light_lit.clear();
+	light_lv.clear(); // sized by light_update, a value per 4x4 block
+	light_px.clear();
 	heat.assign((size_t)(W / 4) * (H / 4), 0);
 	std::vector<std::atomic<uint8_t>> flags(NCH);
 	for (auto &f : flags) {
@@ -355,7 +354,7 @@ void CrucibleSim::configure(const Array &materials, const Array &reactions) {
 		m.flame = (bool)d.get("flame", false);
 		m.corrosive = (bool)d.get("corrosive", false);
 		m.scalds = (bool)d.get("scalds", false);
-		m.light = (uint8_t)std::clamp((int)d.get("light", 0), 0, 40);
+		m.light = (uint8_t)std::clamp((int)d.get("light", 0), 0, 250);
 		m.opacity = (uint8_t)std::clamp((int)d.get("opacity", 0), 0, 30);
 		m.structure = (bool)d.get("structure", false);
 		m.span = (uint8_t)std::clamp((int)d.get("span", 0), 0, 250);
@@ -1712,9 +1711,9 @@ PackedByteArray CrucibleSim::get_heat() const {
 
 // --- Light ----------------------------------------------------------------------------
 
-// Spreads light over the whole grid, then works out the fog maps (one byte per 4x4
-// block, W/4 x H/4, 255 or 0). A block is seen when a cell in it is lit and it's
-// within sight of one of `sights`; seeing it explores it for good. It shows live
+// Spreads light over 4x4 blocks of cells (the fog maps' blocks, W/4 x H/4), then
+// works out the fog maps (a byte per block, 255 or 0). A block is seen when it's lit
+// and within sight of one of `sights`; seeing it explores it for good. It shows live
 // whenever it's lit and explored. Returns three maps back to back: live, explored
 // (`known` plus what was just seen), and seen.
 //  - `lights`: (x, y, radius) per light the game places (the Hub, Lamps, pilot lights);
@@ -1722,86 +1721,119 @@ PackedByteArray CrucibleSim::get_heat() const {
 //  - with `sun` > 0, open cells straight down from the top of the map (through
 //    buildings, stopping at anything else) are sunlit with that radius;
 //  - `sights`: (x, y, radius) per building watching.
-// Light fades LSTEP per cell of air (LDIAG diagonally), times the opacity of the cell
-// it leaves, so it lights a wall's face and dies a few cells into the rock. Lit
-// levels are kept for get_light().
+// Radii are in cells. Light fades LSTEP per cell of air (LDIAG diagonally), times
+// the average opacity of the block it leaves, so it lights a wall's face and dies a
+// few blocks into the rock. Brightness per block is kept for get_light().
 PackedByteArray CrucibleSim::light_update(const PackedInt32Array &lights, const PackedInt32Array &sights, int sun, const PackedByteArray &known) {
 	const int BW = W / 4, BH = H / 4, N = BW * BH;
-	// Clear what the last pass lit (every lit cell is in a chunk it listed).
-	for (int c : light_lit) {
-		int gx = (c % CW) << CSHIFT, gy = (c / CW) << CSHIFT;
-		for (int yy = gy; yy < gy + CS; yy++) {
-			std::fill_n(light_lv.begin() + (yy * W + gx), CS, (uint16_t)0);
-			std::fill_n(light_px.begin() + (yy * W + gx), CS, (uint8_t)0);
-		}
+	const int CB = CS / 4; // blocks across a chunk
+	if ((int)light_lv.size() != N) {
+		light_lv.assign(N, 0);
+		light_px.assign(N, 0);
+		light_cost.assign(N, 0);
+		light_stamp.assign(N, 0);
 	}
-	light_lit.clear();
+	std::fill(light_lv.begin(), light_lv.end(), (uint16_t)0);
+	light_gen++;
+	uint8_t mlight[256];
+	int reach = std::max(sun, 0);
+	for (int m = 0; m < 256; m++) {
+		mlight[m] = mats[m].light;
+		reach = std::max(reach, (int)mats[m].light);
+	}
+	const int32_t *lp = lights.ptr();
+	for (int k = 0; k + 2 < (int)lights.size(); k += 3) {
+		reach = std::max(reach, (int)lp[k + 2]);
+	}
+	reach = std::min(reach, LIGHT_MAX_R);
+	const int ring = (reach + CS - 1) / CS; // chunks light can cross
 	// Only chunks near something watched, or explored and in the view
-	// (set_light_view), are worth lighting: those, and two chunks round them (no
-	// light reaches further than 64 cells).
-	std::vector<uint8_t> near(NCH, 0);
-	{
-		std::vector<uint8_t> hit(NCH, 0);
-		if (known.size() >= N) {
-			const uint8_t *kn = known.ptr();
-			int kx0 = std::clamp(view_x0 >> 2, 0, BW), kx1 = std::clamp((view_x1 + 3) >> 2, 0, BW);
-			int ky0 = std::clamp(view_y0 >> 2, 0, BH), ky1 = std::clamp((view_y1 + 3) >> 2, 0, BH);
-			for (int ky = ky0; ky < ky1; ky++) {
-				for (int kx = kx0; kx < kx1; kx++) {
-					if (kn[ky * BW + kx]) {
-						hit[(ky >> 3) * CW + (kx >> 3)] = 1;
-					}
-				}
-			}
-		}
-		// What buildings watch, and where the game's own lights sit.
-		for (const PackedInt32Array *arr : { &sights, &lights }) {
-			const int32_t *sp = arr->ptr();
-			for (int k = 0; k + 2 < (int)arr->size(); k += 3) {
-				int r = arr == &lights ? 0 : sp[k + 2];
-				int x0 = std::clamp((sp[k] - r) >> CSHIFT, 0, CW - 1), x1 = std::clamp((sp[k] + r) >> CSHIFT, 0, CW - 1);
-				int y0 = std::clamp((sp[k + 1] - r) >> CSHIFT, 0, CH - 1), y1 = std::clamp((sp[k + 1] + r) >> CSHIFT, 0, CH - 1);
-				for (int cy = y0; cy <= y1; cy++) {
-					for (int cx = x0; cx <= x1; cx++) {
-						hit[cy * CW + cx] = 1;
-					}
-				}
-			}
-		}
-		for (int c = 0; c < NCH; c++) {
-			if (!hit[c]) {
-				continue;
-			}
-			int cx = c % CW, cy = c / CW;
-			for (int yy = std::max(cy - 2, 0); yy <= std::min(cy + 2, CH - 1); yy++) {
-				for (int xx = std::max(cx - 2, 0); xx <= std::min(cx + 2, CW - 1); xx++) {
-					near[yy * CW + xx] = 1;
+	// (set_light_view), are worth lighting: those, and any source close enough to
+	// reach them.
+	std::vector<uint8_t> hit(NCH, 0), near(NCH, 0);
+	if (known.size() >= N) {
+		const uint8_t *kn = known.ptr();
+		int kx0 = std::clamp(view_x0 >> 2, 0, BW), kx1 = std::clamp((view_x1 + 3) >> 2, 0, BW);
+		int ky0 = std::clamp(view_y0 >> 2, 0, BH), ky1 = std::clamp((view_y1 + 3) >> 2, 0, BH);
+		for (int ky = ky0; ky < ky1; ky++) {
+			for (int kx = kx0; kx < kx1; kx++) {
+				if (kn[ky * BW + kx]) {
+					hit[(ky / CB) * CW + (kx / CB)] = 1;
 				}
 			}
 		}
 	}
-	auto near_cell = [&](int x, int y) { return near[(y >> CSHIFT) * CW + (x >> CSHIFT)] != 0; };
+	// What buildings watch, and where the game's own lights sit.
+	for (const PackedInt32Array *arr : { &sights, &lights }) {
+		const int32_t *sp = arr->ptr();
+		for (int k = 0; k + 2 < (int)arr->size(); k += 3) {
+			int r = arr == &lights ? 0 : sp[k + 2];
+			int x0 = std::clamp((sp[k] - r) >> CSHIFT, 0, CW - 1), x1 = std::clamp((sp[k] + r) >> CSHIFT, 0, CW - 1);
+			int y0 = std::clamp((sp[k + 1] - r) >> CSHIFT, 0, CH - 1), y1 = std::clamp((sp[k + 1] + r) >> CSHIFT, 0, CH - 1);
+			for (int cy = y0; cy <= y1; cy++) {
+				for (int cx = x0; cx <= x1; cx++) {
+					hit[cy * CW + cx] = 1;
+				}
+			}
+		}
+	}
+	for (int c = 0; c < NCH; c++) {
+		if (!hit[c]) {
+			continue;
+		}
+		int cx = c % CW, cy = c / CW;
+		for (int yy = std::max(cy - ring, 0); yy <= std::min(cy + ring, CH - 1); yy++) {
+			for (int xx = std::max(cx - ring, 0); xx <= std::min(cx + ring, CW - 1); xx++) {
+				near[yy * CW + xx] = 1;
+			}
+		}
+	}
+	auto near_block = [&](int bx, int by) { return near[(by / CB) * CW + (bx / CB)] != 0; };
+	int fire_light = fire_id >= 0 ? mats[fire_id].light : 0;
+	auto glow_of = [&](int i) {
+		int r = mlight[cells[i]];
+		if (fire_light && aux[i] && mats[cells[i]].burn_life) {
+			r = std::max(r, fire_light);
+		}
+		return r;
+	};
+	// What crossing a block costs: the sum of its 16 cells' opacities (16 for open
+	// air), or 16 when anything in it glows (light leaves a glowing cell as if
+	// through air). Worked out the first time the spread reaches the block.
+	auto cost = [&](int b) -> int {
+		if (light_stamp[b] == light_gen) {
+			return light_cost[b];
+		}
+		int bx = b % BW, by = b / BW;
+		int sum = 0;
+		bool glow = false;
+		for (int yy = by * 4; yy < by * 4 + 4; yy++) {
+			for (int xx = bx * 4; xx < bx * 4 + 4; xx++) {
+				int i = yy * W + xx;
+				sum += opq[cells[i]];
+				glow = glow || glow_of(i) > 0;
+			}
+		}
+		light_stamp[b] = light_gen;
+		light_cost[b] = (uint16_t)(glow ? 16 : sum);
+		return light_cost[b];
+	};
 	int top = 0;
-	auto seed = [&](int i, int lv) {
-		if (lv <= light_lv[i]) {
+	auto seed = [&](int b, int lv) {
+		if (lv <= light_lv[b]) {
 			return;
 		}
-		light_lv[i] = (uint16_t)lv;
+		light_lv[b] = (uint16_t)lv;
 		if (lv >= (int)light_buckets.size()) {
 			light_buckets.resize(lv + 1);
 		}
-		light_buckets[lv].push_back(i);
+		light_buckets[lv].push_back(b);
 		top = std::max(top, lv);
 	};
-	for (auto &b : light_buckets) {
-		b.clear();
+	for (auto &bk : light_buckets) {
+		bk.clear();
 	}
 	// Glowing materials and burning cells.
-	int fire_light = fire_id >= 0 ? mats[fire_id].light : 0;
-	uint8_t mlight[256];
-	for (int m = 0; m < 256; m++) {
-		mlight[m] = mats[m].light;
-	}
 	for (int c = 0; c < NCH; c++) {
 		if (!near[c]) {
 			continue;
@@ -1809,70 +1841,68 @@ PackedByteArray CrucibleSim::light_update(const PackedInt32Array &lights, const 
 		int gx = (c % CW) << CSHIFT, gy = (c / CW) << CSHIFT;
 		for (int yy = gy; yy < gy + CS; yy++) {
 			for (int xx = gx; xx < gx + CS; xx++) {
-				int i = yy * W + xx;
-				uint8_t m = cells[i];
-				int r = mlight[m];
-				if (fire_light && aux[i] && mats[m].burn_life) {
-					r = std::max(r, fire_light);
-				}
+				int r = glow_of(yy * W + xx);
 				if (r) {
-					seed(i, r * LSTEP);
+					seed((yy >> 2) * BW + (xx >> 2), std::min(r, LIGHT_MAX_R) * LSTEP);
 				}
 			}
 		}
 	}
 	for (const Particle &p : parts) {
 		int px = (int)p.x, py = (int)p.y;
-		if (px >= 0 && py >= 0 && px < W && py < H && mlight[p.mat] && near_cell(px, py)) {
-			seed(py * W + px, mlight[p.mat] * LSTEP);
+		if (px >= 0 && py >= 0 && px < W && py < H && mlight[p.mat] && near_block(px >> 2, py >> 2)) {
+			seed((py >> 2) * BW + (px >> 2), std::min((int)mlight[p.mat], LIGHT_MAX_R) * LSTEP);
 		}
 	}
 	// The sky, straight down open columns.
 	if (sun > 0) {
+		int lv = std::min(sun, LIGHT_MAX_R) * LSTEP;
 		for (int x = 0; x < W; x++) {
+			int last = -1;
 			for (int y = 0; y < H; y++) {
-				int i = y * W + x;
-				const Mat &M = mats[cells[i]];
+				const Mat &M = mats[cells[y * W + x]];
 				if (!(M.kind == K_EMPTY || M.kind == K_GAS || M.structure)) {
 					break;
 				}
-				if (near_cell(x, y)) {
-					seed(i, sun * LSTEP);
+				int by = y >> 2;
+				if (by != last) {
+					last = by;
+					if (near_block(x >> 2, by)) {
+						seed(by * BW + (x >> 2), lv);
+					}
 				}
 			}
 		}
 	}
-	const int32_t *lp = lights.ptr();
 	for (int k = 0; k + 2 < (int)lights.size(); k += 3) {
 		int x = lp[k], y = lp[k + 1], r = lp[k + 2];
 		if (x >= 0 && y >= 0 && x < W && y < H && r > 0) {
-			seed(y * W + x, std::min(r, 60) * LSTEP);
+			seed((y >> 2) * BW + (x >> 2), std::min(r, LIGHT_MAX_R) * LSTEP);
 		}
 	}
-	// Brightest first; a cell whose level rose after it was queued is skipped.
+	// Brightest first; a block whose level rose after it was queued is skipped.
 	static const int DX[8] = { 1, -1, 0, 0, 1, 1, -1, -1 };
 	static const int DY[8] = { 0, 0, 1, -1, 1, -1, 1, -1 };
 	for (int lv = top; lv > 0; lv--) {
 		std::vector<int32_t> &bucket = light_buckets[lv];
 		for (size_t q = 0; q < bucket.size(); q++) {
-			int i = bucket[q];
-			if (light_lv[i] != lv) {
+			int b = bucket[q];
+			if (light_lv[b] != lv) {
 				continue;
 			}
-			int x = i % W, y = i / W;
-			uint8_t m = cells[i];
-			// Light leaving a glowing cell goes out as if through air.
-			int o = (mlight[m] || (fire_light && aux[i] && mats[m].burn_life)) ? 1 : opq[m];
+			int bx = b % BW, by = b / BW;
+			int o = cost(b);
 			for (int d = 0; d < 8; d++) {
-				int x2 = x + DX[d], y2 = y + DY[d];
-				if (x2 < 0 || y2 < 0 || x2 >= W || y2 >= H) {
+				int x2 = bx + DX[d], y2 = by + DY[d];
+				if (x2 < 0 || y2 < 0 || x2 >= BW || y2 >= BH) {
 					continue;
 				}
-				int nl = lv - (d < 4 ? LSTEP : LDIAG) * o;
+				// Four cells across a block: LSTEP per cell times the average opacity.
+				int nl = lv - (((d < 4 ? LSTEP : LDIAG) * o) >> 2);
 				if (nl <= 0) {
 					continue;
 				}
-				int j = y2 * W + x2;
+				int j = y2 * BW + x2;
 				if (nl > light_lv[j]) {
 					light_lv[j] = (uint16_t)nl;
 					light_buckets[nl].push_back(j);
@@ -1881,43 +1911,14 @@ PackedByteArray CrucibleSim::light_update(const PackedInt32Array &lights, const 
 		}
 		bucket.clear();
 	}
-	// Brightness per cell, and the block masks. Light starts inside `near` and never
-	// travels 64 cells, so two more rings cover every lit cell (and light_lit lists
-	// them for the next clear).
+	// Brightness per block, and the block masks.
 	std::vector<uint8_t> bits(N, 0); // 1 lit, 2 in sight
 	uint8_t *o = bits.data();
-	uint8_t lut[LFULL + 1];
-	for (int lv = 0; lv <= LFULL; lv++) {
-		lut[lv] = (uint8_t)(lv * 255 / LFULL);
-	}
-	for (int c = 0; c < NCH; c++) {
-		int cx = c % CW, cy = c / CW;
-		bool any = false;
-		for (int yy = std::max(cy - 2, 0); yy <= std::min(cy + 2, CH - 1) && !any; yy++) {
-			for (int xx = std::max(cx - 2, 0); xx <= std::min(cx + 2, CW - 1); xx++) {
-				if (near[yy * CW + xx]) {
-					any = true;
-					break;
-				}
-			}
-		}
-		if (!any) {
-			continue;
-		}
-		light_lit.push_back(c);
-		int gx = cx << CSHIFT, gy = cy << CSHIFT;
-		for (int yy = gy; yy < gy + CS; yy++) {
-			for (int xx = gx; xx < gx + CS; xx++) {
-				int i = yy * W + xx;
-				int lv = light_lv[i];
-				if (lv == 0) {
-					continue;
-				}
-				light_px[i] = lut[std::min(lv, (int)LFULL)];
-				if (lv >= LMIN) {
-					o[(yy >> 2) * BW + (xx >> 2)] = 1;
-				}
-			}
+	for (int b = 0; b < N; b++) {
+		int lv = light_lv[b];
+		light_px[b] = (uint8_t)(std::min(lv, (int)LFULL) * 255 / LFULL);
+		if (lv >= LMIN) {
+			o[b] = 1;
 		}
 	}
 	const int32_t *sp = sights.ptr();
@@ -1961,7 +1962,7 @@ void CrucibleSim::set_light_view(int x0, int y0, int x1, int y1) {
 	view_y1 = y1;
 }
 
-// Brightness per cell (W x H) from the last light_update.
+// Brightness per 4x4 block (W/4 x H/4) from the last light_update.
 PackedByteArray CrucibleSim::get_light() const {
 	PackedByteArray out;
 	out.resize((int64_t)light_px.size());

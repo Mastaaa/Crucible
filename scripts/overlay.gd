@@ -71,7 +71,7 @@ func _draw() -> void:
 		draw_arc(g.mouse_screen, 16.0, -PI * 0.5, -PI * 0.5 + TAU * p, 32, BAD_COL, 3.0)
 		_draw_rect_outline(_brect(g, g.demolish_target, z).grow(2.0), BAD_COL, 2.0)
 	if g.brush_mode and g.hover.x >= 0:
-		draw_arc(g.to_screen(Vector2(g.hover) + Vector2(0.5, 0.5)), 3.5 * z, 0.0, TAU, 32, Color(1, 1, 1, 0.8), 1.0)
+		draw_arc(g.to_screen(Vector2(g.hover) + Vector2(0.5, 0.5)), 3.5 * D.S * z, 0.0, TAU, 32, Color(1, 1, 1, 0.8), 1.0)
 		if g.brush_material() == g.BRUSH_BLAST:
 			draw_arc(g.to_screen(Vector2(g.hover) + Vector2(0.5, 0.5)), D.BLAST_RADIUS * z, 0.0, TAU, 48, Color(1.0, 0.6, 0.3, 0.8), 1.0)
 		_label(g.mouse_screen + Vector2(18, -8), "Brush: " + g.brush_name(), Color.WHITE, 13)
@@ -106,7 +106,7 @@ func _draw_links(g, z: float) -> void:
 		var c: Vector2 = g.to_screen(ends[1].center())
 		draw_dashed_line(a, c, Color(BAD_COL, 0.8), 1.0, maxf(3.0, z))
 		var m := (a + c) * 0.5
-		var s := maxf(3.0, z * 0.9)
+		var s := maxf(3.0, z * 0.9 * D.S)
 		draw_line(m + Vector2(-s, -s), m + Vector2(s, s), BAD_COL, 1.5)
 		draw_line(m + Vector2(-s, s), m + Vector2(s, -s), BAD_COL, 1.5)
 
@@ -132,15 +132,15 @@ func _draw_springs(g, z: float, t: float, screen: Rect2) -> void:
 		if not g.is_known(c.x, c.y):
 			continue
 		var p: Vector2 = g.to_screen(Vector2(c) + Vector2(0.5, 0.5))
-		if not screen.grow(20.0).has_point(p):
+		if not screen.grow(20.0 + 4.0 * D.S * z).has_point(p):
 			continue
 		var ph := fmod(t * 0.8 + c.x * 0.37, 1.0)
-		draw_arc(p, maxf(2.0, z * 0.8) + ph * z * 3.0, 0.0, TAU, 24, Color(SPRING_COL, 0.7 * (1.0 - ph)), 1.0)
-		draw_circle(p, maxf(1.5, z * 0.5), Color(SPRING_COL, 0.9))
+		draw_arc(p, maxf(2.0, z * 0.8 * D.S) + ph * z * 3.0 * D.S, 0.0, TAU, 24, Color(SPRING_COL, 0.7 * (1.0 - ph)), 1.0)
+		draw_circle(p, maxf(1.5, z * 0.5 * D.S), Color(SPRING_COL, 0.9))
 
 
 func _draw_packets(g, z: float) -> void:
-	var s := maxf(3.0, z * 1.4)
+	var s := maxf(3.0, z * 0.7 * D.S)
 	for p in g.packets:
 		var c: Vector2 = g.to_screen(p.pos)
 		var r := Rect2(c - Vector2(s, s) * 0.5, Vector2(s, s))
@@ -288,7 +288,7 @@ func _draw_wheel(b: Building, r: Rect2, z: float, col: Color) -> void:
 	for k in 4:
 		var ang := b.spin + k * PI * 0.25
 		draw_line(c - Vector2.from_angle(ang) * rad, c + Vector2.from_angle(ang) * rad, Color(col, 0.7 * a), 1.0)
-	var s := maxf(2.0, z * 0.8)
+	var s := maxf(2.0, z * 0.8 * D.S)
 	var wc := Color(0.45, 0.72, 1.0, 0.8 * a)
 	for yy in [r.position.y - s * 0.4, r.end.y + s * 1.4]:
 		draw_colored_polygon(PackedVector2Array([Vector2(c.x - s, yy - s), Vector2(c.x + s, yy - s), Vector2(c.x, yy)]), wc)
@@ -303,7 +303,7 @@ func _draw_bolt(p: Vector2, s: float, col: Color) -> void:
 
 func _draw_drill_arrow(r: Rect2, dir: int, col: Color, z: float) -> void:
 	var c := r.get_center()
-	var s := maxf(3.0, z * 1.2)
+	var s := maxf(3.0, z * 1.2 * D.S)
 	var pts := PackedVector2Array()
 	match dir:
 		1:
@@ -321,11 +321,11 @@ func _draw_head_mark(g, b: Building, z: float, col: Color) -> void:
 	if not b.built or b.reach <= 0:
 		return
 	var hp: Vector2 = g.to_screen(b.drill_head())
-	var s := maxf(2.0, z)
+	var s := maxf(2.0, z * D.S)
 	if b.dir == 0:
-		draw_line(hp + Vector2(-2.5 * z, 0), hp + Vector2(2.5 * z, 0), Color(col, 0.55), 1.0)
+		draw_line(hp + Vector2(-2.5 * D.S * z, 0), hp + Vector2(2.5 * D.S * z, 0), Color(col, 0.55), 1.0)
 	else:
-		draw_line(hp + Vector2(0, -2.5 * z), hp + Vector2(0, 2.5 * z), Color(col, 0.55), 1.0)
+		draw_line(hp + Vector2(0, -2.5 * D.S * z), hp + Vector2(0, 2.5 * D.S * z), Color(col, 0.55), 1.0)
 	draw_circle(hp, s * 0.5, Color(col, 0.55))
 
 
@@ -387,7 +387,7 @@ func _draw_sensors(g, z: float) -> void:
 		if b.type == D.B_FLOODGATE and b.gate_mode != 2 and b != g.selected:
 			continue
 		var p: Vector2 = g.to_screen(Vector2(b.sx + 0.5, b.sy + 0.5))
-		var s := maxf(3.0, z * 1.3)
+		var s := maxf(3.0, z * 1.3 * D.S)
 		var diamond := PackedVector2Array([p + Vector2(0, -s), p + Vector2(s, 0), p + Vector2(0, s), p + Vector2(-s, 0)])
 		if b.sensor_wet:
 			draw_colored_polygon(diamond, Color(0.35, 0.7, 1.0, 0.95))
@@ -562,7 +562,7 @@ func _draw_marker(g, b: Building, z: float) -> void:
 	if b.marker.x < 0:
 		return
 	var p: Vector2 = g.to_screen(Vector2(b.marker) + Vector2(0.5, 0.5))
-	var s := maxf(z * 1.2, 4.0)
+	var s := maxf(z * 1.2 * D.S, 4.0)
 	var col: Color = D.B_COLORS[D.B_WARREN]
 	var pts := PackedVector2Array([p + Vector2(0, -s), p + Vector2(s, 0), p + Vector2(0, s), p + Vector2(-s, 0), p + Vector2(0, -s)])
 	draw_polyline(pts, col, 1.5)

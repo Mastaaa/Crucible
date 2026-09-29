@@ -8,7 +8,7 @@ var out := "/tmp/shot"
 var target := 40
 var cam := -1.0
 var reveal := false
-var zoom := -1
+var zoom := -1.0
 var pre_ticks := 0
 
 func _initialize() -> void:
@@ -17,7 +17,7 @@ func _initialize() -> void:
 		elif a.begins_with("--frames="): target = int(a.substr(9))
 		elif a.begins_with("--y="): cam = float(a.substr(4))
 		elif a == "--reveal": reveal = true
-		elif a.begins_with("--zoom="): zoom = int(a.substr(7))
+		elif a.begins_with("--zoom="): zoom = float(a.substr(7))
 		elif a.begins_with("--ticks="): pre_ticks = int(a.substr(8))
 	game = load("res://scenes/main.tscn").instantiate()
 	root.add_child(game)

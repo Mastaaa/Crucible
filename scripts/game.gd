@@ -15,17 +15,19 @@ const Overlay = preload("res://scripts/overlay.gd")
 const Hud = preload("res://scripts/hud.gd")
 const TERRAIN_SHADER = preload("res://shaders/terrain.gdshader")
 
-const KW := 64                 # explored/sense maps: one byte per 4 x 4 block
-const KH := 256
+const KW := D.W >> 2           # explored/sense/light maps: one byte per 4 x 4 block
+const KH := D.H >> 2
 const SIDE_UI := 240.0         # screen width kept free for side panels, per side
+const ZOOM_STEP := 1.25        # a wheel notch or +/- zooms by this much
+const ZOOM_CLOSEST := 6.0      # screen pixels a cell, closest in
 const DIRS4 := [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]
 const BRUSH_BLAST := -1           # not a material: the brush sets off a blast where you click
 const BRUSH_MATS := [D.WATER, D.LAVA, D.LOOSE_DIRT, D.RUBBLE, D.DIRT, D.PACKED_DIRT, D.GRAVEL, D.SAND,
 		D.CLAY, D.STONE, D.COAL, D.SULFUR, D.FIRE, D.STEAM, BRUSH_BLAST, D.AIR]
 const SPEEDS := [1, 2, 4]
 const FIX_BUILDING := -2            # Packet.fix for a Stone that repairs the building it goes to
-const BUCKET_SHIFT := 4        # relay grid buckets are 16 x 16 cells (one relay range)
-const GRID_W := 16             # D.W >> BUCKET_SHIFT
+const BUCKET_SHIFT := 7        # relay grid buckets are 128 x 128 cells (under one relay range)
+const GRID_W := D.W >> BUCKET_SHIFT
 
 
 class Packet:
@@ -53,7 +55,7 @@ var stock := PackedFloat64Array([0.0, 0.0, 0.0, 0.0, 0.0])
 var packets: Array = []
 var relays: Array = []
 var relay_index := {}             # relay -> its index in `relays`
-var relay_grid := {}              # 16x16-cell bucket -> indices of the relays in it
+var relay_grid := {}              # 128x128-cell bucket -> indices of the relays in it
 var caches: Array = []            # built, linked Caches (for banking), as of the last rebuild
 var dispatch_wait := 0            # ticks until the next dispatch pass after one that sent nothing
 var net_dirty := true
@@ -158,9 +160,9 @@ var known_img: Image
 var known_tex: ImageTexture
 var vis_img: Image
 var vis_tex: ImageTexture
-var light_img: Image              # brightness per cell, from the C++ sim's light map
+var light_img: Image              # brightness per 4 x 4 block, from the C++ sim's light map
 var light_tex: ImageTexture
-var has_light := false            # the sim lights per cell (the GDScript one only lights blocks)
+var has_light := false            # the sim has a light map (the GDScript one only lights blocks)
 var mem_img: Image                # the map as last seen, shown where nothing looks now
 var mem_tex: ImageTexture
 var heat_img: Image
@@ -171,15 +173,15 @@ var overlay: Node2D
 var hud: Node
 
 # --- Camera --------------------------------------------------------------------
-var zoom := 3
-var zoom_max := 4
+var zoom := 2.0                 # screen pixels a cell
+var zoom_max := 6.0
 var cam_y := 0.0
 var cam_target := 0.0
 var view_offset := Vector2.ZERO
 var map_x := 0.0
 var cam_x := D.W * 0.5          # world x at the middle of the screen
 var cam_x_target := D.W * 0.5
-var zoom_min := 2
+var zoom_min := 1.0
 var shake := 0.0
 var ui_scale := 1.0
 
@@ -229,7 +231,7 @@ func _ready() -> void:
 	_layout()
 	zoom = default_zoom()
 	_layout()
-	_center_on(hub.center().y + 30.0, true, hub.center().x)
+	_center_on(hub.center().y + view_rows() * 0.2, true, hub.center().x)
 
 
 func _build_nodes() -> void:
@@ -252,7 +254,7 @@ func _build_nodes() -> void:
 	sense_tex = ImageTexture.create_from_image(sense_img)
 	vis_img = Image.create(KW, KH, false, Image.FORMAT_R8)
 	vis_tex = ImageTexture.create_from_image(vis_img)
-	light_img = Image.create(D.W, D.H, false, Image.FORMAT_R8)
+	light_img = Image.create(KW, KH, false, Image.FORMAT_R8)
 	light_tex = ImageTexture.create_from_image(light_img)
 	mem_img = Image.create(D.W, D.H, false, Image.FORMAT_R8)
 	mem_tex = ImageTexture.create_from_image(mem_img)
@@ -269,6 +271,7 @@ func _build_nodes() -> void:
 	terrain_mat.set_shader_parameter("light_tex", light_tex)
 	terrain_mat.set_shader_parameter("mem_tex", mem_tex)
 	terrain_mat.set_shader_parameter("ground_y", float(D.GROUND_Y))
+	terrain_mat.set_shader_parameter("map_size", Vector2i(D.W, D.H))
 
 	var layer := CanvasLayer.new()
 	layer.layer = 1
@@ -356,7 +359,8 @@ func new_game(s: int) -> void:
 	crucible.built = true
 	# The Drill: fixed on the Hub's right, boring straight down from the start.
 	var hr: Rect2i = info["hub"]
-	drill = _make_building(D.B_DRILL, Rect2i(hr.end.x, hr.end.y - 3, 3, 3))
+	var ds: Vector2i = D.B_SIZES[D.B_DRILL]
+	drill = _make_building(D.B_DRILL, Rect2i(hr.end.x, hr.end.y - ds.y, ds.x, ds.y))
 	drill.fixed = true
 	drill.built = true
 	drill.power = D.POWER_RESERVE
@@ -434,7 +438,7 @@ func _tick() -> void:
 	sim.step()
 	var t1 := Time.get_ticks_usec()
 	if ticks % 2 == 0:
-		sim.erode(D.ERODE_SAMPLES, D.GROUND_Y + 6, 330)
+		sim.erode(D.ERODE_SAMPLES, D.GROUND_Y + 6 * D.S, D.LAYERS[1]["bottom"] + 150)
 	sim.weather(D.WEATHER_SAMPLES)
 	sim.wash(D.WASH_SAMPLES)
 	_cave_ins(sim.collapse(D.COLLAPSE_ROWS))
@@ -508,9 +512,9 @@ func _upload() -> void:
 		vis_changed = false
 	if light_due:
 		var lp: PackedByteArray = sim.get_light()
-		has_light = lp.size() == D.W * D.H
+		has_light = lp.size() == KW * KH
 		if has_light:
-			light_img.set_data(D.W, D.H, false, Image.FORMAT_R8, lp)
+			light_img.set_data(KW, KH, false, Image.FORMAT_R8, lp)
 			light_tex.update(light_img)
 		terrain_mat.set_shader_parameter("use_light", 1.0 if has_light else 0.0)
 		light_due = false
@@ -585,7 +589,7 @@ func snap_place(type: int, c: Vector2i, horiz: bool) -> Rect2i:
 		var rr := Rect2i(r.position + o, r.size)
 		if check_place(type, rr) != "":
 			continue
-		var score := d2 if _rests(rr) else d2 + 1.5
+		var score := d2 if _rests(rr) else d2 + 1.5 * D.S * D.S
 		if score < best_score:
 			best_score = score
 			snap_rect = rr
@@ -705,8 +709,8 @@ func place(type: int, r: Rect2i, dir := 0, horiz := false) -> Building:
 		b.mode = 2              # charges up where it's placed before it sets off
 	elif type == D.B_SPOUT:
 		b.sensor_on = true
-		b.sx = b.x + 1
-		b.sy = mini(b.y + b.h + 3, D.H - 3)
+		b.sx = b.x + (b.w >> 1)
+		b.sy = mini(b.y + b.h + 3 * D.S, D.H - 3)
 	elif type == D.B_FLOODGATE:
 		b.sensor_on = true
 		b.sx = b.x + (b.w >> 1)
@@ -953,7 +957,7 @@ func _drill(b: Building) -> void:
 		b.scan_from = 0
 		b.rescan = 30
 	var guard := 0
-	while guard < 16:
+	while guard < 256:
 		guard += 1
 		var c := _drill_find(b)
 		if c.x == -2:
@@ -1343,7 +1347,7 @@ func _update_fliers() -> void:
 		var tx := roundi(b.fx)
 		var ty := roundi(b.fy)
 		var guard := 0
-		while (b.x != tx or b.y != ty) and guard < 8:
+		while (b.x != tx or b.y != ty) and guard < 32:
 			guard += 1
 			var ddx := tx - b.x
 			var ddy := ty - b.y
@@ -1609,7 +1613,7 @@ func _springs() -> void:
 	for c: Vector2i in info.get("springs", []):
 		var y := c.y
 		var guard := 0
-		while guard < 64 and sim.get_cell(c.x, y) == D.WATER:
+		while guard < 64 * D.S and sim.get_cell(c.x, y) == D.WATER:
 			y -= 1
 			guard += 1
 		var m: int = sim.get_cell(c.x, y)
@@ -1750,9 +1754,9 @@ func _rebuild_scan() -> void:
 		if b.dead:
 			continue
 		by_id[b.id] = b
-		for gy in range((b.y - 1) >> 3, ((b.y + b.h) >> 3) + 1):
-			for gx in range((b.x - 1) >> 3, ((b.x + b.w) >> 3) + 1):
-				var key := gy * 64 + gx
+		for gy in range((b.y - 1) >> 6, ((b.y + b.h) >> 6) + 1):
+			for gx in range((b.x - 1) >> 6, ((b.x + b.w) >> 6) + 1):
+				var key := gy * 4096 + gx
 				if not grid.has(key):
 					grid[key] = []
 				var cell: Array = grid[key]
@@ -2965,8 +2969,8 @@ func _update_crucible() -> void:
 		alert("tremor", "Tremor: loose stone is coming down", crucible.center())
 	# A tremor crumbles its stone over a quarter of a second, not all in one tick.
 	if tremor_left > 0:
-		sim.tremor(mini(tremor_left, 14), D.GROUND_Y + 4, D.H - 4)
-		tremor_left -= 14
+		sim.tremor(mini(tremor_left, 14 * D.S * D.S), D.GROUND_Y + 4, D.H - 4)
+		tremor_left -= 14 * D.S * D.S
 	for r in D.NRES:
 		if c_delivered[r] < D.RECIPE[r]:
 			return
@@ -3169,9 +3173,9 @@ func _layout() -> void:
 	ui_scale = clampf(round(vs.y / 800.0 * 4.0) / 4.0, 1.0, 2.5)
 	# The closest zoom that still fits the whole width is the far limit; the
 	# camera normally sits about 1.5x closer and pans sideways.
-	zoom_min = clampi(int((vs.x - 2.0 * SIDE_UI * ui_scale) / D.W), 2, 4)
-	zoom_max = zoom_min * 2 + 2
-	zoom = clampi(zoom, zoom_min, zoom_max)
+	zoom_min = clampf((vs.x - 2.0 * SIDE_UI * ui_scale) / D.W, 0.5, 4.0)
+	zoom_max = maxf(ZOOM_CLOSEST, zoom_min * 2.0)
+	zoom = clampf(zoom, zoom_min, zoom_max)
 	_clamp_cam_x()
 	cam_x = cam_x_target
 	_apply_cam_x()
@@ -3180,8 +3184,8 @@ func _layout() -> void:
 	_clamp_cam()
 
 
-func default_zoom() -> int:
-	return clampi(int(round(zoom_min * D.CAMERA_CLOSER)), zoom_min, zoom_max)
+func default_zoom() -> float:
+	return clampf(zoom_min * D.CAMERA_CLOSER, zoom_min, zoom_max)
 
 
 ## Half the unobstructed view width, in cells.
@@ -3232,9 +3236,9 @@ func _center_on(y: float, snap: bool, x := -1.0) -> void:
 		cam_x = cam_x_target
 
 
-func set_zoom(z: int, anchor_screen_y := -1.0) -> void:
-	z = clampi(z, zoom_min, zoom_max)
-	if z == zoom:
+func set_zoom(z: float, anchor_screen_y := -1.0) -> void:
+	z = clampf(z, zoom_min, zoom_max)
+	if is_equal_approx(z, zoom):
 		return
 	var ay := anchor_screen_y if anchor_screen_y >= 0.0 else get_viewport_rect().size.y * 0.5
 	var world_y := cam_y + ay / zoom
@@ -3267,7 +3271,7 @@ func _update_camera(delta: float) -> void:
 
 
 func screen_to_cell(s: Vector2) -> Vector2i:
-	var p := (s - view_offset) / float(zoom)
+	var p := (s - view_offset) / zoom
 	return Vector2i(floori(p.x), floori(p.y))
 
 
@@ -3354,7 +3358,7 @@ func brush_name() -> String:
 
 func restart(same_seed: bool) -> void:
 	new_game(seed_value if same_seed else randi() % 100000)
-	_center_on(hub.center().y + 30.0, true, hub.center().x)
+	_center_on(hub.center().y + view_rows() * 0.2, true, hub.center().x)
 
 
 ## Blocks of a Bulkhead line dragged from `a` to `b`: straight along the longer axis.
@@ -3362,12 +3366,13 @@ func bulkhead_line(a: Vector2i, b: Vector2i) -> Array:
 	var out: Array = []
 	var d := b - a
 	var horizontal := absi(d.x) >= absi(d.y)
-	var n := ((absi(d.x) if horizontal else absi(d.y)) >> 2) + 1
+	var step: int = D.B_SIZES[D.B_BULKHEAD].x * 2
+	var n := floori((absi(d.x) if horizontal else absi(d.y)) / float(step)) + 1
 	var s := signi(d.x) if horizontal else signi(d.y)
 	if s == 0:
 		s = 1
 	for k in mini(n, 40):
-		var c := a + (Vector2i(4 * k * s, 0) if horizontal else Vector2i(0, 4 * k * s))
+		var c := a + (Vector2i(step * k * s, 0) if horizontal else Vector2i(0, step * k * s))
 		out.append(footprint(D.B_BULKHEAD, c, false))
 	return out
 
@@ -3391,7 +3396,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
 		mouse_screen = event.position
 		hover = screen_to_cell(mouse_screen)
-		if grab != null and not grab.held and not grab.dead and (hover - grab_from).length_squared() >= 4:
+		if grab != null and not grab.held and not grab.dead and (hover - grab_from).length_squared() >= 4 * D.S * D.S:
 			grab_thumper(grab, Vector2(hover) + Vector2(0.5, 0.5))
 		if panning:
 			cam_target -= (event.position.y - pan_last.y) / zoom
@@ -3417,7 +3422,7 @@ func _mouse_button(e: InputEventMouseButton) -> void:
 			return
 		var up := e.button_index == MOUSE_BUTTON_WHEEL_UP
 		if e.ctrl_pressed:
-			set_zoom(zoom + (1 if up else -1), e.position.y)
+			set_zoom(zoom * (ZOOM_STEP if up else 1.0 / ZOOM_STEP), e.position.y)
 		elif e.shift_pressed:
 			cam_x_target += (-1.0 if up else 1.0) * 90.0 / zoom
 			_clamp_cam_x()
@@ -3572,9 +3577,9 @@ func _key(e: InputEventKey) -> void:
 	elif k == KEY_BRACKETRIGHT:
 		brush_idx = (brush_idx + 1) % BRUSH_MATS.size()
 	elif k == KEY_EQUAL or k == KEY_KP_ADD:
-		set_zoom(zoom + 1)
+		set_zoom(zoom * ZOOM_STEP)
 	elif k == KEY_MINUS or k == KEY_KP_SUBTRACT:
-		set_zoom(zoom - 1)
+		set_zoom(zoom / ZOOM_STEP)
 	elif k == KEY_DELETE and selected != null:
 		demolish(selected)
 	elif k == KEY_F11:

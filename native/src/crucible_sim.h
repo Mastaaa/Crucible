@@ -50,8 +50,9 @@ public:
 	static constexpr uint32_t ONE = 65536; // chances are out of this
 	static constexpr int LSTEP = 8; // light lost per straight step through air
 	static constexpr int LDIAG = 11; // ... and per diagonal step
-	static constexpr int LFULL = 48; // light at which a cell is at full brightness (6 cells)
-	static constexpr int LMIN = 4; // light at which a cell counts as lit
+	static constexpr int LFULL = 480; // light at which a block is at full brightness (60 cells in)
+	static constexpr int LMIN = 4; // light at which a block counts as lit
+	static constexpr int LIGHT_MAX_R = 400; // the furthest any light reaches, in cells
 	static constexpr int NHAZ = 8; // values hazards_at writes per building
 
 	enum Kind : uint8_t {
@@ -175,10 +176,12 @@ private:
 	std::vector<uint8_t> stamp;
 	std::vector<std::atomic<uint8_t>> lava_dirty;
 	std::vector<uint8_t> heat;
-	std::vector<uint16_t> light_lv; // light left at each cell, LSTEP per cell of air
-	std::vector<uint8_t> light_px; // brightness 0..255 per cell, for the renderer
+	std::vector<uint16_t> light_lv; // light left at each 4x4 block, LSTEP per cell of air
+	std::vector<uint8_t> light_px; // brightness 0..255 per block, for the renderer
+	std::vector<uint16_t> light_cost; // what crossing each block costs (sum of its cells' opacities)
+	std::vector<int32_t> light_stamp; // light_gen when light_cost was worked out
+	int light_gen = 0;
 	std::vector<std::vector<int32_t>> light_buckets;
-	std::vector<int32_t> light_lit; // chunks the last light_update may have lit (to clear next time)
 	int view_x0 = 0, view_y0 = 0, view_x1 = 1 << 20, view_y1 = 1 << 20; // explored ground outside isn't lit
 	uint8_t opq[256]; // light cost multiplier per material
 	std::vector<Particle> parts;

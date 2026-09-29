@@ -8,18 +8,22 @@ render_mode unshaded;
 uniform sampler2D grid_tex : filter_nearest, repeat_disable;
 uniform sampler2D aux_tex : filter_nearest, repeat_disable;
 uniform sampler2D pal_tex : filter_nearest, repeat_disable;    // 256 x 4, one column per material
-uniform sampler2D known_tex : filter_linear, repeat_disable;   // 64x256, explored areas
-uniform sampler2D heat_tex : filter_linear, repeat_disable;    // 64x256, blocks holding lava
-uniform sampler2D sense_tex : filter_linear, repeat_disable;   // 64x256, within sensing range of a Drill
-uniform sampler2D vis_tex : filter_linear, repeat_disable;     // 64x256, blocks that show live: lit and explored
-uniform sampler2D light_tex : filter_linear, repeat_disable;   // 256x1024, brightness per cell
+uniform sampler2D known_tex : filter_linear, repeat_disable;   // a byte per 4x4 block: explored areas
+uniform sampler2D heat_tex : filter_linear, repeat_disable;    // per block: holding lava
+uniform sampler2D sense_tex : filter_linear, repeat_disable;   // per block: within sensing range of a Drill
+uniform sampler2D vis_tex : filter_linear, repeat_disable;     // per block: shows live (lit and explored)
+uniform sampler2D light_tex : filter_linear, repeat_disable;   // per block: brightness
 uniform float use_light = 0.0;                                  // 0: no per-cell light (GDScript sim)
 uniform sampler2D mem_tex : filter_nearest, repeat_disable;    // the map as last seen
 uniform float time_s = 0.0;
-uniform float ground_y = 40.0;
+uniform float ground_y = 200.0;
+uniform ivec2 map_size = ivec2(768, 5120);
 uniform float reveal_all = 0.0;
 
-const vec2 GRID = vec2(256.0, 1024.0);
+// Depth colours were drawn for the 1024-row v2 map; rows scale to it.
+float v2_depth(float y) {
+	return y * 1024.0 / float(map_size.y);
+}
 
 float hash12(vec2 p) {
 	vec3 p3 = fract(vec3(p.xyx) * 0.1031);
@@ -40,15 +44,15 @@ float vnoise(vec2 p) {
 }
 
 int mat_at(ivec2 c) {
-	return int(texelFetch(grid_tex, clamp(c, ivec2(0), ivec2(255, 1023)), 0).r * 255.0 + 0.5);
+	return int(texelFetch(grid_tex, clamp(c, ivec2(0), map_size - 1), 0).r * 255.0 + 0.5);
 }
 
 float aux_at(ivec2 c) {
-	return floor(texelFetch(aux_tex, clamp(c, ivec2(0), ivec2(255, 1023)), 0).r * 255.0 + 0.5);
+	return floor(texelFetch(aux_tex, clamp(c, ivec2(0), map_size - 1), 0).r * 255.0 + 0.5);
 }
 
 int mem_at(ivec2 c) {
-	return int(texelFetch(mem_tex, clamp(c, ivec2(0), ivec2(255, 1023)), 0).r * 255.0 + 0.5);
+	return int(texelFetch(mem_tex, clamp(c, ivec2(0), map_size - 1), 0).r * 255.0 + 0.5);
 }
 
 vec3 sky(float y, vec2 cf) {
@@ -61,6 +65,7 @@ vec3 sky(float y, vec2 cf) {
 }
 
 vec3 cave(float y) {
+	y = v2_depth(y);
 	return mix(vec3(0.055, 0.055, 0.075), vec3(0.07, 0.04, 0.04), smoothstep(600.0, 900.0, y));
 }
 
@@ -68,12 +73,14 @@ vec3 stone_col(float y) {
 	vec3 a = vec3(0.46, 0.45, 0.47);
 	vec3 b = vec3(0.37, 0.38, 0.44);
 	vec3 c = vec3(0.36, 0.27, 0.26);
+	y = v2_depth(y);
 	if (y < 320.0) return a;
 	if (y < 600.0) return mix(a, b, smoothstep(300.0, 600.0, y));
 	return mix(b, c, smoothstep(600.0, 880.0, y));
 }
 
 vec3 unknown_col(float y) {
+	y = v2_depth(y);
 	if (y < 300.0) return vec3(0.20, 0.145, 0.10);
 	if (y < 600.0) return vec3(0.17, 0.17, 0.19);
 	if (y < 900.0) return vec3(0.18, 0.13, 0.13);
@@ -152,7 +159,7 @@ vec3 mat_color(int id, float a, vec2 cf, float y, float h, float j, vec3 bg, flo
 }
 
 void fragment() {
-	ivec2 cell = ivec2(floor(UV * GRID));
+	ivec2 cell = ivec2(floor(UV * vec2(map_size)));
 	vec2 cf = vec2(cell);
 	float y = cf.y;
 	int id = mat_at(cell);
@@ -206,7 +213,7 @@ void fragment() {
 
 	// Warning: rock within about 8 cells of lava glows faintly red, even in fog.
 	if (rock || k < 0.5) {
-		vec2 o = vec2(6.0 / GRID.x, 6.0 / GRID.y);
+		vec2 o = vec2(60.0) / vec2(map_size);
 		float hsum = texture(heat_tex, UV).r * 2.0;
 		hsum += texture(heat_tex, UV + vec2(o.x, 0.0)).r;
 		hsum += texture(heat_tex, UV - vec2(o.x, 0.0)).r;
