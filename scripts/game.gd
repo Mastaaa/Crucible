@@ -545,8 +545,8 @@ func quit_game() -> void:
 
 ## The saved run in place of this one; false (this one untouched) if there's
 ## none to load.
-func continue_run() -> bool:
-	var data: Dictionary = Save.read()
+func continue_run(path := Save.PATH) -> bool:
+	var data: Dictionary = Save.read(path)
 	if data.is_empty():
 		return false
 	var s: RefCounted = SimFactory.create()
@@ -928,7 +928,7 @@ func find_link(type: int, r: Rect2i, exclude: Building = null) -> Building:
 	var reach := int(ceil(D.MAST_RANGE if relay else D.LINK_RANGE)) + 1
 	for i in _relays_near(r.grow(reach)):
 		var rl: Building = relays[i]
-		if not rl.connected or rl == exclude:
+		if rl.dead or not rl.connected or rl == exclude:
 			continue
 		if exclude != null and not broken_links.is_empty() and broken_links.has(_link_key(exclude, rl)):
 			continue
@@ -1446,7 +1446,7 @@ func _drill(b: Building) -> void:
 			_vent(b, Rect2i(c, Vector2i.ONE), D.COOLANT_STEAM_PER_CELL)
 		excavated(c)
 		for r: int in D.mat_yields(m):
-			_bank(Vector2(c), r, 1.0 / D.CELLS_PER_UNIT)
+			_bank(Vector2(c), r, D.cell_units(m))
 		b.cells_bored += 1
 		cells_drilled += 1
 		b.stuck = ""
@@ -1485,7 +1485,7 @@ func _drill_row(b: Building, c: Vector2i) -> bool:
 	for m: int in Mats.dig_ids():
 		if dug[m] > 0:
 			for res: int in D.mat_yields(m):
-				_bank(at, res, dug[m] / D.CELLS_PER_UNIT)
+				_bank(at, res, dug[m] * D.cell_units(m))
 	b.cells_bored += n
 	cells_drilled += n
 	b.stuck = ""
@@ -1550,6 +1550,19 @@ func cut_mask() -> PackedByteArray:
 
 ## The Coolant Jacket's water for `cells` of hot rock: false (and it waits for more)
 ## when there isn't enough.
+## With the Coolant Jacket, the Drill and Borers quench lava they face into
+## obsidian from their tank (phase 10): QUENCH_WATER_PER_CELL each, the water going
+## up as steam into open cells of `vent`. False (and the tank dry) without the water.
+func _quench(b: Building, c: Vector2i, vent: Rect2i) -> bool:
+	if b.coolant < D.QUENCH_WATER_PER_CELL:
+		b.stuck = DRY
+		return false
+	b.coolant -= D.QUENCH_WATER_PER_CELL
+	sim.set_cell(c.x, c.y, D.OBSIDIAN)
+	_vent(b, vent, D.QUENCH_WATER_PER_CELL * D.CELLS_PER_UNIT)
+	return true
+
+
 func _cool(b: Building, cells: int) -> bool:
 	var need := cells * D.COOLANT_WATER_PER_CELL
 	if b.coolant < need:
@@ -1581,8 +1594,8 @@ func _vent(b: Building, r: Rect2i, amount: float) -> void:
 
 ## The channel grows one row at a time. It stops at bedrock or buildings across
 ## the whole row, and at a row of solid lava: a drill won't push its channel into
-## a lava body (so boring into a lava lake stops at the surface). Water it bores
-## straight through.
+## a lava body (so boring into a lava lake stops at the surface), unless its
+## Coolant Jacket quenches the lava to obsidian first. Water it bores straight through.
 func _drill_can_extend(b: Building) -> bool:
 	var blocked := 0
 	var lava := 0
@@ -1593,6 +1606,8 @@ func _drill_can_extend(b: Building) -> bool:
 		if c.x < 2 or c.x > D.W - 3 or c.y < 2 or c.y > D.H - 3:
 			return false
 		var m: int = sim.get_cell(c.x, c.y)
+		if m == D.LAVA and researched.has("coolant_jacket") and _quench(b, c, Rect2i(c.x - 2, c.y - 4, 5, 4)):
+			m = D.OBSIDIAN
 		if m == D.BEDROCK or m == D.BUILDING or ((m == D.OBSIDIAN or m == D.HOT_ROCK) and not can_cut(m)):
 			blocked += 1
 			if m == D.HOT_ROCK:
@@ -1692,7 +1707,7 @@ func _hopper(b: Building) -> void:
 		used_acc += D.HOPPER_POWER_PER_CELL
 		sim.set_cell(cx, cy, D.AIR)
 		for r: int in D.mat_yields(m):
-			_bank(Vector2(cx, cy), r, 1.0 / D.CELLS_PER_UNIT)
+			_bank(Vector2(cx, cy), r, D.cell_units(m))
 		b.intake -= 1.0
 		b.cells_taken += 1
 
@@ -2125,9 +2140,11 @@ func _borer_dig(b: Building, c: Vector2i, m: int) -> bool:
 	sim.set_cell(c.x, c.y, D.AIR)
 	if m == D.HOT_ROCK:
 		_vent(b, Rect2i(c, Vector2i.ONE), D.COOLANT_STEAM_PER_CELL)   # out its tail once it steps
+	elif b.steam_due >= 1.0:
+		_vent(b, Rect2i(c, Vector2i.ONE), 0.0)                       # what quenching left to vent
 	excavated(c)
 	for r: int in D.mat_yields(m):
-		_bank(Vector2(c), r, 1.0 / D.CELLS_PER_UNIT)
+		_bank(Vector2(c), r, D.cell_units(m))
 	b.cells_bored += 1
 	cells_drilled += 1
 	_breach_check(b, c)
@@ -2174,6 +2191,11 @@ func _borer_bore(b: Building) -> void:
 				cut = true
 				did = _borer_dig(b, c, m)
 				break
+			elif m == D.LAVA and researched.has("coolant_jacket"):
+				if not _quench(b, c, b.rect().grow(2)):
+					return
+				if not can_cut(D.OBSIDIAN):
+					hard = "Obsidian ahead: it needs the Obsidian Saw."
 			elif _open(m):
 				open_n += 1
 				if m == D.LAVA:
@@ -2194,8 +2216,8 @@ func _borer_bore(b: Building) -> void:
 		if open_n < face.size():
 			b.stuck = hard
 			return
-		if lava_n == face.size():
-			b.stuck = "Lava ahead: it won't bore into a lava body."
+		if lava_n > 0:
+			b.stuck = "Lava ahead: it won't bore into lava."
 			return
 		var st: Vector2i = BORER_STEPS[b.dir]
 		if not _can_shift(b, st.x, st.y):
@@ -2368,16 +2390,27 @@ func _damage_scan() -> void:
 			if D.is_conduit(b.type):
 				_destroy(b, "lava")
 				continue
-			_hurt(b, D.LAVA_DPS * dt, "lava")
-			if b.dead:
-				continue
+			if b.type == D.B_BORER and researched.has("coolant_jacket") and b.coolant > 0.0:
+				# The jacket takes the heat: its water boils off instead (phase 10).
+				var w := minf(b.coolant, D.JACKET_LAVA_WATER * dt)
+				b.coolant -= w
+				_vent(b, b.rect().grow(2), w * D.CELLS_PER_UNIT)
+			else:
+				_hurt(b, D.LAVA_DPS * dt, "lava")
+				if b.dead:
+					continue
 		var ring := 2 * (b.w + b.h)
 		# Flames burn any building, in proportion to how much of its outline they
 		# wrap (full damage from half of it).
 		if fire > 0:
-			_hurt(b, D.FIRE_DPS * clampf(fire / (ring * 0.5), 0.0, 1.0) * dt, "fire")
-			if b.dead:
-				continue
+			if b.type == D.B_BORER and researched.has("coolant_jacket") and b.coolant > 0.0:
+				var fw := minf(b.coolant, D.JACKET_LAVA_WATER * dt)     # the jacket takes the flames too
+				b.coolant -= fw
+				_vent(b, b.rect().grow(2), fw * D.CELLS_PER_UNIT)
+			else:
+				_hurt(b, D.FIRE_DPS * clampf(fire / (ring * 0.5), 0.0, 1.0) * dt, "fire")
+				if b.dead:
+					continue
 		# Sulfur (a deposit, grit or fumes) within a few cells eats it slowly.
 		if corrode > 0:
 			_hurt(b, D.CORRODE_DPS * clampf(corrode / D.CORRODE_FULL, 0.0, 1.0) * dt, "corrosion")

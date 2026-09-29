@@ -11,6 +11,9 @@ extends SceneTree
 ##  F. a Steam Turbine makes power from steam rising through it (about 2/s over a room
 ##     full of it), passes the steam out of its top, and idles without it
 ##  G. the Crucible draws 4 power/s while charging; out of power for 5 s it drains
+##  H. lava and Borers (phase 10): without the jacket a Borer stops short of any lava;
+##     a jacketed one shrugs off lava while its tank has water, and with the Saw it
+##     quenches lava it faces into obsidian and bores through, banking it
 ## Run: godot --headless --path . --script tests/scenario_depth.gd
 
 const D = preload("res://scripts/defs.gd")
@@ -40,6 +43,7 @@ func _process(_d: float) -> bool:
 		scenario_e()
 		scenario_f()
 		scenario_g()
+		scenario_h()
 		print("FAILURES: %d" % fails)
 		return true
 	return false
@@ -329,3 +333,55 @@ func scenario_g() -> void:
 	print("  out of power: draining at 8 s %s, at 12 s %s (starved %s); glimmer fed %.2f of 10" % [early, game.c_draining,
 			game.c_starved, game.c_delivered[D.R_GLIMMER]])
 	check(game.c_starved and game.c_draining and game.c_delivered[D.R_GLIMMER] < 10.0, "out of power for 5 s, the charge drains")
+
+
+func scenario_h() -> void:
+	print("H. lava and Borers")
+	fresh()
+	research("borer")
+	# A dirt block with a pool of lava half a Borer wide under where it starts.
+	fill(R(110, 40, 13, 60), D.DIRT)
+	var pool := R(118, 50, 2, 3)
+	fill(pool, D.LAVA)
+	var b = build(D.B_BORER, R(118, 37, 3, 3), 0)
+	if b == null:
+		return
+	secs(12.0)
+	check(b.stuck.begins_with("Lava ahead") and b.y + b.h == pool.position.y and not b.dead,
+			"without the jacket it stops short of lava it half faces (%s, bottom %d, pool %d)" % [b.stuck, b.y + b.h, pool.position.y])
+	# The jacket and the Saw: it quenches the pool and bores on through, banking obsidian.
+	fresh()
+	for id in ["borer", "coolant_jacket", "obsidian_saw"]:
+		research(id)
+	game.stock[D.R_WATER] = 20.0
+	fill(R(110, 40, 13, 60), D.DIRT)
+	pool = R(118, 50, 3, 4)
+	fill(pool, D.LAVA)
+	b = build(D.B_BORER, R(118, 37, 3, 3), 0)
+	var o0: float = game.total(D.R_OBSIDIAN)
+	for _i in 40:
+		secs(1.0)
+		if b.y > pool.end.y + S:
+			break
+	print("  bottom at %d (pool %d-%d), lava left %d, obsidian banked %.1f, hp %d" % [b.y + b.h, pool.position.y, pool.end.y,
+			count(pool, D.LAVA), game.total(D.R_OBSIDIAN) - o0, int(b.hp)])
+	check(b.y > pool.end.y and count(pool, D.LAVA) == 0 and not b.dead, "with the jacket and the Saw it bores through the pool")
+	check(game.total(D.R_OBSIDIAN) - o0 > 0.5 * pool.get_area() * D.cell_units(D.OBSIDIAN),
+			"quenching it into obsidian and banking it (%.1f)" % (game.total(D.R_OBSIDIAN) - o0))
+	# The shield: lava round a jacketed Borer boils its tank instead of burning it.
+	fresh()
+	research("borer")
+	research("coolant_jacket")
+	var room := Rect2i(300, 2100, 120, 120)
+	arena(room)
+	var cell := Rect2i(room.position.x + 40, room.end.y - 30, 30, 30)
+	b = put_built(D.B_BORER, cell)
+	b.enabled = false
+	b.coolant = D.COOLANT_CAP
+	fill(Rect2i(cell.position.x - 3, cell.position.y, 3, 30), D.LAVA)
+	secs(3.0)
+	check(b.hp >= b.max_hp and b.coolant < D.COOLANT_CAP, "lava beside a jacketed Borer boils its tank (%.2f left) and leaves it whole" % b.coolant)
+	b.coolant = 0.0
+	game.stock[D.R_WATER] = 0.0
+	secs(3.0)
+	check(b.hp < b.max_hp, "with the tank dry it burns (%d of %d)" % [int(b.hp), int(b.max_hp)])

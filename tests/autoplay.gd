@@ -1,43 +1,45 @@
 extends SceneTree
-## Autoplay bot. Plays a whole run headless through the real game code and
-## reports milestones and timing. It reads the generator's info (it knows the
-## map), so it measures whether the loop is completable and how long it takes,
-## not how hard it is to work out.
+## Autoplay bot (phase 10). Plays a whole run headless through the game's own
+## calls (place, lay_line, pick_research, Borer headings, activate_crucible) and
+## prints the milestones with their times, so the pace can be tuned against it.
+## It knows the map (it reads cells and the generator's info), so it measures how
+## long the loop takes when you know where things are, not how hard it is to
+## work out: a person should take about twice as long.
 ##
-## Route: down beside the Hub, sideways to a clear column, down to just above
-## the chamber, sideways to the plug, down through it, then hang a Conduit next
-## to the Crucible. On the way: recover from floods with a Hopper, drill side
-## tunnels along glimmer veins, and farm obsidian at the lava lake.
+## The plan: a Lab researches the Drill down to the Stone band; a Borer opens the
+## shaft on down to the hot rock; Borers sweep sideways along the richest glimmer
+## bands (Tier 2); a Hopper at the shaft's foot drinks what water comes down it; a
+## Thumper blasts down through the hot rock to lava (Tier 3); the Coolant Jacket and
+## the last Drill Shaft levels take the Drill down to the bedrock; a Borer goes
+## across to the plug and down it into the chamber (Tier 4); water poured on lava
+## makes obsidian for the Borers to cut; Caches stock power by the Crucible; then
+## it's lit.
 ##
-## godot --headless --path . --script tests/autoplay.gd -- --seed=7 [--max=3600]
+## godot --headless --path . --script tests/autoplay.gd -- --seed=7 [--max=7200] [--quiet]
+##   [--save=SECONDS] (checkpoint to user://bot_<seed>_<t>.save) [--load=PATH] [--dump=SECONDS]
 
 const D = preload("res://scripts/defs.gd")
-const Building = preload("res://scripts/building.gd")
+const Save = preload("res://scripts/save.gd")
 
 var game: Node
 var seed_value := 7
-var max_time := 3600.0
-var milestones: Array = []
-var last_report := 0.0
+var max_time := 7200.0
+var quiet := false
+var save_at := -1.0
+var load_from := ""
+var dump_at := -1.0
+var f := 0
+var shown := 0                  # milestones printed so far
+var last_status := -1.0
+var jobs: Array = []            # what it's doing now, for the status line
+var st := {}                    # the bot's own state (plain data, so checkpoints keep it)
 
-var plug_col := 0
-var col := 0
-var turn_y := 884
-var start_x := 136
-var stage := "descend"
-var leg := 0
-var cur: Building = null
-var flood_hoppers: Array = []
-var flooding := false
-var blocked_tries := 0
-var link_tries := 0
-
-var glim_plan: Array = []       # {y, dir, count, placed}
-var farm := {}                  # planned obsidian farm
-var activated := false
-var stats_worst := 0
-var stats_total := 0
-var stats_batches := 0
+# Research, in the order it wants it (upgrades repeat once per level).
+const PLAN := ["drill_shaft", "drill_bit", "drill_shaft", "drill_shaft", "borer", "drill_shaft",
+	"thumper", "thump_charge", "drill_shaft", "drill_shaft", "drill_bit",
+	"coolant_jacket", "obsidian_saw", "drill_shaft",
+	# while it waits on materials for the above
+	"borer_cells", "thump_rhythm", "thump_efficiency", "cache", "lamp", "waterwheel", "spout"]
 
 
 func _initialize() -> void:
@@ -46,1100 +48,638 @@ func _initialize() -> void:
 			seed_value = int(a.substr(7))
 		elif a.begins_with("--max="):
 			max_time = float(a.substr(6))
-		elif a.begins_with("--slow="):
-			slow = int(a.substr(7))
-		elif a == "--pertick":
-			pertick = true
-		elif a == "--lite":
-			lite = true
-		elif a == "--trace":
-			trace = true
-		elif a == "--watch-farm":
-			watch_farm = true
-		elif a.begins_with("--shot-y="):
-			shot_y = float(a.substr(9))
+		elif a == "--quiet":
+			quiet = true
+		elif a.begins_with("--save="):
+			save_at = float(a.substr(7))
+		elif a.begins_with("--load="):
+			load_from = a.substr(7)
+		elif a.begins_with("--dump="):
+			dump_at = float(a.substr(7))
 	game = load("res://scenes/main.tscn").instantiate()
 	root.add_child(game)
 
 
-var started := false
-
-## The game's _ready runs after _initialize (and starts its own new game), so
-## the bot sets up on its first frame.
-func _setup() -> void:
-	started = true
-	game.new_game(seed_value)
-	game.pause_on_breach = false
-	# The bot drives the clock itself (run_ticks); the game's own frame loop stays
-	# paused so real time doesn't leak in and runs are repeatable.
-	game.paused = true
-	plan()
-
-
-var watch_farm := false
-var trace := false
-var lite := false
-var pertick := false
-var slow_ticks: Array = []
-var lite_log: Array = []
-var slow := 0
-var watch_done := false
-
-func _watch_farm() -> void:
-	if watch_done or farm.get("tunnel") == null:
-		return
-	var ty: int = farm["ty"]
-	for y in range(ty - 4, ty + 5):
-		for x in range(3, D.W - 3):
-			var m := cell(x, y)
-			if m == D.WATER or m >= D.STEAM or m == D.LAVA:
-				watch_done = true
-				note("WATCH: %s at (%d,%d) tick %d" % [D.mat_name(m), x, y, game.ticks])
-				var lines: Array = []
-				for yy in range(y - 6, y + 30):
-					var row := "%4d " % yy
-					for xx in range(x - 30, x + 30):
-						var c := cell(xx, yy)
-						row += ".#sgoBdlrWL"[c] if c < 11 else "~"
-					lines.append(row)
-				print("\n".join(lines))
-				for b: Building in game.buildings:
-					if absi(b.x - x) < 30 and absi(b.y - y) < 30:
-						print("  ", b.title(), " ", Vector2i(b.x, b.y), " ", Vector2i(b.w, b.h), " dir ", b.dir, " reach ", b.reach)
-				return
-
-
-var ending := 0
-var shot_y := -1.0
-
 func _process(_d: float) -> bool:
-	if ending > 0:
-		ending += 1
-		if ending == 2:
-			game._center_on(shot_y if shot_y >= 0.0 else game.deepest_building().center().y, true)
-			game.selected = null
-		if ending == 6:
-			var img := root.get_viewport().get_texture().get_image()
-			img.save_png("/home/claude/shots/play_%d.png" % seed_value)
-			return true
+	f += 1
+	if f < 2:
 		return false
-	if not started:
-		_setup()
-	if not game.paused:
-		note("game was unpaused by someone (ticks %d)" % game.ticks)
-		game.paused = true
-	for _i in 10:
-		var t0 := Time.get_ticks_usec()
-		if pertick:
-			for _k in 30:
-				var k0 := Time.get_ticks_usec()
-				game.run_ticks(1)
-				var kus := Time.get_ticks_usec() - k0
-				if kus > 4000:
-					slow_ticks.append([kus, game.game_time, game.ticks])
-		else:
-			game.run_ticks(30)
-		var us := Time.get_ticks_usec() - t0
-		stats_worst = maxi(stats_worst, us)
-		stats_total += us
-		stats_batches += 1
-		if slow > 0:
-			OS.delay_msec(slow)
-		if lite:
-			lite_log.append("%d %s %d %d %d" % [game.ticks, game.stock, game.packets.size(), game.buildings.size(), game.sim.tick])
-		if trace:
-			print("T %d %s %s %d %d" % [game.ticks, game.sim.get_cells().hex_encode().md5_text(), game.stock, game.packets.size(), game.buildings.size()])
+	if f == 2:
+		setup()
+	for _s in 10:
+		game.run_ticks(60)
 		think()
-		if watch_farm:
-			_watch_farm()
-		if game.won or game.game_time > max_time or stage == "stop":
+		report()
+		if save_at > 0.0 and game.game_time >= save_at:
+			checkpoint()
+			save_at = -1.0
+		if dump_at > 0.0 and game.game_time >= dump_at:
+			dump_at = -1.0
+			dump_shaft()
+		if game.won or game.run_lost or game.game_time >= max_time:
 			finish()
-			if DisplayServer.get_name() == "headless":
-				return true
-			ending = 1
-			return false
-	return false
-
-
-# --- reporting ------------------------------------------------------------------------------
-
-func note(s: String) -> void:
-	var line := "[%s] %s" % [clock(game.game_time), s]
-	milestones.append(line)
-	print(line)
-
-
-func clock(t: float) -> String:
-	return "%02d:%02d" % [int(t / 60.0), int(t) % 60]
-
-
-const COLS := {0: Color("#101018"), 1: Color("#2e2735"), 2: Color("#77767c"), 3: Color("#3fd0b5"),
-	4: Color("#5a3585"), 5: Color("#f2c14e"), 6: Color("#6e4a2e"), 7: Color("#b07a4a"),
-	8: Color("#a8a397"), 9: Color("#2a6fdc"), 10: Color("#ff6a1a")}
-
-## CPU-rendered picture of the map around the route (buildings in yellow).
-func dump(path: String, y0: int, y1: int, x0 := -1, x1 := -1, s := 2) -> void:
-	if x0 < 0:
-		x0 = clampi(mini(col, start_x) - 60, 0, D.W)
-		x1 = clampi(maxi(col, start_x) + 70, 0, D.W)
-	var img := Image.create((x1 - x0) * s, (y1 - y0) * s, false, Image.FORMAT_RGB8)
-	for y in range(y0, y1):
-		for x in range(x0, x1):
-			var m := cell(x, y)
-			var c: Color = COLS.get(m, Color.WHITE) if m < 11 else Color(0.95, 0.95, 1.0)
-			img.fill_rect(Rect2i((x - x0) * s, (y - y0) * s, s, s), c)
-	for b: Building in game.buildings:
-		var r := Rect2i((b.x - x0) * s, (b.y - y0) * s, b.w * s, b.h * s)
-		var c := Color(1, 0.85, 0.3) if b.built else Color(1, 0.5, 0.9)
-		if b.type == D.B_CONDUIT:
-			c = Color(0.4, 0.9, 1.0) if not b.drowned else Color(0.2, 0.3, 1.0)
-		elif b.type == D.B_HOPPER:
-			c = Color(0.3, 1.0, 0.5)
-		elif b.type == D.B_SPOUT:
-			c = Color(1, 0.3, 1)
-		img.fill_rect(r.intersection(Rect2i(Vector2i.ZERO, img.get_size())), c)
-	img.save_png(path)
-
-
-func finish() -> void:
-	if pertick:
-		slow_ticks.sort_custom(func(p, q): return p[0] > q[0])
-		note("ticks over 4 ms: %d; worst: %s" % [slow_ticks.size(), str(slow_ticks.slice(0, 8))])
-	if lite:
-		for l in lite_log:
-			print("L ", l)
-	dump("/home/claude/shots/bot_%d_a.png" % seed_value, 30, 530)
-	dump("/home/claude/shots/bot_%d_b.png" % seed_value, 520, 1020)
-	var lake: Rect2i = farm.get("body", game.info["lake"])
-	dump("/home/claude/shots/bot_%d_farm.png" % seed_value, lake.position.y - 20, lake.end.y + 4,
-			maxi(mini(lake.position.x, col) - 4, 0), mini(maxi(lake.end.x, col + 5) + 4, D.W), 6)
-	note("FINISHED won=%s time=%s lost=%d drilled=%d stock S%d G%d O%d W%d" % [game.won, clock(game.game_time),
-			game.buildings_lost, game.cells_drilled, game.stock[0], game.stock[1], game.stock[2], game.stock[3]])
-	note("perf: avg %.3f ms/tick, worst 30-tick batch %.1f ms" % [stats_total / float(stats_batches * 30) / 1000.0, stats_worst / 1000.0])
-	var counts := {}
-	for b: Building in game.buildings:
-		counts[b.title()] = counts.get(b.title(), 0) + 1
-	note("buildings: " + str(counts))
-	if cur != null:
-		var cells_s := ""
-		for rr in cur.reach:
-			for k in 5:
-				var c := cur.channel_cell(rr, k)
-				cells_s += str(cell(c.x, c.y))
-			cells_s += "|"
-		note("  cur drill %s dir %d reach %d/%d built=%s conn=%s dead=%s done=%s leg %d channel %s" % [Vector2i(cur.x, cur.y), cur.dir,
-				cur.reach, cur.reach_limit, cur.built, cur.connected, cur.dead, drill_done(cur), leg, cells_s])
-	for b: Building in game.buildings:
-		if not b.built:
-			note("  unbuilt %s at %s: connected=%s link=%s delivered=%s cost=%s" % [b.title(), Vector2i(b.x, b.y), b.connected,
-					"-" if b.link == null else "%s@%s" % [b.link.title(), Vector2i(b.link.x, b.link.y)], b.delivered, b.cost])
-	var kinds := {}
-	for a in game.alerts:
-		kinds[a["kind"]] = kinds.get(a["kind"], 0) + a["n"]
-	note("alert kinds: " + str(kinds))
-	for a in game.alerts:
-		if a["kind"] != "tremor":
-			print("   alert %s %s x%d (at %d,%d)" % [clock(a["t"]), a["text"], a["n"], a["x"], a["y"]])
-	var tail: Array = []
-	for a in game.alerts.slice(maxi(0, game.alerts.size() - 12)):
-		tail.append("%s x%d" % [a["text"], a["n"]])
-	note("last alerts: " + "; ".join(tail))
-
-
-# --- map reading (the bot's cheat sheet) ------------------------------------------------------
-
-func cell(x: int, y: int) -> int:
-	return game.sim.get_cell(x, y)
-
-
-func band_has(x0: int, y0: int, x1: int, y1: int, bad: Array) -> bool:
-	var no_caves: bool = D.AIR in bad
-	for y in range(maxi(y0, 2), mini(y1, D.H - 2)):
-		for x in range(maxi(x0, 2), mini(x1, D.W - 2)):
-			var m := cell(x, y)
-			if m == D.AIR:
-				if no_caves and y > 300:
-					return true
-			elif m in bad:
-				return true
-	return false
-
-
-func plan() -> void:
-	plug_col = game.info["plug_x"] + 2
-	var lake: Rect2i = game.info["lake"]
-	var lake_side := signi(lake.get_center().x - plug_col)
-	var best := -1
-	var best_score := INF
-	for c in range(4, D.W - 9):
-		if c != plug_col and absi(c - plug_col) < 6:
-			continue
-		var score := absf(c - plug_col) + (30.0 if signi(c - plug_col) == lake_side else 0.0)
-		if band_has(c - 3, 88, c + 8, turn_y + 6, [D.WATER]):
-			score += 400.0
-		if score >= best_score:
-			continue
-		if band_has(c - 3, 88, c + 8, turn_y + 6, [D.LAVA, D.AIR]):
-			continue
-		var a := mini(c, plug_col)
-		var b := maxi(c, plug_col) + 5
-		if band_has(a - 2, turn_y - 4, b + 2, turn_y + 9, [D.LAVA, D.AIR, D.WATER]):
-			continue
-		best = c
-		best_score = score
-	if best < 0:
-		note("no clear column found; using the plug column")
-		best = plug_col
-	col = best
-	start_x = 136 if col >= 128 else 115
-	note("seed %d: plug column %d, main column %d, start %d, lake %s" % [seed_value, plug_col, col, start_x, lake])
-	plan_glimmer()
-	plan_farm()
-	plan_tap()
-
-
-func glim_count(r: Rect2i) -> int:
-	r = r.intersection(Rect2i(3, 0, D.W - 6, D.H))
-	var n := 0
-	for yy in range(r.position.y, r.end.y):
-		for xx in range(r.position.x, r.end.x):
-			if cell(xx, yy) == D.GLIMMER:
-				n += 1
-	return n
-
-
-func plan_glimmer() -> void:
-	var cands: Array = []
-	var clip := Rect2i(3, 0, D.W - 6, D.H)
-	for y in range(312, 592):
-		for dir in [1, 2]:
-			var r := Rect2i(col - 48, y, 48, 5) if dir == 1 else Rect2i(col + 5, y, 48, 5)
-			r = r.intersection(clip)
-			if r.size.x < 10:
-				continue
-			if band_has(r.position.x, y - 3, r.end.x, y + 8, [D.WATER, D.LAVA, D.AIR]):
-				continue
-			var n := glim_count(r)
-			# A second segment when the far half is worth it (the tunnel gets extended).
-			var r2 := Rect2i(r.position.x - 48, y, 48, 5) if dir == 1 else Rect2i(r.end.x, y, 48, 5)
-			r2 = r2.intersection(clip)
-			if r2.size.x >= 10 and not band_has(r2.position.x, y - 3, r2.end.x, y + 8, [D.WATER, D.LAVA, D.AIR]):
-				var n2 := glim_count(r2)
-				if n2 >= 25:
-					n += n2
-			if n < 25:
-				continue
-			cands.append({"y": y, "dir": dir, "count": n, "placed": false})
-	cands.sort_custom(func(a, b): return a["count"] > b["count"])
-	var total := 0
-	for c in cands:
-		var clash := false
-		for g in glim_plan:
-			if absi(g["y"] - c["y"]) < 14:
-				clash = true
-		if clash:
-			continue
-		glim_plan.append(c)
-		total += c["count"]
-		if total >= 700 or glim_plan.size() >= 8:
-			break
-	glim_plan.sort_custom(func(a, b): return a["y"] < b["y"])
-	var desc: Array = []
-	for g in glim_plan:
-		desc.append("%d%s:%d" % [g["y"], "L" if g["dir"] == 1 else "R", g["count"]])
-	note("glimmer plan (%d cells): %s" % [total, ", ".join(desc)])
-
-
-func plan_farm() -> void:
-	# Candidates: the lava lake, and each sealed lava pocket. A pocket makes the
-	# better farm: its lava can only meet water inside the drill's own channel,
-	# where the crust gets mined, and the steam stays capped under the drill.
-	var best := {}
-	var best_score := INF
-	var bodies: Array = [[game.info["lake"], true]]
-	for p: Rect2i in game.info["lava_pockets"]:
-		bodies.append([p, false])
-	for entry in bodies:
-		var c := farm_candidate(entry[0], entry[1])
-		if c.is_empty():
-			continue
-		if c["score"] < best_score:
-			best_score = c["score"]
-			best = c
-	if best.is_empty():
-		farm = {"ty": 0, "dir": 1, "spots": [], "far": 0, "surface": 0, "stage": "failed", "tunnel": null, "drills": []}
-		note("farm plan: no lava body within reach")
-		return
-	farm = best
-	farm["stage"] = "wait"
-	farm["tunnel"] = null
-	farm["drills"] = []
-	note("farm plan: %s %s, tunnel at %d heading %s, %d drills" % ["lake" if best["lake"] else "pocket",
-			best["body"], best["ty"], "left" if best["dir"] == 1 else "right", best["spots"].size()])
-
-
-func farm_candidate(body: Rect2i, lake: bool) -> Dictionary:
-	var cx := body.get_center().x
-	var dir := 1 if cx < col else 2
-	var ty := body.position.y - (14 if lake else 10)
-	if ty < 600 or ty > turn_y - 20:
-		return {}
-	var spots: Array = []
-	var x := mini(body.end.x - 7, col - 10) if dir == 1 else maxi(body.position.x + 2, col + 10)
-	while spots.size() < (5 if lake else 3):
-		if x < body.position.x or x + 5 > body.end.x:
-			break
-		var surface := 99999
-		var floor_y := 99999
-		for k in 5:
-			var fy := body.position.y
-			while fy < body.end.y and cell(x + k, fy) != D.LAVA:
-				fy += 1
-			surface = mini(surface, fy)
-			while fy < body.end.y + 2 and cell(x + k, fy) == D.LAVA:
-				fy += 1
-			floor_y = mini(floor_y, fy)
-		if floor_y - surface >= 6 and not band_has(x, ty + 5, x + 5, surface, [D.WATER]):
-			spots.append({"x": x, "limit": floor_y - 2 - (ty + 5), "surface": surface})
-		x += -6 if dir == 1 else 6
-	if spots.is_empty():
-		return {}
-	var far: int = spots.back()["x"]
-	var x0 := mini(col + 5, far)
-	var x1 := maxi(col, far + 5)
-	if absi(far - col) > 150 or band_has(x0, ty - 3, x1, ty + 8, [D.LAVA, D.WATER, D.AIR]):
-		return {}
-	var score := absi(far - col) + (0.0 if lake else 60.0) - 4.0 * spots.size()
-	return {"ty": ty, "dir": dir, "spots": spots, "far": far, "surface": spots[0]["surface"], "lake": lake,
-			"body": body, "score": score}
-
-
-## The nearest place along the farm tunnel where a drill fits over at least
-## 6 cells of lava (the tunnel's own drill bodies and Conduits get in the way
-## of the planned spots, so this looks at every x).
-func farm_next_spot() -> Dictionary:
-	var body: Rect2i = farm["body"]
-	var ty: int = farm["ty"]
-	var xs: Array = range(body.position.x, body.end.x - 4)
-	if farm["dir"] == 1:
-		xs.reverse()
-	for x in xs:
-		var r := Rect2i(x, ty, 5, 5)
-		var why: String = game.check_place(D.B_DRILL, r)
-		if why != "" and why != "Out of network range":
-			continue
-		var surface := 99999
-		var floor_y := 99999
-		for k in 5:
-			var fy := ty + 5
-			while fy < body.end.y and cell(x + k, fy) != D.LAVA:
-				fy += 1
-			surface = mini(surface, fy)
-			while fy < body.end.y + 2 and cell(x + k, fy) == D.LAVA:
-				fy += 1
-			floor_y = mini(floor_y, fy)
-		if floor_y - surface < 6 or floor_y > body.end.y + 1:
-			continue
-		if band_has(x, ty + 5, x + 5, surface, [D.WATER]):
-			continue
-		return {"x": x, "limit": floor_y - (ty + 5), "surface": surface, "far": why != ""}
-	return {}
-
-
-# --- helpers ------------------------------------------------------------------------------------
-
-func try_place(type: int, r: Rect2i, dir := 0) -> Building:
-	if game.check_place(type, r) != "":
-		return null
-	return game.place(type, r, dir)
-
-
-func relay_near(p: Vector2) -> Building:
-	var best: Building = null
-	var best_d := INF
-	for b: Building in game.relays:
-		if b.connected and not b.drowned and b.center().distance_to(p) < best_d:
-			best_d = b.center().distance_to(p)
-			best = b
-	return best
-
-
-func pending_conduit() -> bool:
-	for b: Building in game.buildings:
-		if b.type == D.B_CONDUIT and not b.built:
 			return true
 	return false
 
 
-func frontier(b: Building) -> Vector2:
-	var c := b.channel_rect(b.reach)
-	match b.dir:
-		1:
-			return Vector2(c.position.x, b.y + 2)
-		2:
-			return Vector2(c.end.x - 1, b.y + 2)
-	return Vector2(b.x + 2, c.end.y - 1)
+func setup() -> void:
+	if load_from != "":
+		if not game.continue_run(load_from):
+			print("can't load ", load_from)
+			quit()
+			return
+		var f2 := FileAccess.open(load_from + ".bot", FileAccess.READ)
+		st = f2.get_var()
+		seed_value = game.seed_value
+		shown = game.milestones.size()
+		print("loaded %s at %s" % [load_from, clock(game.game_time)])
+		return
+	game.new_game(seed_value)
+	var sz: Vector2i = D.B_SIZES[D.B_LAB]
+	game.place(D.B_LAB, Rect2i((D.W >> 1) - 10 * D.S, D.GROUND_Y - sz.y, sz.x, sz.y))
+	st = {"chain_to": 0, "routes": {}, "swept": {}, "wait": {}, "deep": "", "tries": 0}
+	print("seed %d: plug at x %d, Crucible %s" % [seed_value, game.info["plug_x"], game.info["crucible"]])
 
 
-func drill_done(b: Building) -> bool:
-	if b.reach < b.reach_limit and game._drill_can_extend(b):
-		return false
-	for r in b.reach:
-		for k in 5:
-			var c := b.channel_cell(r, k)
-			if D.is_drillable(cell(c.x, c.y)):
-				return false
-	return true
+func checkpoint() -> void:
+	var path := "user://bot_%d_%d.save" % [seed_value, int(game.game_time)]
+	Save.write(game, path)
+	var f2 := FileAccess.open(path + ".bot", FileAccess.WRITE)
+	f2.store_var(st)
+	f2.close()
+	print("%s  checkpoint: %s" % [clock(game.game_time), ProjectSettings.globalize_path(path)])
 
 
-## Keep a Conduit chain within reach of a drill's frontier: along the walls of
-## shafts, on the floor of tunnels, clear of where the next drill will stand.
-func extend_chain(b: Building, fr: Vector2, force := false) -> bool:
-	if pending_conduit():
-		return false
-	var rel := relay_near(fr)
-	if rel == null:
-		return false
-	var gap := rel.center().distance_to(fr)
-	if gap < (10.0 if force else 22.0):
-		return false
-	var ch := b.channel_rect(b.reach)
-	var keep_clear := Rect2i()
-	match b.dir:
-		1:
-			keep_clear = Rect2i(ch.position.x, ch.position.y, 6, ch.size.y)
-		2:
-			keep_clear = Rect2i(ch.end.x - 6, ch.position.y, 6, ch.size.y)
-		_:
-			keep_clear = Rect2i(ch.position.x, ch.end.y - 6, ch.size.x, 6)
-	var best := Rect2i()
-	var best_d := INF
-	# A drill's own body plugs its channel's start; the shaft or tunnel behind it counts too.
-	var y_from := ch.position.y - 30 if b.dir == 0 else ch.position.y
-	var x_from := ch.position.x - 35 if b.dir == 2 else ch.position.x
-	var x_to := ch.end.x + 35 if b.dir == 1 else ch.end.x
-	for y in range(y_from, ch.end.y - 2):
-		for x in range(x_from, x_to - 2):
-			var r := Rect2i(x, y, 3, 3)
-			if r.intersects(keep_clear) or reserved(r):
-				continue
-			if b.dir == 0 and x != ch.position.x and x != ch.end.x - 3:
-				continue
-			if b.dir != 0 and y != ch.end.y - 3:
-				continue
-			# Any relay may carry it (check_place looks for one); it just has to
-			# get the chain closer to the frontier than it is now.
-			var c := Vector2(x + 1.5, y + 1.5)
-			var d := c.distance_to(fr)
-			if d >= best_d or d > gap - 4.0:
-				continue
-			if has_water(r):
-				continue
-			if game.check_place(D.B_CONDUIT, r) == "":
-				best_d = d
-				best = r
-	if best_d < INF:
-		game.place(D.B_CONDUIT, best, 0)
-		return true
-	return false
+# --- Thinking, once a game second ------------------------------------------------
+
+func think() -> void:
+	jobs.clear()
+	game.pause_on_breach = false
+	research()
+	shaft_chain()
+	drive_borers()
+	deep_shaft()
+	glimmer()
+	water()
+	lava()
+	descent()
+	plug()
+	crucible()
 
 
-## The main-shaft drill whose channel holds row y.
-func shaft_drill_at(y: int) -> Building:
-	for b: Building in game.buildings:
-		if b.type == D.B_DRILL and b.dir == 0 and b.x == col and not b.dead:
-			var ch := b.channel_rect(b.reach)
-			if y >= ch.position.y and y < ch.end.y:
-				return b
+func waiting(job: String) -> bool:
+	return game.game_time < st["wait"].get(job, 0.0)
+
+
+func wait(job: String, s: float) -> void:
+	st["wait"][job] = game.game_time + s
+
+
+func by_id(id: int) -> Object:
+	for b in game.buildings:
+		if b.id == id:
+			return b
 	return null
 
 
-func has_water(r: Rect2i) -> bool:
-	for yy in range(r.position.y, r.end.y):
-		for xx in range(r.position.x, r.end.x):
-			if cell(xx, yy) == D.WATER:
-				return true
-	return false
-
-
-## Rows of the main shaft saved for side drills (glimmer tunnels, the farm tunnel).
-func reserved(r: Rect2i) -> bool:
-	if absi(r.position.x - col) > 4:
-		return false
-	for g in glim_plan:
-		if not g["placed"] and Rect2i(col, g["y"] - 1, 5, 7).intersects(r):
-			return true
-	if farm["stage"] == "wait" and Rect2i(col, farm["ty"] - 1, 5, 7).intersects(r):
-		return true
-	for t in taps:
-		if Rect2i(col, t["ty"] - 1, 5, 11).intersects(r):
-			return true
-	if tap.get("stage", "") in ["wait", "hopper", "tunnel", "flowing"] and Rect2i(col, tap["ty"] - 1, 5, 11).intersects(r):
-		return true
-	return false
-
-
-# --- the plan -------------------------------------------------------------------------------------
-
-func think() -> void:
-	if stage == "descend":
-		descend()
-	elif stage == "link":
-		link_crucible()
-	glimmer()
-	obsidian()
-	crucible()
-	if game.game_time - last_report >= 120.0:
-		last_report = game.game_time
-		if not farm.get("drills", []).is_empty():
-			var fd: Building = farm["drills"][0]
-			var col_cells := ""
-			for yy in range(fd.y + fd.h + fd.reach - 4, fd.y + fd.h + fd.reach + 4):
-				col_cells += "%d:%d " % [yy, cell(fd.x + 2, yy)]
-			note("  farm drill: built=%s conn=%s en=%s reach=%d/%d bored=%d hp=%.0f dead=%s cells[%s]" % [fd.built, fd.connected, fd.enabled, fd.reach, fd.reach_limit, fd.cells_bored, fd.hp, fd.dead, col_cells])
-			if not farm.get("spouts", []).is_empty():
-				var sp: Building = farm["spouts"][0]
-				note("  farm spout: conn=%s wet=%s queue=%d tokens=%.2f hp=%.0f sensor=(%d,%d)" % [sp.connected, sp.sensor_wet, sp.queue, sp.tokens, sp.hp, sp.sx, sp.sy])
-		var dd: Building = game.deepest_building()
-		note("  depth %d, stock S%d G%d O%d W%d, packets %d, sim %.2f ms/tick, lost %d" % [dd.y + dd.h,
-				game.stock[0], game.stock[1], game.stock[2], game.stock[3], game.packets.size(), game.perf_sim_ms, game.buildings_lost])
-
-
-func descend() -> void:
-	if cur == null:
-		cur = try_place(D.B_DRILL, Rect2i(start_x, D.GROUND_Y - 5, 5, 5), 0)
-		if cur != null:
-			note("first drill at x %d" % start_x)
-		return
-	if not cur.built:
-		return
-	var fr := frontier(cur)
-	if flooding:
-		handle_flood()
-		return
-	extend_chain(cur, fr)
-	if not cur.dead and not drill_done(cur):
-		return
-	if tap_due():
-		run_tap()
-		return
-	var r := Rect2i()
-	var dir := 0
-	var next_leg := leg
-	var limit := D.DRILL_REACH
-	if leg == 0 or leg == 2 or leg == 4:
-		var bottom := int(fr.y)
-		var x := cur.x
-		if leg == 4 and (game.crucible.connected or (bottom > 895 and cell(x + 2, bottom + 1) in [D.AIR, D.BUILDING]) \
-				or Rect2i(x, bottom - 4, 5, 5).intersects(game.crucible.rect())):
-			note("broke into the chamber at depth %d" % bottom)
-			stage = "link"
+## The first tech in PLAN it can research and pay the materials for. Progress
+## on one it leaves while short of materials is kept for later.
+func research() -> void:
+	# A Borer charging up, or starved, gets the power first.
+	for id: int in st["routes"]:
+		var b = by_id(id)
+		if b != null and b.enabled and b.connected and (b.mode == 2 or b.starved):
+			game.current_tech = ""
+			jobs.append("research held for a Borer")
 			return
-		if leg == 0:
-			if x == col:
-				next_leg = 2
-			else:
-				next_leg = 1
-				dir = 1 if col < x else 2
-				limit = clampi(absi(col - x), 5, D.DRILL_REACH)
-		elif leg == 2 and bottom >= turn_y + 4:
-			if col == plug_col:
-				next_leg = 4
-			else:
-				next_leg = 3
-				dir = 1 if plug_col < x else 2
-				limit = clampi(absi(plug_col - x), 5, D.DRILL_REACH)
-		r = Rect2i(x, bottom - 4, 5, 5)
-		if dir == 0 and next_leg == 2:
-			limit = clampi(turn_y + 4 - (r.position.y + 5) + 1, 1, D.DRILL_REACH)
+	var cur: String = game.current_tech
+	if cur != "" and not _short(cur):
+		return
+	var want := {}
+	for id: String in PLAN:
+		want[id] = want.get(id, 0) + 1
+		if game.level(id) < want[id] and game.tech_block(id) == "" and not _short(id):
+			if id != cur:
+				game.pick_research(id)
+			return
+
+
+## The Labs still want materials for `id` that the stock doesn't have (past
+## Tier 3, keeping back what the Crucible will want).
+func _short(id: String) -> bool:
+	var need: Array = game.tech_mats_needed(game.tech_step(id))
+	var got: PackedFloat64Array = game.tech_mats_got(id)
+	for r in D.NRES:
+		var keep: float = D.RECIPE[r] if game.tiers_open[3] else 0.0
+		if need[r] - got[r] > 0.001 and need[r] - got[r] > game.total(r) - keep + 0.001:
+			return true
+	return false
+
+
+# --- The shaft ----------------------------------------------------------------------
+
+## The deepest open row straight down the Drill's shaft: its head, or further
+## where a Borer has gone on down. Read down its right side, clear of the chain
+## on the left wall; anything of the bot's standing in it is the bottom.
+func shaft_bottom() -> int:
+	var d = game.drill
+	var x: int = d.x + 25
+	var y := int(d.drill_head().y)
+	while y < D.H - 4 and not D.is_solid(game.sim.get_cell(x, y)):
+		y += 1
+	return y
+
+
+## The rock under the shaft: its bottom, looking past anything standing in it.
+func shaft_floor() -> int:
+	var d = game.drill
+	var x: int = d.x + 25
+	var y := int(d.drill_head().y)
+	while y < D.H - 4:
+		var m: int = game.sim.get_cell(x, y)
+		if D.is_solid(m) and m != D.BUILDING:
+			break
+		y += 1
+	return y
+
+
+## Where something sent from the bottom of the shaft stands.
+func shaft_foot(h := 30) -> Rect2i:
+	var d = game.drill
+	return Rect2i(d.x, shaft_bottom() - h, 30, h)
+
+
+## A Conduit line down the Drill's shaft against its left wall (so nothing
+## snaps), a relay's spacing apart, and to just over its bottom (where something
+## sent from it stands within reach) when something wants to stand there.
+func shaft_chain() -> void:
+	var d = game.drill
+	var x: int = d.x + 10
+	if st["chain_to"] == 0:
+		st["chain_to"] = d.y + d.h - 108
+	# The top of what has to be in reach: a Borer going on down the shaft (not the
+	# debris riding on it), or whatever is sent from the foot.
+	var top := shaft_bottom() - 30
+	var follow := false
+	for id: int in st["routes"]:
+		var b = by_id(id)
+		if b != null and not st["routes"][id]["trail"] and b.x == d.x and b.y > top:
+			top = b.y
+			follow = b.starved or b.stuck != ""      # it's waiting on power: close the gap
+	var last_y := top - 35
+	var gap: int = last_y - st["chain_to"]
+	if gap < 120 and not ((follow or st.get("need_foot", false)) and st["chain_to"] < top - 70):
+		return
+	st["need_foot"] = false
+	var a := Vector2i(x, mini(st["chain_to"] + 120, last_y))
+	var b := Vector2i(x, last_y)
+	game.lay_line(D.B_CONDUIT, a, b)
+	st["chain_to"] = game.line_points(D.B_CONDUIT, a, b).back().y
+	jobs.append("chain to %d" % st["chain_to"])
+
+
+## Something of the shaft's (a Conduit, a plan for one) where a Borer at row y in
+## the shaft would stand.
+func _chain_near(y: int) -> bool:
+	var d = game.drill
+	var r := Rect2i(d.x, y - 2, 30, 34)
+	for b in game.buildings:
+		if b != d and b.rect().intersects(r):
+			return true
+	for p in game.plans:
+		if game.footprint(p["type"], p["at"], p["horiz"]).intersects(r):
+			return true
+	return false
+
+
+## Something of the bot's standing in the shaft's column at its foot.
+func foot_taken() -> bool:
+	var d = game.drill
+	var r := shaft_foot(60)
+	for b in game.buildings:
+		if b.type != D.B_CONDUIT and b.rect().intersects(r) and b != d:
+			return true
+	return false
+
+
+# --- Borers --------------------------------------------------------------------------
+# Each one the bot sends has a route: legs of [heading, stop], where the stop is
+# the row (heading down or up) or column (left or right) its middle must reach
+# before it turns onto the next leg. It's taken back (half its cost) at the end,
+# or when something it can't cut stops it.
+
+## A Borer at `r` (or the nearest legal spot) heading off along `legs`, or null
+## if it can't go there. `trail`: a Conduit line follows it.
+func send_borer(r: Rect2i, legs: Array, why: String, trail := true, snap := true) -> Object:
+	var reason: String = game.check_place(D.B_BORER, r)
+	if reason != "" and snap:
+		r = game.snap_place(D.B_BORER, Vector2i(r.get_center()), false)
+		reason = game.check_place(D.B_BORER, r)
+	if reason != "":
+		print("%s  !! no Borer at %s (%s): %s" % [clock(game.game_time), r, why, reason])
+		return null
+	var b = game.place(D.B_BORER, r, legs[0][0])
+	st["routes"][b.id] = {"legs": legs, "leg": 0, "why": why, "trail": trail, "last": Vector2i(r.get_center()), "cut": 0,
+			"start": Vector2i(r.get_center())}
+	return b
+
+
+## Demolish the Conduits (and cut the plans) along a finished Borer's tunnel,
+## leaving the shaft's own chain.
+func _take_back_trail(area: Rect2i) -> void:
+	var d = game.drill
+	for b in game.buildings.duplicate():
+		if b.type == D.B_CONDUIT and area.intersects(b.rect()) and (b.x + b.w < d.x - 2 or b.x > d.x + d.w + 2):
+			game.demolish(b)
+	for k in range(game.plans.size() - 1, -1, -1):
+		if area.has_point(game.plans[k]["at"]):
+			game.plans.remove_at(k)
+
+
+## Keep a Conduit line close behind a Borer: from the last point laid toward its
+## tail, a relay's spacing at a time, planned (they go down once it's open).
+func _follow(b, rt: Dictionary) -> void:
+	var tail := Vector2i(b.center()) - Vector2i(game.BORER_STEPS[b.dir]) * 40
+	var last: Vector2i = rt["last"]
+	if Vector2(tail - last).length() < 110.0:
+		return
+	var pts: Array = game.line_points(D.B_CONDUIT, last, tail)
+	if pts.size() < 2:
+		return
+	game.lay_line(D.B_CONDUIT, pts[1], pts[pts.size() - 1])
+	rt["last"] = pts[pts.size() - 1]
+
+
+func drive_borers() -> void:
+	for id: int in st["routes"].keys():
+		var b = by_id(id)
+		var rt: Dictionary = st["routes"][id]
+		if b == null:
+			st["routes"].erase(id)
+			continue
+		var legs: Array = rt["legs"]
+		var k: int = rt["leg"]
+		var c: Vector2 = b.center()
+		if rt["trail"] and b.mode == 0:
+			_follow(b, rt)
+		if k < legs.size():
+			var dir: int = legs[k][0]
+			var stop: int = legs[k][1]
+			if (dir == 0 and c.y >= stop) or (dir == 3 and c.y <= stop) or (dir == 1 and c.x <= stop) or (dir == 2 and c.x >= stop):
+				rt["leg"] = k + 1
+				if k + 1 < legs.size():
+					game.set_borer_dir(b, legs[k + 1][0])
+				else:
+					b.enabled = false
+		# Cut off from the network with an empty reserve for half a minute: written off.
+		if b.starved and not b.connected:
+			rt["cut"] += 1
+			if rt["why"] == "deep":
+				st["need_foot"] = true     # the shaft's chain catches it up
+			elif rt["cut"] >= 30:
+				print("%s  !! Borer (%s) cut off at %s" % [clock(game.game_time), rt["why"], c])
+				b.enabled = false
+		else:
+			rt["cut"] = 0
+		# Hot rock before the Coolant Jacket: glimmer Borers wait for it; the rest are done.
+		var hot: bool = b.stuck.begins_with("Hot rock") and not game.researched.has("coolant_jacket")
+		if not b.enabled or (b.stuck != "" and b.stuck != game.DRY and not (hot and rt["why"] == "glimmer")):
+			if b.stuck != "" and not quiet:
+				print("%s  Borer (%s) done at %d,%d: %s" % [clock(game.game_time), rt["why"], int(c.x), int(c.y), b.stuck])
+			st["routes"].erase(id)
+			game.demolish(b)
+			if rt["why"] == "glimmer":
+				_take_back_trail(Rect2i(mini(rt["start"].x, int(c.x)) - 20, int(c.y) - 30, absi(rt["start"].x - int(c.x)) + 40, 60))
+			continue
+		jobs.append("Borer (%s) %d/%d at %d,%d%s" % [rt["why"], rt["leg"] + 1, legs.size(), int(c.x), int(c.y),
+				"" if b.stuck == "" else ": " + b.stuck])
+
+
+func _busy(why: String) -> int:
+	var n := 0
+	for id: int in st["routes"]:
+		if st["routes"][id]["why"] == why:
+			n += 1
+	return n
+
+
+## A Borer from the shaft's foot straight down until the hot rock stops it, so the
+## whole Stone band opens off the shaft. The chain follows it down.
+func deep_shaft() -> void:
+	if st["deep"] == "sent" and _busy("deep") == 0:
+		st["deep"] = "done"
+		print("%s  the shaft is open to %d" % [clock(game.game_time), shaft_bottom()])
+	if st["deep"] != "" or not game.researched.has("borer") or game.level("drill_shaft") < 4 or waiting("deep"):
+		return
+	var d = game.drill
+	if d.reach < d.reach_limit:
+		return
+	st["need_foot"] = true
+	if send_borer(shaft_foot(), [[0, D.H - 10]], "deep", false) != null:
+		st["deep"] = "sent"
 	else:
-		# leg 1 or 3: tunnelling sideways toward a column
-		var target: int = col if leg == 1 else plug_col
-		var reached: bool = (cur.x - cur.reach <= target) if cur.dir == 1 else (cur.x + cur.w + cur.reach - 1 >= target + 4)
-		if reached:
-			next_leg = 2 if leg == 1 else 4
-			dir = 0
-			r = Rect2i(target, cur.y, 5, 5)
-			if next_leg == 2:
-				limit = clampi(turn_y + 4 - (cur.y + 5) + 1, 1, D.DRILL_REACH)
-		else:
-			dir = cur.dir
-			var rx := (cur.x - cur.reach) if dir == 1 else (cur.x + cur.w + cur.reach - 5)
-			# Keep the last segment's body clear of the column the shaft turns down.
-			rx = maxi(rx, target + 5) if dir == 1 else mini(rx, target - 5)
-			r = Rect2i(rx, cur.y, 5, 5)
-			limit = clampi(absi(target - rx), 5, D.DRILL_REACH)
-	var wet := 0
-	for yy in range(r.position.y, r.end.y):
-		for xx in range(r.position.x, r.end.x):
-			if cell(xx, yy) == D.WATER:
-				wet += 1
-	if wet > 0:
-		flooding = true
-		note("shaft flooded around depth %d" % r.position.y)
-		return
-	var why: String = game.check_place(D.B_DRILL, r)
-	if why == "Out of network range":
-		extend_chain(cur, fr, true)
-		return
-	if why == "":
-		var b: Building = game.place(D.B_DRILL, r, dir)
-		game.set_reach_limit(b, limit)
-		if next_leg != leg or r.position.y % 144 < 48:
-			note("drill at %s facing %s, reach %d (leg %d)" % [r.position, ["down", "left", "right"][dir], b.reach_limit, next_leg])
-		leg = next_leg
-		cur = b
-		blocked_tries = 0
-		if sump_due and dir == 0:
-			# Whatever still seeps in above lands on this Hopper instead of pooling
-			# on the drill and drowning the Conduits.
-			for y in range(b.y - 3, b.y - 14, -1):
-				var hr := Rect2i(b.x, y, 5, 3)
-				if game.check_place(D.B_HOPPER, hr) == "":
-					game.place(D.B_HOPPER, hr, 0)
-					note("sump hopper parked at depth %d" % y)
-					sump_due = false
-					break
-		return
-	if why == "Out of network range":
-		return
-	# Flooded? Drop Hoppers into the water and wait for it to drain.
-	var water := 0
-	for yy in range(r.position.y, r.end.y):
-		for xx in range(r.position.x, r.end.x):
-			if cell(xx, yy) == D.WATER:
-				water += 1
-	if water > 0:
-		flooding = true
-		note("shaft flooded around depth %d" % r.position.y)
-		return
-	blocked_tries += 1
-	if blocked_tries % 20 == 1:
-		note("  next drill blocked at %s: %s" % [r, why])
-	if blocked_tries > 200:
-		stage = "stop"
+		wait("deep", 20.0)
 
 
-var flood_anchor: Building = null
-var sump_due := false      # a leaky section: park a Hopper over the next shaft drill
-var flood_taken := -1
-var flood_idle_t := 0.0
-var flood_total := 0
-var flood_waits := 0
-
-## Recovering from a flooded shaft, the way a player would. A Hopper as wide as
-## the shaft only drinks through its mouth, so the one that matters sits at the
-## very bottom, where everything above pours onto it. If the bottom is out of
-## network range, hang an anchor Conduit in the water first (it drowns, but a
-## Hopper can still link to it); if even that can't reach, a Hopper as deep as
-## the network allows lowers the water in the meantime.
-func handle_flood() -> void:
-	for h: Building in flood_hoppers:
-		if not h.dead and not h.built:
-			return
-	if flood_anchor != null and not flood_anchor.dead and not flood_anchor.built:
-		return
-	var ch := cur.channel_rect(cur.reach)
-	var top := ch.position.y
-	var floor_y := ch.end.y - 1
-	while floor_y < ch.end.y + 6 and cell(cur.x + 2, floor_y + 1) in [D.AIR, D.WATER]:
-		floor_y += 1
-	var water := 0
-	var shallowest_wet := 99999
-	for yy in range(top, floor_y + 1):
-		for xx in range(cur.x, cur.x + 5):
-			if cell(xx, yy) == D.WATER:
-				water += 1
-				shallowest_wet = mini(shallowest_wet, yy)
-	var live: Array = []
-	for h: Building in flood_hoppers:
-		if not h.dead:
-			live.append(h)
-	if water == 0:
-		var taken := flood_total
-		for h: Building in live:
-			taken += h.cells_taken
-			game.demolish(h)
-		note("flood drained (hoppers took %d cells)" % taken)
-		sump_due = true
-		flood_hoppers.clear()
-		flood_anchor = null
-		flooding = false
-		flood_total = 0
-		return
-	if not live.is_empty():
-		# Leave it while it drinks; pull it once it has been idle for 5 s.
-		var h: Building = live.back()
-		if h.cells_taken != flood_taken:
-			flood_taken = h.cells_taken
-			flood_idle_t = game.game_time
-			return
-		if game.game_time - flood_idle_t < 5.0 or h.y + h.h - 1 >= floor_y:
-			return
-		flood_total += h.cells_taken
-		game.demolish(h)
-		flood_hoppers.clear()
-		return
-	var bottom := Rect2i(cur.x, floor_y - 2, 5, 3)
-	if game.check_place(D.B_HOPPER, bottom) == "":
-		_flood_hopper(bottom, shallowest_wet, floor_y)
-		return
-	# Follow the falling waterline down with dry Conduits on the wall.
-	if extend_chain(cur, Vector2(cur.x + 2, shallowest_wet - 2), true):
-		return
-	# Anchor high enough to leave the bottom free, low enough for a Hopper to link.
-	var rel := relay_near(Vector2(cur.x + 2, floor_y))
-	if rel != null and (flood_anchor == null or flood_anchor.dead):
-		for y in range(floor_y - 14, floor_y - 5):
-			var r := Rect2i(cur.x, y, 3, 3)
-			if Vector2(r.position) .distance_to(rel.center() - Vector2(1.5, 1.5)) > D.RELAY_RANGE - 1.0:
-				continue
-			if game.check_place(D.B_CONDUIT, r) == "":
-				flood_anchor = game.place(D.B_CONDUIT, r, 0)
-				note("anchor conduit hung at depth %d over a flooded bottom at %d" % [y, floor_y])
-				return
-	# Can't reach the bottom yet: lower the water with a Hopper as deep as possible.
-	for y in range(floor_y - 3, shallowest_wet - 3, -1):
-		var hr := Rect2i(cur.x, y, 5, 3)
-		if game.check_place(D.B_HOPPER, hr) == "":
-			_flood_hopper(hr, shallowest_wet, floor_y)
-			return
-	flood_waits += 1
-	if flood_waits % 40 == 1:
-		note("  flood stuck: water %d..%d, anchor %s" % [shallowest_wet, floor_y, "-" if flood_anchor == null else str(flood_anchor.y)])
-
-
-func _flood_hopper(r: Rect2i, wet_top: int, floor_y: int) -> void:
-	flood_hoppers.append(game.place(D.B_HOPPER, r, 0))
-	flood_taken = -1
-	flood_idle_t = game.game_time
-	note("hopper dropped into the flood at depth %d (water %d..%d)" % [r.position.y, wet_top, floor_y])
-
-
-# --- water: a prepared tap ---------------------------------------------------------------
-## Hopper at the bottom of the shaft first, then a side tunnel into an aquifer.
-## The tunnel drill stops at the water; removing it lets the water pour down the
-## shaft onto the Hopper.
-var tap := {}
-
-var taps: Array = []
-
-func plan_tap() -> void:
-	for a: Rect2i in game.info["aquifers"]:
-		var dir := 0
-		var gap := 0
-		if a.position.x > col + 4:
-			dir = 2
-			gap = a.position.x - (col + 5)
-		elif a.end.x < col:
-			dir = 1
-			gap = col - a.end.x
-		else:
-			continue
-		if gap > 88:
-			continue
-		# Tunnel low in the aquifer, so nearly all of it drains down the shaft, and
-		# clear of where the shaft drills will stand (every 48 rows from 83).
-		var ty := a.end.y - 9
-		while ty > a.position.y + 4 and (ty + 9 - 83) % 48 < 15:
-			ty -= 1
-		if ty > turn_y - 40:
-			continue
-		var x0 := (col + 5) if dir == 2 else a.end.x
-		var x1 := a.position.x if dir == 2 else col
-		if band_has(x0, ty - 2, x1, ty + 7, [D.LAVA, D.AIR]):
-			continue
-		var clash := false
-		for t in taps:
-			if absi(t["ty"] - ty) < 20:
-				clash = true
-		if clash:
-			continue
-		# Far enough to be sure of the water at this row (the aquifer is an ellipse).
-		var need := gap + 10
-		var far := (col + 5 + need - 1) if dir == 2 else (col - need)
-		taps.append({"ty": ty, "dir": dir, "reach": clampi(need, 5, D.DRILL_REACH), "far": far, "rect": a, "stage": "wait"})
-	taps.sort_custom(func(p, q): return p["ty"] < q["ty"])
-	if taps.is_empty():
-		note("no aquifer within reach of the main column: water must come from elsewhere")
-		return
-	for t in taps:
-		note("water tap plan: aquifer %s, tunnel at depth %d heading %s" % [t["rect"], t["ty"], "left" if t["dir"] == 1 else "right"])
-	tap = taps.pop_front()
-
-
-func tap_due() -> bool:
-	if leg != 2:
-		return false
-	if (tap.is_empty() or tap["stage"] == "done") and not taps.is_empty():
-		tap = taps.pop_front()
-	if tap.is_empty() or tap["stage"] == "done":
-		return false
-	if tap["stage"] != "wait":
-		return true
-	return int(frontier(cur).y) >= tap["ty"] + 12
-
-
-func run_tap() -> void:
-	match tap["stage"]:
-		"wait":
-			# The Hopper spans the shaft just under the tunnel mouth.
-			var hr := Rect2i(col, int(tap["ty"]) + 6, 5, 3)
-			if game.check_place(D.B_HOPPER, hr) == "":
-				tap["hopper"] = game.place(D.B_HOPPER, hr, 0)
-				tap["stage"] = "hopper"
-				note("tap: hopper placed under the tunnel at depth %d" % hr.position.y)
-			else:
-				tap["tries"] = tap.get("tries", 0) + 1
-				if tap["tries"] > 40:
-					note("tap: hopper spot %s blocked: %s" % [hr, game.check_place(D.B_HOPPER, hr)])
-					tap["stage"] = "done"
-		"hopper":
-			var h: Building = tap["hopper"]
-			if not h.built:
-				return
-			var r := Rect2i(col, tap["ty"], 5, 5)
-			if game.check_place(D.B_DRILL, r) == "":
-				var d: Building = game.place(D.B_DRILL, r, tap["dir"])
-				game.set_reach_limit(d, tap["reach"])
-				tap["drill"] = d
-				tap["stage"] = "tunnel"
-				note("tap: tunnel drill placed at depth %d" % tap["ty"])
-		"tunnel":
-			var d: Building = tap["drill"]
-			if not d.built:
-				return
-			extend_chain(d, frontier(d))
-			if not drill_done(d):
-				return
-			var far: int = tap["far"]
-			var reached: bool = (d.x - d.reach <= far) if d.dir == 1 else (d.x + d.w + d.reach - 1 >= far)
-			if not reached:
-				# A long way to the water: another segment, then the first drill
-				# comes out of the shaft so the water has a way through.
-				var nr := Rect2i(d.x - d.reach, d.y, 5, 5) if d.dir == 1 else Rect2i(d.x + d.w + d.reach - 5, d.y, 5, 5)
-				var why: String = game.check_place(D.B_DRILL, nr)
-				tap["tries2"] = tap.get("tries2", 0) + 1
-				if tap["tries2"] % 40 == 1:
-					note("  tap: next segment at %s: %s" % [nr, why if why != "" else "ok"])
-				if tap["tries2"] > 400:
-					note("tap: giving up on this tunnel")
-					tap["stage"] = "done"
-					return
-				if why == "Out of network range":
-					extend_chain(d, frontier(d), true)
-				elif why == "":
-					var nd: Building = game.place(D.B_DRILL, nr, d.dir)
-					game.set_reach_limit(nd, clampi(absi(far - nr.position.x) + 1, 5, D.DRILL_REACH))
-					tap["drill"] = nd
-					tap["old"] = tap.get("old", []) + [d]
-					note("tap: tunnel carries on from x %d" % nr.position.x)
-				return
-			for od: Building in tap.get("old", []):
-				game.demolish(od)
-			game.demolish(d)
-			# Conduits on the tunnel floor would only dam the water: pull them too.
-			var tun := Rect2i(mini(far, col), int(tap["ty"]) - 1, absi(far - col) + 5, 7)
-			for b: Building in game.buildings.duplicate():
-				if b.type == D.B_CONDUIT and tun.encloses(b.rect()) and (b.x + 3 <= col or b.x >= col + 5):
-					game.demolish(b)
-			tap["stage"] = "flowing"
-			tap["t0"] = game.game_time
-			note("tap: tunnel reached the water; drill removed, water flowing (the hopper stays)")
-		"flowing":
-			var h: Building = tap["hopper"]
-			if game.game_time - tap["t0"] < 12.0:
-				return
-			note("tap: hopper has banked %d cells so far; carrying on" % h.cells_taken)
-			tap["stage"] = "done"
-
-
-func link_crucible() -> void:
-	if game.crucible.connected:
-		note("CRUCIBLE CONNECTED")
-		stage = "idle"
-		return
-	if pending_conduit():
-		return
-	link_tries += 1
-	var cr: Rect2i = game.crucible.rect()
-	var rel := relay_near(Vector2(cr.get_center()))
-	var best := Rect2i()
-	var best_d := INF
-	for y in range(cr.position.y - 40, cr.position.y - 2):
-		for x in range(cr.position.x - 24, cr.end.x + 24):
-			var r := Rect2i(x, y, 3, 3)
-			var c := Vector2(r.position) + Vector2(1.5, 1.5)
-			if c.distance_to(rel.center()) > D.RELAY_RANGE:
-				continue
-			var dd: float = game.dist_to_rect(c, cr)
-			if dd >= best_d:
-				continue
-			if game.check_place(D.B_CONDUIT, r) != "":
-				continue
-			best_d = dd
-			best = r
-	if best_d < INF:
-		game.place(D.B_CONDUIT, best, 0)
-		note("chamber conduit at %s, %.1f from the Crucible" % [best.position, best_d])
-	elif link_tries > 30:
-		note("could not find a spot to link the Crucible")
-		stage = "stop"
-
-
-# --- side projects ------------------------------------------------------------------------------
+# --- Glimmer: Borers along the richest bands ------------------------------------------
+# Out of the shaft sideways along a 30-row band to the map's edge, a Conduit line
+# following. Before Tier 2 any glimmer will do; after, the richest band left.
 
 func glimmer() -> void:
-	for g in glim_plan:
-		if g.get("dead", false):
+	if st["deep"] != "done" or waiting("glimmer") or _busy("glimmer") >= 2:
+		return
+	var mask := _mask([D.GLIMMER])
+	var d = game.drill
+	var bottom := shaft_bottom()
+	var best := {}
+	var least := 1 if not game.tiers_open[2] else 600      # cells: any at first, then several units' worth
+	for y in range(D.LAYERS[2]["top"], bottom - 70, 10):
+		if _chain_near(y):
 			continue
-		if not g["placed"]:
-			var y: int = g["y"]
-			if cur == null or cur.dir != 0 or int(frontier(cur).y) < y + 20:
+		for side in [1, 2]:
+			var key := "%d %d" % [floori(y / 30.0), side]
+			if st["swept"].has(key):
 				continue
-			var ok := false
-			for dy in [0, -1, 1, -2, 2, -3, 3, -4, 4, -5, 5, -6, 6]:
-				var gr := Rect2i(col, y + dy, 5, 5)
-				if game.check_place(D.B_DRILL, gr) == "":
-					g["drill"] = game.place(D.B_DRILL, gr, g["dir"])
-					g["placed"] = true
-					g["segments"] = 1
-					note("glimmer drill at depth %d heading %s (%d cells expected)" % [gr.position.y, "left" if g["dir"] == 1 else "right", g["count"]])
-					ok = true
-					break
-			if not ok:
-				var sd := shaft_drill_at(y)
-				extend_chain(sd if sd != null else cur, Vector2(col + 2, y + 2), true)
-				g["tries"] = g.get("tries", 0) + 1
-				if g["tries"] > 200:
-					g["dead"] = true
-					var reasons := []
-					for dy in [0, -3, 3, -6, 6]:
-						reasons.append("%d:%s" % [y + dy, game.check_place(D.B_DRILL, Rect2i(col, y + dy, 5, 5))])
-					note("  glimmer tunnel at %d abandoned: %s" % [y, ", ".join(reasons)])
-			continue
-		# Extend a rich tunnel with a second segment.
-		var d: Building = g["drill"]
-		if d.dead or not d.built or g["segments"] >= 2 or not drill_done(d):
-			continue
-		var nx := (d.x - d.reach) if d.dir == 1 else (d.x + d.w + d.reach - 5)
-		var seg := Rect2i(nx - 48, d.y, 48, 5) if d.dir == 1 else Rect2i(nx + 5, d.y, 48, 5)
-		seg = seg.intersection(Rect2i(3, 0, D.W - 6, D.H))
-		var n := 0
-		for yy in range(seg.position.y, seg.end.y):
-			for xx in range(seg.position.x, seg.end.x):
-				if cell(xx, yy) == D.GLIMMER:
-					n += 1
-		if n < 25 or band_has(seg.position.x, d.y - 3, seg.end.x, d.y + 8, [D.WATER, D.LAVA, D.AIR]):
-			g["segments"] = 2
-			continue
-		var r := Rect2i(nx, d.y, 5, 5)
-		var why: String = game.check_place(D.B_DRILL, r)
-		if why == "Out of network range":
-			extend_chain(d, frontier(d), true)
-		elif why == "":
-			g["drill"] = game.place(D.B_DRILL, r, d.dir)
-			g["segments"] = 2
-			note("glimmer tunnel at depth %d extended (%d more cells)" % [d.y, n])
-		else:
-			g["segments"] = 2
+			var x0: int = 4 if side == 1 else d.x + d.w
+			var x1: int = d.x if side == 1 else D.W - 4
+			var n: int = game.sim.count_in_rect(x0, y, x1 - x0, 30, mask)
+			if n >= least and n > best.get("n", 0):
+				best = {"y": y, "side": side, "key": key, "n": n}
+	if best.is_empty():
+		wait("glimmer", 30.0)
+		return
+	var side: int = best["side"]
+	st["swept"][best["key"]] = true
+	if send_borer(Rect2i(d.x, best["y"], 30, 30), [[side, 24 if side == 1 else D.W - 24]], "glimmer") == null:
+		wait("glimmer", 10.0)
+		return
+	if not quiet:
+		print("%s  glimmer: a Borer out along row %d going %s (%d cells of it)" % [clock(game.game_time), best["y"],
+				"left" if side == 1 else "right", best["n"]])
 
 
-func obsidian() -> void:
-	match farm["stage"]:
-		"wait":
-			if farm["spots"].is_empty():
-				farm["stage"] = "failed"
-				return
-			var r := Rect2i(col, farm["ty"], 5, 5)
-			if game.check_place(D.B_DRILL, r) == "":
-				var b: Building = game.place(D.B_DRILL, r, farm["dir"])
-				game.set_reach_limit(b, clampi(absi(farm["far"] - col) + 5, 5, D.DRILL_REACH))
-				farm["tunnel"] = b
-				farm["stage"] = "tunnel"
-				note("farm tunnel started at depth %d" % farm["ty"])
-		"tunnel":
-			var t: Building = farm["tunnel"]
-			if t.dead:
-				farm["stage"] = "failed"
-				return
-			if not t.built:
-				return
-			extend_chain(t, frontier(t))
-			if not drill_done(t):
-				return
-			# A long way to the lake: carry on with another tunnel segment.
-			var far: int = farm["far"]
-			var reached: bool = (t.x - t.reach <= far) if t.dir == 1 else (t.x + t.w + t.reach - 1 >= far + 4)
-			if not reached:
-				var nr := Rect2i(t.x - t.reach, t.y, 5, 5) if t.dir == 1 else Rect2i(t.x + t.w + t.reach - 5, t.y, 5, 5)
-				var nwhy: String = game.check_place(D.B_DRILL, nr)
-				if nwhy == "Out of network range":
-					extend_chain(t, frontier(t), true)
-				elif nwhy == "":
-					var nb: Building = game.place(D.B_DRILL, nr, t.dir)
-					game.set_reach_limit(nb, clampi(absi(far - nr.position.x) + 5, 5, D.DRILL_REACH))
-					farm["tunnel"] = nb
-					note("farm tunnel carries on from x %d" % nr.position.x)
-				return
-			# Farm drills across the lava, nearest first, wherever one fits.
-			var cap := 6 if farm["lake"] else 3
-			if farm["drills"].size() < cap:
-				var spot := farm_next_spot()
-				if not spot.is_empty() and spot["far"]:
-					extend_chain(t, Vector2(spot["x"] + 2, farm["ty"] + 2), true)
-					farm["tries"] = farm.get("tries", 0) + 1
-					if farm["tries"] < 200:
-						return
-				elif not spot.is_empty():
-					var r := Rect2i(spot["x"], farm["ty"], 5, 5)
-					var fd: Building = game.place(D.B_DRILL, r, 0)
-					game.set_reach_limit(fd, clampi(spot["limit"], 2, D.DRILL_REACH))
-					fd.set_meta("surface", spot["surface"])
-					farm["drills"].append(fd)
-					note("farm drill %d placed over the lava at x %d (reach %d)" % [farm["drills"].size(), spot["x"], fd.reach_limit])
-					return
-			farm["stage"] = "spout"
-		"spout", "running":
-			if farm["drills"].is_empty():
-				farm["stage"] = "failed"
-				return
-			# A Spout under every farm drill (Glimmer allowing), each with its sensor
-			# just above the lava so it pauses while water pools on the crust.
-			var spouts: Array = farm.get("spouts", [])
-			for fd: Building in farm["drills"]:
-				if fd.dead or not fd.built or fd.reach < 6 or fd.get_meta("spout", false):
-					continue
-				var spare: float = game.stock[D.R_GLIMMER] - (0.0 if spouts.is_empty() else D.RECIPE[D.R_GLIMMER] + 4.0)
-				if spare < 4.0 or game.stock[D.R_WATER] < 2.0:
-					break
-				var r := Rect2i(fd.x, fd.y + fd.h, 3, 3)
-				if game.check_place(D.B_SPOUT, r) == "":
-					var sp: Building = game.place(D.B_SPOUT, r, 0)
-					sp.sensor_on = true
-					sp.sx = fd.x + 3
-					sp.sy = int(fd.get_meta("surface", farm["surface"])) - 3
-					spouts.append(sp)
-					fd.set_meta("spout", true)
-					note("farm spout %d placed" % spouts.size())
-					break
-			farm["spouts"] = spouts
-			if not spouts.is_empty():
-				farm["stage"] = "running"
-			var on: bool = not activated and game.stock[D.R_OBSIDIAN] < D.RECIPE[D.R_OBSIDIAN] + 2.0 and game.stock[D.R_WATER] > 5.0
-			for sp: Building in spouts:
-				if not sp.dead:
-					sp.enabled = on
+func _mask(mats: Array) -> PackedByteArray:
+	var m := PackedByteArray()
+	m.resize(256)
+	for k: int in mats:
+		m[k] = 1
+	return m
+
+
+# --- Water: a Hopper at the shaft's foot ------------------------------------------
+
+func water() -> void:
+	if waiting("water"):
+		return
+	wait("water", 5.0)
+	var d = game.drill
+	var hopper = by_id(st.get("hopper", -1))
+	# The Drill has further to go: out of its way.
+	if hopper != null and d.reach < d.reach_limit and d.stuck == "":
+		game.demolish(hopper)
+		st.erase("hopper")
+		return
+	if hopper != null or foot_taken() or st.get("descent", "") == "sent":
+		return
+	var foot := shaft_foot(20)
+	var wet: int = game.sim.count_in_rect(foot.position.x, foot.position.y - 60, 30, 80, _mask([D.WATER]))
+	if wet < 60:
+		return
+	st["need_foot"] = true
+	var r: Rect2i = game.snap_place(D.B_HOPPER, Vector2i(foot.get_center()), false)
+	if game.check_place(D.B_HOPPER, r) == "":
+		st["hopper"] = game.place(D.B_HOPPER, r).id
+		if not quiet:
+			print("%s  a Hopper at the shaft's foot (%d) for the water coming down" % [clock(game.game_time), r.position.y])
+
+
+# --- Tier 3: a Thumper down through the hot rock to lava ----------------------------------
+# The lava with the least hot rock over it: a Borer along just above the hot line
+# to over it (a Conduit line following), then a Thumper from the end of that
+# tunnel, blasting its way down.
+
+## The first row of hot rock down column x (from the Stone band's bottom).
+func hot_top(x: int) -> int:
+	var y: int = D.HOT_TOP - 80
+	while y < D.H - 4 and game.sim.get_cell(x, y) != D.HOT_ROCK:
+		y += 1
+	return y
+
+
+func lava() -> void:
+	if game.tiers_open[3] or st["deep"] != "done" or waiting("lava"):
+		return
+	if game.level("thump_charge") < 1 or not game.is_unlocked(D.B_THUMPER):
+		return
+	var t = by_id(st.get("thumper", -1))
+	if t != null:
+		jobs.append("Thumper at %d (%d blasts, power %.1f%s)" % [t.y, t.blasts, t.power, "" if t.connected else ", off the network"])
+		# A Conduit line down its hole after it, so it can link when it lands.
+		var last: Vector2i = st.get("lava_last", Vector2i(t.center()))
+		var to := Vector2i(t.center()) - Vector2i(0, 45)
+		if not t.connected and not t.flying and to.y - last.y > 90:
+			var pts: Array = game.line_points(D.B_CONDUIT, last, to)
+			if pts.size() >= 2:
+				game.lay_line(D.B_CONDUIT, pts[1], pts.back())
+				st["lava_last"] = pts.back()
+		return
+	if _busy("lava") > 0 or st["tries"] >= 6:
+		return
+	var d = game.drill
+	var sx: int = d.x + 15
+	if not st.has("lava_x"):
+		# Pick the pocket: fewest rows of hot rock over it, then the shorter way across.
+		var best_score := INF
+		var pockets: Array = game.info["lava_pockets"].duplicate()
+		pockets.append(game.info["lake"])
+		for pr: Rect2i in pockets:
+			var cx := pr.get_center().x
+			var ly := pr.position.y
+			while ly < pr.end.y and game.sim.get_cell(cx, ly) != D.LAVA:
+				ly += 1
+			if ly >= pr.end.y:
+				continue
+			var hot := ly - hot_top(cx)
+			var score := hot + absi(cx - sx) * 0.1
+			if score < best_score:
+				best_score = score
+				st["lava_x"] = clampi(cx, 30, D.W - 30)
+				st["lava_y"] = ly
+		print("%s  lava: aiming for %d,%d" % [clock(game.game_time), st.get("lava_x", -1), st.get("lava_y", -1)])
+	var lx: int = st.get("lava_x", sx)
+	if absi(lx - sx) > 20 and not st.get("lava_tunnel", false):
+		# Along a row clear of the hot line all the way across, as low as the shaft
+		# and its chain allow.
+		var row := hot_top(sx)
+		for x in range(mini(sx, lx), maxi(sx, lx) + 1, 4):
+			row = mini(row, hot_top(x))
+		row = mini(row - 40, shaft_bottom() - 32)
+		var b = null
+		for k in 12:
+			if not _chain_near(row) and game.check_place(D.B_BORER, Rect2i(d.x, row, 30, 30)) == "":
+				b = send_borer(Rect2i(d.x, row, 30, 30), [[2 if lx > sx else 1, lx], [0, st["lava_y"]]], "lava", true, false)
+				break
+			row -= 10
+		if b == null:
+			print("%s  !! no row for the lava tunnel" % clock(game.game_time))
+			wait("lava", 30.0)
+			return
+		st["lava_tunnel"] = true
+		st["lava_row"] = row
+		return
+	# The Thumper: at the bottom of the tunnel's end (where the hot rock stopped
+	# the Borer), or at the shaft's foot.
+	var at := Vector2i(lx, st.get("lava_row", shaft_bottom() - 30) + 20)
+	var hy: int = st.get("lava_row", 0) + 30
+	while hy < D.H - 4 and not D.is_solid(game.sim.get_cell(lx, hy)):
+		hy += 1
+	at.y = maxi(at.y, hy - 10)
+	if absi(lx - sx) <= 20:
+		st["need_foot"] = true
+		at = Vector2i(sx, shaft_bottom() - 10)
+	var r: Rect2i = game.snap_place(D.B_THUMPER, at, false)
+	var why: String = game.check_place(D.B_THUMPER, r)
+	if why != "":
+		print("%s  !! no Thumper near %s: %s" % [clock(game.game_time), at, why])
+		wait("lava", 20.0)
+		return
+	st["thumper"] = game.place(D.B_THUMPER, r).id
+	st["lava_last"] = Vector2i(r.get_center())
+	st["tries"] += 1
+	print("%s  a Thumper at %s to blast down to lava (try %d)" % [clock(game.game_time), r.position, st["tries"]])
+
+
+# --- Tier 3 on: down through the lava to the chamber ---------------------------------
+# With the Coolant Jacket and the Obsidian Saw a Borer bores straight down from the
+# shaft's foot through hot rock and whatever lava is under it (quenching it into
+# obsidian as it goes) to the bedrock over the chamber. Then another goes across
+# to the plug over the Crucible and down it, a Conduit line following.
+
+func descent() -> void:
+	if st.get("descent", "") == "sent" and _busy("descent") == 0:
+		st["descent"] = "done"
+		st["floor"] = shaft_bottom()
+		print("%s  down to the bedrock at %d (obsidian %d)" % [clock(game.game_time), st["floor"], game.total(D.R_OBSIDIAN)])
+	if st.get("descent", "") != "" or not game.tiers_open[3] or waiting("descent"):
+		return
+	if not game.researched.has("coolant_jacket") or not game.researched.has("obsidian_saw"):
+		return
+	# On the shaft's floor, with the bot's machines (the Hopper, the chain's last
+	# Conduits) cleared out of the way.
+	var d = game.drill
+	var fl := shaft_floor()
+	for b in game.buildings.duplicate():
+		if b != d and not b.dead and b.rect().intersects(Rect2i(d.x - 5, fl - 120, 40, 125)):
+			game.demolish(b)
+	st.erase("hopper")
+	st["chain_to"] = mini(st["chain_to"], fl - 125)
+	var y := fl - 30
+	while y > fl - 90 and game.check_place(D.B_BORER, Rect2i(d.x, y, 30, 30)) != "":
+		y -= 5
+	if send_borer(Rect2i(d.x, y, 30, 30), [[0, D.H - 10]], "descent", false, false) != null:
+		st["descent"] = "sent"
+		print("%s  a Borer down through the lava from %d" % [clock(game.game_time), y])
+	else:
+		wait("descent", 20.0)
+
+
+func plug() -> void:
+	if st.get("descent", "") != "done" or st.get("plug", "") == "done" or waiting("plug"):
+		return
+	var cr: Rect2i = game.info["crucible"]
+	var ceiling: int = cr.position.y - 70
+	var px: int = game.info["plug_x"] + 20
+	var d = game.drill
+	var sx: int = d.x + 15
+	if st.get("plug", "") == "sent":
+		if _busy("plug") == 0:
+			st["plug"] = "done"
+			# A Conduit in the plug's mouth, over the Crucible.
+			game.lay_line(D.B_CONDUIT, Vector2i(px, ceiling - 12), Vector2i(px, ceiling - 12))
+			print("%s  through the plug; a Conduit for the Crucible" % clock(game.game_time))
+		return
+	# Across under the lowest bedrock between the shaft and the plug, then down it.
+	var row: int = st["floor"] - 30
+	for x in range(mini(sx, px), maxi(sx, px) + 1, 4):
+		var y := 4300
+		while y < D.H - 4 and game.sim.get_cell(x, y) != D.BEDROCK:
+			y += 1
+		row = mini(row, y - 36)
+	var legs: Array = []
+	if absi(px - sx) > 4:
+		legs.append([1 if px < sx else 2, px])
+	legs.append([0, ceiling + 25])
+	var b = null
+	for k in 8:
+		if game.check_place(D.B_BORER, Rect2i(d.x, row, 30, 30)) == "":
+			b = send_borer(Rect2i(d.x, row, 30, 30), legs, "plug", true, false)
+			break
+		row -= 10
+	if b == null:
+		print("%s  !! no row to the plug from %d" % [clock(game.game_time), st["floor"]])
+		wait("plug", 30.0)
+		return
+	st["plug"] = "sent"
+	print("%s  a Borer to the plug at x %d along row %d" % [clock(game.game_time), px, row])
 
 
 func crucible() -> void:
-	if activated or not game.crucible.connected:
+	var c = game.crucible
+	if game.cstate != 0 or not c.connected:
 		return
-	var s: PackedFloat64Array = game.stock
-	if s[D.R_OBSIDIAN] >= D.RECIPE[D.R_OBSIDIAN] and s[D.R_GLIMMER] >= D.RECIPE[D.R_GLIMMER] and s[D.R_WATER] >= D.RECIPE[D.R_WATER]:
-		for b: Building in game.buildings:
-			if b.type == D.B_SPOUT:
-				b.enabled = false
-		game.activate_crucible()
-		activated = true
-		note("ACTIVATED the Crucible with S%d G%d O%d W%d" % [s[0], s[1], s[2], s[3]])
+	for r in D.NRES:
+		if game.total(r) < D.RECIPE[r]:
+			jobs.append("stocking for the Crucible")
+			return
+	game.activate_crucible()
+	print("%s  the Crucible: charging" % clock(game.game_time))
+
+
+# --- Reporting --------------------------------------------------------------------
+
+func clock(t: float) -> String:
+	var s := int(t)
+	return "%d:%02d:%02d" % [int(s / 3600.0), int(s / 60.0) % 60, s % 60]
+
+
+func report() -> void:
+	while shown < game.milestones.size():
+		var m: Dictionary = game.milestones[shown]
+		shown += 1
+		if m["major"] or not quiet:
+			print("%s  %s%s" % [clock(m["t"]), "" if m["major"] else "  ", m["text"]])
+	if game.game_time - last_status >= 120.0:
+		last_status = game.game_time
+		var d = game.drill
+		print("%s  -- head %d/%d bottom %d  S%d G%d O%d W%d P%d (+%.1f -%.1f)  research %s  plans %d  bldg %d  %s" % [
+				clock(game.game_time), int(d.drill_head().y), d.reach_limit + d.y + d.h, shaft_bottom(), game.total(D.R_STONE),
+				game.total(D.R_GLIMMER), game.total(D.R_OBSIDIAN), game.total(D.R_WATER), game.total(D.R_POWER),
+				game.power_made, game.power_used, _research_text(), game.plans.size(), game.buildings.size(),
+				d.stuck if d.stuck != "" else ", ".join(jobs)])
+
+
+func _research_text() -> String:
+	var id: String = game.current_tech
+	if id == "":
+		return "-"
+	return "%s %d %d%%" % [id, game.level(id) + 1, int(game.tech_power_frac(id) * 100.0)]
+
+
+## What's in the shaft's column, for debugging (--dump=seconds, then every minute).
+func dump_shaft() -> void:
+	var d = game.drill
+	var out: Array = []
+	for b in game.buildings:
+		if b.x + b.w > d.x - 10 and b.x < d.x + d.w + 10 and b.y > d.y:
+			out.append("%s@%d,%d%s%s" % [D.B_NAMES[b.type].left(4), b.x, b.y, "" if b.built else " bp", "" if b.connected else " OFF"])
+	for p in game.plans:
+		if absi(p["at"].x - (d.x + 15)) < 60:
+			out.append("plan %s@%s" % [D.B_NAMES[p["type"]].left(4), p["at"]])
+	print("%s  shaft (head %d, bottom %d, chain_to %d): %s" % [clock(game.game_time), int(d.drill_head().y), shaft_bottom(),
+			st["chain_to"], "  ".join(out)])
+
+
+func finish() -> void:
+	print("FINISHED %s at %s: lost %d buildings, drilled %d cells" % [
+			"WON" if game.won else ("LOST" if game.run_lost else "stopped"), clock(game.game_time),
+			game.buildings_lost, game.cells_drilled])

@@ -26,6 +26,7 @@ static var names := PackedStringArray()
 static var kinds := PackedByteArray()
 static var dig_rates := PackedFloat32Array()
 static var dig_powers := PackedFloat32Array()
+static var worths := PackedFloat32Array()   # per id: units a dug cell pays, against dirt's 1
 static var yields: Array = []           # per id: PackedInt32Array of stockpiles
 static var hots := PackedByteArray()
 static var burns := PackedByteArray()
@@ -48,6 +49,8 @@ static func ensure() -> void:
 	dig_rates.resize(256)
 	dig_powers.resize(256)
 	dig_powers.fill(0.2)
+	worths.resize(256)
+	worths.fill(1.0)
 	yields.resize(256)
 	for i in 256:
 		yields[i] = PackedInt32Array()
@@ -94,6 +97,7 @@ static func ensure() -> void:
 			kinds[mid] = kind
 			dig_rates[mid] = float(e.get("dig_rate", 0.0))
 			dig_powers[mid] = float(e.get("dig_power", 0.2))
+			worths[mid] = float(e.get("worth", 1.0))
 			yields[mid] = ys
 			hots[mid] = 1 if bool(e.get("hot", false)) else 0
 			burns[mid] = 1 if not burn.is_empty() else 0
@@ -265,6 +269,12 @@ static func dig_power(m: int) -> float:
 static func yields_of(m: int) -> PackedInt32Array:
 	ensure()
 	return yields[m]
+
+
+## How much a cell of `m` pays into each of its stockpiles, against dirt's 1.
+static func worth_of(m: int) -> float:
+	ensure()
+	return worths[m]
 
 
 ## The first stockpile `m` pays into, or -1.

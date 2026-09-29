@@ -688,7 +688,7 @@ static func _nibble(game, b, mt: Dictionary, claimed: Dictionary) -> void:
 static func _arrive(game, b, mt: Dictionary) -> void:
 	for m: int in mt.load:
 		for r: int in D.mat_yields(m):
-			game._bank(b.center(), r, mt.load[m] / D.CELLS_PER_UNIT)
+			game._bank(b.center(), r, mt.load[m] * D.cell_units(m))
 	mt.load = {}
 	mt.state = S_HOME
 	mt.t = Vector2i(-1, -1)

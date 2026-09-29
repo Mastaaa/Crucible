@@ -108,6 +108,10 @@ static func mat_res(m: int) -> int:
 static func mat_yields(m: int) -> PackedInt32Array:
 	return M.yields_of(m)
 
+## Units one dug or swallowed cell of `m` pays into each of its stockpiles.
+static func cell_units(m: int) -> float:
+	return M.worth_of(m) / CELLS_PER_UNIT
+
 # --- Buildings ---------------------------------------------------------------
 const B_HUB := 0
 const B_CONDUIT := 1
@@ -387,7 +391,7 @@ const TECHS := [
 	{"id": "ember_brood", "name": "Ember Brood", "tier": 3, "needs": ["hard_teeth"], "power": 250, "mats": [0, 15, 0, 0, 0],
 		"text": "5 mites per Warren; they dig hot rock and walk through fire (lava still kills them)."},
 	{"id": "coolant_jacket", "name": "Coolant Jacket", "tier": 3, "needs": ["borer"], "power": 250, "mats": [0, 15, 0, 0, 0],
-		"text": "The Drill and Borers cut hot rock, for 1 Water per 2000 cells, all of it vented as steam behind them."},
+		"text": "The Drill and Borers cut hot rock, for 1 Water per 2000 cells, all of it vented as steam behind them. A jacketed Borer shrugs off lava while its tank has water, and both quench lava they face into obsidian, a cell of water a cell."},
 	{"id": "tremor_dampers", "name": "Tremor Dampers", "tier": 4, "needs": ["obsidian_saw", "strut"], "power": 300,
 		"mats": [0, 0, 20, 0, 0], "text": "Tremors crumble no stone within 120 cells of a Strut."},
 	# Upgrades.
@@ -457,6 +461,8 @@ const HOT_TOP := 3000               # hot rock from here down (wobbling by up to
 const COOLANT_WATER_PER_CELL := 1.0 / (20.0 * S * S)
 const COOLANT_STEAM_PER_CELL := COOLANT_WATER_PER_CELL * CELLS_PER_UNIT   # 0.3
 const COOLANT_CAP := 4.0            # water a Drill or Borer holds for its jacket
+const JACKET_LAVA_WATER := 0.05     # water a second a jacketed Borer boils off touching lava, instead of burning (phase 10)
+const QUENCH_WATER_PER_CELL := 1.0 / CELLS_PER_UNIT   # a jacket quenching lava it faces to obsidian: a cell of water a cell
 
 # --- Hazards -------------------------------------------------------------------
 # The random-sample passes check more cells on the bigger map (15x v2's area), so

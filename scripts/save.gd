@@ -37,13 +37,13 @@ const GAME_VARS := [
 const SKIP_BUILDING := ["scan_idx", "seg_idx"]
 
 
-static func exists() -> bool:
-	return FileAccess.file_exists(PATH)
+static func exists(path := PATH) -> bool:
+	return FileAccess.file_exists(path)
 
 
-static func erase() -> void:
-	if exists():
-		DirAccess.remove_absolute(ProjectSettings.globalize_path(PATH))
+static func erase(path := PATH) -> void:
+	if exists(path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 
 
 ## The header of the saved run ({seed, time, won}), or {} if there's none.
@@ -57,8 +57,9 @@ static func peek() -> Dictionary:
 	return head if head is Dictionary else {}
 
 
-## Write the run. False (and nothing changed on disk) if the sim can't be saved.
-static func write(game) -> bool:
+## Write the run (to the slot, or `path` for the bot's checkpoints). False (and
+## nothing changed on disk) if the sim can't be saved.
+static func write(game, path := PATH) -> bool:
 	if not game.sim.has_method("save_state"):
 		return false
 	var raw: PackedByteArray = game.sim.save_state()
@@ -76,7 +77,7 @@ static func write(game) -> bool:
 	state["rng"] = [game.rng.seed, game.rng.state]
 	var gbytes := var_to_bytes(state)
 	var game_z := gbytes.compress(FileAccess.COMPRESSION_ZSTD)
-	var tmp := PATH + ".tmp"
+	var tmp := path + ".tmp"
 	var f := FileAccess.open(tmp, FileAccess.WRITE)
 	if f == null:
 		return false
@@ -90,15 +91,15 @@ static func write(game) -> bool:
 	f.store_32(game_z.size())
 	f.store_buffer(game_z)
 	f.close()
-	return DirAccess.rename_absolute(ProjectSettings.globalize_path(tmp), ProjectSettings.globalize_path(PATH)) == OK
+	return DirAccess.rename_absolute(ProjectSettings.globalize_path(tmp), ProjectSettings.globalize_path(path)) == OK
 
 
 ## The saved run's two parts, {"sim": bytes, "game": Dictionary}, or {} if
 ## there's no readable save.
-static func read() -> Dictionary:
-	if not exists():
+static func read(path := PATH) -> Dictionary:
+	if not exists(path):
 		return {}
-	var f := FileAccess.open(PATH, FileAccess.READ)
+	var f := FileAccess.open(path, FileAccess.READ)
 	if f == null or f.get_32() != MAGIC or f.get_32() != VERSION:
 		return {}
 	f.get_var()
