@@ -27,7 +27,7 @@ const CAMERA_CLOSER := 1.5
 # below (is_solid, is_liquid, is_thin), not with id ranges:
 #   0 air | 1-5 static | 6 settled dirt | 7-8 powders | 9-10 liquids
 #   11-18 steam (eight ageing stages, then it condenses) | 19-28 Phase 5 chemistry
-#   29-32 Phase 8 ground (packed dirt, gravel, sand, clay)
+#   29-32 Phase 8 ground (packed dirt, gravel, sand, clay) | 33 mite | 34 hot rock
 const AIR := 0
 const BEDROCK := 1
 const STONE := 2
@@ -57,6 +57,7 @@ const GRAVEL := 30
 const SAND := 31
 const CLAY := 32
 const MITE := 33          # a mite that's a body (thrown, falling, tumbling): phase 8d
+const HOT_ROCK := 34      # the Magma band's rock: phase 9 (needs Coolant Jacket or Ember Brood)
 
 static func mat_name(m: int) -> String:
 	return M.name_of(m)
@@ -125,25 +126,30 @@ const B_BORER := 13
 const B_MAST := 14
 const B_WARREN := 15
 const B_STRUT := 16
+const B_TURBINE := 17
 
 const B_NAMES := ["Hub", "Conduit", "Drill", "Hopper", "Spout", "Bulkhead", "Floodgate", "Crucible",
-		"Waterwheel", "Cache", "Lamp", "Lab", "Thumper", "Borer", "Relay Mast", "Warren", "Strut"]
-const B_LETTERS := ["HUB", "C", "D", "V", "S", "", "F", "", "", "K", "L", "LAB", "T", "B", "M", "W", ""]
+		"Waterwheel", "Cache", "Lamp", "Lab", "Thumper", "Borer", "Relay Mast", "Warren", "Strut",
+		"Steam Turbine"]
+const B_LETTERS := ["HUB", "C", "D", "V", "S", "", "F", "", "", "K", "L", "LAB", "T", "B", "M", "W", "", ""]
 const B_SIZES := [Vector2i(8, 6) * S, Vector2i(2, 2) * S, Vector2i(3, 3) * S, Vector2i(3, 2) * S,
 		Vector2i(2, 2) * S, Vector2i(2, 2) * S, Vector2i(2, 6) * S, Vector2i(14, 8) * S,
 		Vector2i(3, 5) * S, Vector2i(3, 3) * S, Vector2i(2, 2) * S, Vector2i(4, 3) * S,
-		Vector2i(2, 2) * S, Vector2i(3, 3) * S, Vector2i(2, 3) * S, Vector2i(5, 3) * S, Vector2i(1, 1) * S]
+		Vector2i(2, 2) * S, Vector2i(3, 3) * S, Vector2i(2, 3) * S, Vector2i(5, 3) * S, Vector2i(1, 1) * S,
+		Vector2i(4, 4) * S]
 const B_HP := [1000.0, 100.0, 100.0, 100.0, 100.0, 200.0, 200.0, 1000.0, 100.0, 150.0, 60.0, 120.0,
-		80.0, 150.0, 120.0, 120.0, 60.0]
+		80.0, 150.0, 120.0, 120.0, 60.0, 120.0]
 # Cost per building as [stone, glimmer, obsidian, water, power].
 const B_COSTS := [[0, 0, 0, 0, 0], [2, 0, 0, 0, 0], [5, 0, 0, 0, 0], [3, 0, 0, 0, 0],
 		[3, 2, 0, 0, 0], [1, 0, 0, 0, 0], [3, 1, 0, 0, 0], [0, 0, 0, 0, 0],
 		[6, 0, 0, 0, 0], [8, 0, 0, 0, 0], [2, 0, 0, 0, 0], [8, 0, 0, 0, 0],
-		[3, 0, 0, 0, 0], [14, 0, 0, 0, 0], [4, 1, 0, 0, 0], [10, 0, 0, 0, 0], [2, 0, 0, 0, 0]]
+		[3, 0, 0, 0, 0], [14, 0, 0, 0, 0], [4, 1, 0, 0, 0], [10, 0, 0, 0, 0], [2, 0, 0, 0, 0],
+		[10, 4, 0, 0, 0]]
 const B_COLORS := [Color("#f2c14e"), Color("#7cc4ff"), Color("#ff9a52"), Color("#5fd1b0"),
 		Color("#5aa9ff"), Color("#9aa3b5"), Color("#c7a2ff"), Color("#ffd27a"),
 		Color("#8fd3ff"), Color("#e2b86a"), Color("#fff0a0"), Color("#e59ad8"),
-		Color("#ff7a6b"), Color("#f0a04b"), Color("#9ad8ff"), Color("#c9a36b"), Color("#d8c08a")]
+		Color("#ff7a6b"), Color("#f0a04b"), Color("#9ad8ff"), Color("#c9a36b"), Color("#d8c08a"),
+		Color("#c8d2e6")]
 const B_BLURBS := [
 	"Holds the stockpile and sends every packet.",
 	"Extends the network. Links to other Conduits within 160 cells.",
@@ -162,11 +168,12 @@ const B_BLURBS := [
 	"A Conduit on a mast: links other relays within 280 cells.",
 	"A colony of mites that hollows out a chamber over it, then tunnels toward the marker you set in its panel and digs out a small circle there. They go their own way getting there.",
 	"A beam across a gap, rock to rock. Holds up what rests on it, and nothing within 50 cells of either end caves in or crumbles. Built at once from the Hub's Stone; no upkeep.",
+	"Makes power from steam rising through it, in at the bottom and out of the top. What gets past it still scalds Conduits.",
 ]
 # Build list: keys 1-9, 0, then letters. Only what's unlocked shows; the keys stay put.
 const PALETTE := [B_CONDUIT, B_THUMPER, B_HOPPER, B_BULKHEAD, B_LAB, B_SPOUT, B_FLOODGATE,
-		B_WATERWHEEL, B_CACHE, B_LAMP, B_BORER, B_MAST, B_WARREN, B_STRUT]
-const PALETTE_KEYS := ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "B", "M", "G", "X"]
+		B_WATERWHEEL, B_CACHE, B_LAMP, B_BORER, B_MAST, B_WARREN, B_STRUT, B_TURBINE]
+const PALETTE_KEYS := ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "B", "M", "G", "X", "U"]
 const STARTING_KIT := [B_CONDUIT, B_HOPPER, B_BULKHEAD, B_LAB]
 
 # --- Network -----------------------------------------------------------------
@@ -187,6 +194,9 @@ const GATE_POWER := 1.0
 const LAMP_POWER_PER_S := 0.1
 const WHEEL_POWER_PER_CELL := 0.08 / (S * S)
 const WHEEL_CELLS_PER_S := 25.0 * S * S   # most water a Waterwheel passes a second (2 power/s)
+const TURBINE_POWER_PER_CELL := 0.2 / (S * S)   # v2's numbers: 0.2 a cell, up to 4/s
+const TURBINE_CELLS_PER_S := 20.0 * S * S        # the most it takes; steam rising under a 40-wide core
+                                                  # gives about half that (2 power/s)
 const GEN_BUFFER := 20.0            # power a generator holds before the rest goes to the Hub
 const CACHE_CAP := 60.0
 const CACHE_TOPUP := [30.0, 0.0, 0.0, 0.0, 60.0]   # what the network keeps a Cache stocked with
@@ -219,6 +229,10 @@ static func relay_range(t: int) -> float:
 ## Everything but a Strut draws on the network through a link.
 static func needs_link(t: int) -> bool:
 	return t != B_STRUT
+
+## Generators: Waterwheels and Steam Turbines hold what they make and send it.
+static func is_generator(t: int) -> bool:
+	return t == B_WATERWHEEL or t == B_TURBINE
 
 ## Things that move on their own: their light, sight and links follow them.
 static func is_mover(t: int) -> bool:
@@ -369,11 +383,11 @@ const TECHS := [
 	{"id": "obsidian_saw", "name": "Obsidian Saw", "tier": 3, "needs": ["hard_teeth", "borer"], "any": true, "power": 250,
 		"mats": [0, 12, 0, 0, 0], "text": "The Drill and Borers cut obsidian. Until then it stops them."},
 	{"id": "steam_turbine", "name": "Steam Turbine", "tier": 3, "needs": ["waterwheel"], "power": 250, "mats": [0, 15, 0, 0, 0],
-		"phase": 9, "text": "Generator: power from steam rising through it."},
+		"building": B_TURBINE, "text": "Generator: power from steam rising through it."},
 	{"id": "ember_brood", "name": "Ember Brood", "tier": 3, "needs": ["hard_teeth"], "power": 250, "mats": [0, 15, 0, 0, 0],
-		"text": "5 mites per Warren, and they walk through fire (lava still kills them)."},
+		"text": "5 mites per Warren; they dig hot rock and walk through fire (lava still kills them)."},
 	{"id": "coolant_jacket", "name": "Coolant Jacket", "tier": 3, "needs": ["borer"], "power": 250, "mats": [0, 15, 0, 0, 0],
-		"phase": 9, "text": "Borer cuts hot rock, venting steam behind it."},
+		"text": "The Drill and Borers cut hot rock, for 1 Water per 2000 cells, all of it vented as steam behind them."},
 	{"id": "tremor_dampers", "name": "Tremor Dampers", "tier": 4, "needs": ["obsidian_saw", "strut"], "power": 300,
 		"mats": [0, 0, 20, 0, 0], "text": "Tremors crumble no stone within 120 cells of a Strut."},
 	# Upgrades.
@@ -382,7 +396,7 @@ const TECHS := [
 		"levels": [{"tier": 1, "power": 60}, {"tier": 1, "power": 130}, {"tier": 2, "power": 260, "mats": [0, 8, 0, 0, 0]},
 			{"tier": 2, "power": 500, "mats": [0, 16, 0, 0, 0]}, {"tier": 3, "power": 900, "mats": [0, 24, 8, 0, 0]}]},
 	{"id": "drill_shaft", "name": "Drill Shaft", "tier": 1, "needs": [],
-		"text": "The Drill reaches deeper: 300, 500, 800, 1200, 1650, 2250, 2950, 3650, then 4350 rows (the bedrock over the chamber). Deep rows cost more power.",
+		"text": "The Drill reaches deeper: 300, 500, 800, 1200, 1650, 2250, 2950, 3650, then 4350 rows (the bedrock over the chamber). Deep rows cost more power, and past about 2800 rows the rock is hot: that needs the Coolant Jacket.",
 		"levels": [{"tier": 1, "power": 40}, {"tier": 1, "power": 80}, {"tier": 1, "power": 150}, {"tier": 1, "power": 260},
 			{"tier": 2, "power": 420, "mats": [0, 10, 0, 0, 0]}, {"tier": 2, "power": 650, "mats": [0, 20, 0, 0, 0]},
 			{"tier": 3, "power": 950, "mats": [0, 30, 0, 0, 0]}, {"tier": 3, "power": 1300, "mats": [0, 30, 10, 0, 0]},
@@ -422,6 +436,8 @@ const RECIPE := [0, 32, 48, 64, 0]
 const CRUCIBLE_PACKETS_PER_S := 2.0
 const CRUCIBLE_STALL_S := 5.0
 const CRUCIBLE_DRAIN_PER_S := 0.01
+const CRUCIBLE_POWER_PER_S := 4.0   # drawn while charging (phase 9)
+const CRUCIBLE_POWER_RESERVE := 20.0
 const TREMOR_EVERY_S := 15.0
 const TREMOR_CELLS := 200 * S * S
 
@@ -433,6 +449,14 @@ const LAYERS := [
 	{"name": "Magma", "top": 3000, "bottom": 4500, "color": Color("#b0503a")},
 	{"name": "Chamber", "top": 4500, "bottom": 5120, "color": Color("#d9a441")},
 ]
+
+# --- Heat (phase 9) ---------------------------------------------------------------
+const HOT_TOP := 3000               # hot rock from here down (wobbling by up to 24)
+# Coolant Jacket: the Drill and Borers cut hot rock for water (v2: 1 per 20 cells),
+# and it all goes up as steam, from the cut (a Borer steps past it: out its tail).
+const COOLANT_WATER_PER_CELL := 1.0 / (20.0 * S * S)
+const COOLANT_STEAM_PER_CELL := COOLANT_WATER_PER_CELL * CELLS_PER_UNIT   # 0.3
+const COOLANT_CAP := 4.0            # water a Drill or Borer holds for its jacket
 
 # --- Hazards -------------------------------------------------------------------
 # The random-sample passes check more cells on the bigger map (15x v2's area), so

@@ -44,6 +44,8 @@ var work := 0.0            # seconds of boring banked this tick
 var scan_from := 0
 var rescan := 0
 var cells_bored := 0
+var coolant := 0.0         # Drill and Borers with the Coolant Jacket: water held for hot rock
+var steam_due := 0.0       # vented steam not yet placed, in cells
 
 # Hopper
 var filter := 0            # 0 everything, 1 water only, 2 solids only
@@ -84,7 +86,7 @@ var blasts := 0
 var mode := 0              # 0 boring, 1 heading home, 2 recharging at home, 3 heading back out
 var trail: Array = []      # Vector2i positions it has stood at, oldest first (its start is trail[0])
 var trail_idx := 0         # where it is along the trail while homing
-var stuck := ""            # why it has stopped, if it has
+var stuck := ""            # why it has stopped, if it has (the Drill too)
 var moved := 0             # cells moved in all
 
 # Scan cache slots, so a mover can patch its own entry (-1: not in that list)
@@ -145,7 +147,7 @@ func is_relay() -> bool:
 
 ## Hub, Caches and generators send packets.
 func is_source() -> bool:
-	return type == D.B_HUB or type == D.B_CACHE or type == D.B_WATERWHEEL
+	return type == D.B_HUB or type == D.B_CACHE or D.is_generator(type)
 
 
 ## Share of the build cost that has arrived, 0..1.

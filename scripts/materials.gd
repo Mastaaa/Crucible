@@ -136,6 +136,7 @@ static func ensure() -> void:
 				"span": int(e.get("span", 0)),
 				"overhang": int(e.get("overhang", 0)),
 				"cohesive": bool(e.get("cohesive", false)),
+				"kin": _ref(e, "kin"),
 				"wash_to": _ref(e, "wash_to"),
 				"wash": float(e.get("wash", 0.0)),
 			}
@@ -341,6 +342,8 @@ static func mask(what: String) -> PackedByteArray:
 				"worth_liquid": hit = k == K_LIQUID and yield_of(m) >= 0
 				"powder": hit = k == K_POWDER
 				"dig_no_obsidian": hit = dig_rates[m] > 0.0 and names[m] != "Obsidian"
+				"dig_no_hot": hit = dig_rates[m] > 0.0 and names[m] != "Hot rock"
+				"dig_no_obsidian_no_hot": hit = dig_rates[m] > 0.0 and names[m] != "Obsidian" and names[m] != "Hot rock"
 			out[m] = 1 if hit else 0
 		_masks[what] = out
 	return _masks[what]

@@ -26,7 +26,7 @@ uncover elements, deposits and curios; exploit reactions or get blindsided by th
 - native/: C++ GDExtension sim (godot-cpp 4.5) in src/; bin/ holds the built .dll and .so. Session
   tooling: cloud_setup.sh (run by the SessionStart hook in .claude/), build.sh, run_tests.sh,
   lsp_check.py, cache/ (prebuilt godot-cpp).
-- tests/: scenario_* (power, research, chemistry, light, digging, warren, collapse), engine_compare,
+- tests/: scenario_* (power, research, chemistry, light, digging, warren, collapse, bodies, depth), engine_compare,
   descent (pacing probe), bench, bench_net, mapdump, shot_* (screenshots; shot_help is the F1 panel).
 
 ## Working with a cloud session (how Claude works on it)
@@ -84,14 +84,21 @@ uncover elements, deposits and curios; exploit reactions or get blindsided by th
    blast catches it, it's a small engine body that falls, tumbles and piles up, then walks
    again from where it lands. Rock crushes it by weight and speed; a long fall kills it.
 
-9. Depth: heat, deeper materials, Crucible power draw. Next.
+9. Depth: done.
+   - Hot rock fills the Magma band; water boils on it and slowly quenches it to stone.
+   - Coolant Jacket: the Drill and Borers cut hot rock for water, vented as steam.
+   - Steam Turbine; the Crucible draws 4 power/s while charging.
 
-10. Pacing: incremental curve, bot, tuning.
+10. Pacing: incremental curve, bot, tuning. Next.
+
+After 10: new features in earnest, starting with deeper materials and curios (moved out
+of phase 9) and claude/IDEAS.md.
 
 ## Standing decisions
 - Engine in C++; Noita-style chunks, dirty rects, checkerboard threading, deterministic per-chunk RNG.
 - Materials are data. Alex wants to design a wider material set before more are implemented;
-  Coal and Sulfur are the approved first two.
+  Coal and Sulfur are the approved first two, hot rock (phase 9's heat) the third. Deeper
+  materials and curios wait until after phase 10.
 - Coal = 1 Stone + 1 Power. Sulfur = 1 Stone + 1 Glimmer, corrodes nearby structures and links.
 - Links break and need a Stone delivery to mend.
 - Underground is dark: light (Hub, Lamps, pilot lights, glowing materials, sunlight down open shafts) plus a
@@ -116,6 +123,9 @@ uncover elements, deposits and curios; exploit reactions or get blindsided by th
 - Collapse: a ceiling wider than its material's span caves from the middle into an arch (in pieces, 8c); Struts are
   instant, linkless beams rock to rock that hold rock near both ends. Stone hangs only from stone.
 - Ground is mundane data (physics and water only): packed dirt, dirt, sand, gravel, clay, stone.
+- Heat (9): hot rock is a material (stone's kin for hanging), not a temperature field. It stops
+  the Drill and Borers until the Coolant Jacket (both machines, water by packet, vented as steam)
+  and mites until Ember Brood. Steam for the Turbine comes only from what the player stages.
 - Settling: cells next to anything a building digs hold still for SETTLE_S (20 s) before weathering,
   erosion, loosening or powder falls can take them; liquids aren't held.
 - The Warren never moves (no Advance); mites never dig its footing. It has no zone picker: a chamber over it,

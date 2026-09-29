@@ -4,6 +4,39 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## Phase 9 done: depth (10, pacing, is next)
+
+Tests: ten suites end `FAILURES: 0`, with the new scenario_depth. The engine changed:
+close Godot before pulling, restart after. Deeper materials and curios wait until after
+phase 10 (Alex's call).
+- Hot rock: a new material filling the Magma band's rock from a wobbling line near row
+  3000 down, the plug into the chamber included (seed 7: about 1.09 million cells). It
+  looks like dark rock with ember flecks and spans like stone (150); the two count as
+  one kind for hanging, so a roof of both holds as one (engine: a material's `kin`).
+- Water on hot rock boils into steam (a pool 300 wide loses about 900 cells a second)
+  and, kept wet, slowly quenches it to stone (about 40 floor cells in a minute there).
+  Engine: a cell with something to react with beside it stays awake until it does, so a
+  resting pool keeps boiling (before, it stopped once the pool settled).
+- The Drill and Borers stop at hot rock ("Hot rock below/ahead: it needs the Coolant
+  Jacket"). With the Coolant Jacket they cut it for 1 Water per 2000 cells (v2's 1 per
+  20, scaled), from a 4-Water tank the network fills; all of it goes up as steam, up the
+  Drill's shaft or out of a Borer's tail. A Borer charging up waits for its tank while
+  the network has water, and with Homing a dry one heads home like a flat one.
+- Mites dig hot rock with Ember Brood. Thumpers break it like stone.
+- Steam Turbine (Tier 3, after Waterwheel; key U; 40 x 40; 10 Stone, 4 Glimmer): steam
+  rising into its bottom comes out of its top, 0.2 power a steam cell (per v2 cell) up
+  to 4/s. A room packed with steam under one gives about 2/s: that's as fast as steam
+  rises into a 40-wide core. It's a generator like the Waterwheel (holds 20, sends the
+  rest). Steam only comes from what the player sets up.
+- The Crucible draws 4 power/s while charging (a 20-power reserve, filled ahead of every
+  machine); out of power for 5 s, the charge drains as it does when packets stop.
+- Help (F1), the Drill Shaft text and the Crucible panel say all this. tests/shot_depth.gd
+  shoots a pool boiling under a Turbine hung in a chimney (about 0.3 power/s from a pool
+  140 wide).
+- Speed and pace as main, measured side by side on a slow, noisy container: prof_scale
+  about 1.9 ms a tick on both, bench_net 6.1 against 5.9 at 60 s; descent unchanged (700
+  at 2 min, 1000 at 5, 1400 at 7). Worldgen takes about 0.1 s more.
+
 ## Phase 8d done: mites as bodies (9, depth, is next)
 
 Tests: nine suites end `FAILURES: 0`; scenario_bodies has a mites section. The engine

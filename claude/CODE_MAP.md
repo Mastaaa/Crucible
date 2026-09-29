@@ -1,4 +1,4 @@
-# Crucible: code map (as of phase 8c)
+# Crucible: code map (as of phase 9)
 
 Where things are, so a new session can go straight to the right function instead of
 grepping. Line numbers drift; names don't. Coordinates are cells: x across (0..767),
@@ -18,8 +18,8 @@ index as [Stone, Glimmer, Obsidian, Water, Power].
   use (kinds, dig rates, yields, palette image 256x4).
 - `scripts/worldgen.gd`: v2's layout scaled (SX 3, SY 5, features F 4): bands (whole
   rows copied), stone lumps, aquifers, glimmer veins, caves, pockets, lava lake,
-  chamber, deposits (coal, sulfur), `_ground` (packed dirt, sand, gravel, clay), then
-  `sim.stabilize()`. `_near` reads 4x4 block masks built with native finds.
+  chamber, deposits (coal, sulfur), `_ground` (packed dirt, sand, gravel, clay), `_heat`
+  (the Magma band's stone to hot rock, last), then `sim.stabilize()`. `_near` reads 4x4 block masks built with native finds.
 - `scripts/warren.gd`: static helpers for the Warren, on 4x4 bites (`tick`, `search`
   over bites with `block_counts`, mite `_step`, `_nibble` bursts). As bodies (8d):
   `_gripping`, `loosen` (a mite becomes a creature body), `_fly` (follow it; walk again
@@ -81,9 +81,10 @@ sense (30), vision/light (15), Crucible.
   RNG from (seed, tick, chunk); game-side passes use one stream (`grng`). Nothing moves
   more than 15 cells a tick (`fall`, liquid `spread`), so passes stay independent.
   `collapse_row` holds the span rule (`due` per cell) and `cling` the cohesive (stone)
-  rule; in play each stretch due to go goes to `give_way` (bodies.cpp): narrow or low
+  rule, comparing `kin_of` (a material's `kin`: hot rock counts as stone); in play each stretch due to go goes to `give_way` (bodies.cpp): narrow or low
   ones crumble a cell at a time, others `break_off` a piece as a body.
-  `hazards_at` caches corrosive counts per chunk.
+  `hazards_at` caches corrosive counts per chunk. `update_cell` keeps a cell with a
+  reaction partner beside it awake (water resting on hot rock keeps boiling).
 - Bodies (bodies.cpp): a `Body` keeps a bitmap and a pose; its pixels sit in the grid as
   ordinary cells tagged in `owner` (the slow passes skip tagged cells). `body_tick`: drop
   lost pixels, gravity and liquid drag, move in half-cell substeps (`overlap` on edge
@@ -96,7 +97,15 @@ sense (30), vision/light (15), Crucible.
   `find_link`, `touches_solid`. Struts: `strut_rect` (STRUT_THICK), `check_strut`,
   `place_strut` (instant), `strut_anchors`.
 - Machines: `_drill` (`_drill_find` halves down with counts, `_drill_row` digs a row at
-  once), `_hopper` (skips an empty rim), `_springs` (`_spring_top` remembers the top).
+  once), `_hopper` (skips an empty rim), `_springs` (`_spring_top` remembers the top),
+  generators `_wheel` and `_turbine` (`D.is_generator`).
+- Heat (9): `can_cut` / `cut_mask` (obsidian needs the Saw, hot rock the Coolant
+  Jacket), `_cool` (tank water, `b.coolant`; else `b.stuck = DRY`), `_vent` (steam into
+  open cells, `b.steam_due`), `_tank_full` (a charging Borer waits for it). Coolant
+  requests sit after machine power in `_requests`; `_deliver` fills the tank. Mites:
+  `WR.can_dig(m, teeth, ember)`, mask "ember".
+- Crucible: `activate_crucible`, `_update_crucible` (power draw from `c_power`,
+  `c_starved`, drain, tremors); its power request leads `_requests`.
 - Drawing: `_upload` (dirty tiles near the view), `view_rect(pad)`, float `zoom`.
 - Losing: `demolish` (50% back), `_destroy(b, cause)` (alert, rubble), `_remove`.
 - Anchoring: `_damage_scan` finds unheld buildings, `_settle` keeps those joined to a

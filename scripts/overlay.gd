@@ -221,6 +221,8 @@ func _draw_building(g, b: Building, z: float, t: float, screen: Rect2) -> void:
 		draw_line(r.position, Vector2(r.end.x, r.position.y), Color(0.6, 1.0, 0.9), maxf(2.0, z * 0.7))
 	elif b.type == D.B_WATERWHEEL:
 		_draw_wheel(b, r, z, col)
+	elif b.type == D.B_TURBINE:
+		_draw_turbine(b, r, z, col)
 	elif b.type == D.B_CACHE and b.built:
 		# How full it is: power on the right edge, stone on the left.
 		var pf := clampf(b.store[D.R_POWER] / D.CACHE_CAP, 0.0, 1.0)
@@ -292,6 +294,23 @@ func _draw_wheel(b: Building, r: Rect2, z: float, col: Color) -> void:
 	var wc := Color(0.45, 0.72, 1.0, 0.8 * a)
 	for yy in [r.position.y - s * 0.4, r.end.y + s * 1.4]:
 		draw_colored_polygon(PackedVector2Array([Vector2(c.x - s, yy - s), Vector2(c.x + s, yy - s), Vector2(c.x, yy)]), wc)
+
+
+## A Steam Turbine: a rotor seen end on, and arrows for the steam going up through it.
+func _draw_turbine(b: Building, r: Rect2, z: float, col: Color) -> void:
+	var c := r.get_center()
+	var rad := minf(r.size.x, r.size.y) * 0.4
+	var a := 1.0 if b.built else 0.6
+	draw_arc(c, rad, 0.0, TAU, 20, Color(col, 0.9 * a), maxf(1.0, z * 0.35))
+	for k in 3:
+		var ang := b.spin * 1.5 + k * TAU / 3.0
+		var tip := c + Vector2.from_angle(ang) * rad
+		draw_line(c, tip, Color(col, 0.8 * a), maxf(1.0, z * 0.3))
+		draw_line(tip, c + Vector2.from_angle(ang + 0.6) * rad * 0.55, Color(col, 0.6 * a), 1.0)
+	var s := maxf(2.0, z * 0.8 * D.S)
+	var sc := Color(0.93, 0.95, 1.0, 0.8 * a)
+	for yy in [r.position.y - s * 1.4, r.end.y + s * 0.4]:
+		draw_colored_polygon(PackedVector2Array([Vector2(c.x - s, yy + s), Vector2(c.x + s, yy + s), Vector2(c.x, yy)]), sc)
 
 
 func _draw_bolt(p: Vector2, s: float, col: Color) -> void:
@@ -447,6 +466,10 @@ func _draw_ghost(g, z: float) -> void:
 		tmpw.w = r.size.x
 		tmpw.h = r.size.y
 		_draw_wheel(tmpw, sr, z, c)
+	elif type == D.B_TURBINE:
+		var tmpt := Building.new()
+		tmpt.type = D.B_TURBINE
+		_draw_turbine(tmpt, sr, z, c)
 	if type == D.B_BORER:
 		_draw_drill_arrow(sr, g.tool_dir, c, z)
 	elif type == D.B_WARREN:

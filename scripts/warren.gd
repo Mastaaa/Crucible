@@ -85,6 +85,7 @@ static func mask(what: String) -> PackedByteArray:
 				"fire": hit = m == D.FIRE
 				"soft": hit = can_dig(m, false)
 				"teeth": hit = can_dig(m, true)
+				"ember": hit = can_dig(m, true, true)
 			out[m] = 1 if hit else 0
 		_masks[what] = out
 	return _masks[what]
@@ -180,10 +181,11 @@ static func quirk(b, q: Vector2i) -> float:
 	return float(h & 0xffff) / 65535.0
 
 
-## Whether a mite may dig `m`: soft ground, plus stone and glimmer with Hard Teeth.
-## Sulfur, never.
-static func can_dig(m: int, teeth: bool) -> bool:
-	return (D.MITE_SOFT.has(m) or (teeth and D.MITE_HARD.has(m))) and D.bore_rate(m) > 0.0
+## Whether a mite may dig `m`: soft ground, plus stone and glimmer with Hard Teeth,
+## plus hot rock with Ember Brood. Sulfur, never.
+static func can_dig(m: int, teeth: bool, ember := false) -> bool:
+	return (D.MITE_SOFT.has(m) or (teeth and D.MITE_HARD.has(m)) or (ember and m == D.HOT_ROCK)) \
+			and D.bore_rate(m) > 0.0
 
 
 ## Open to a mite: air, harmless gas or water. Fumes, steam and lava are walls to
@@ -256,7 +258,7 @@ static func search(game, b) -> Dictionary:
 	var oy := box.position.y
 	var pass_n: PackedByteArray = sim.block_counts(ox, oy, bw, box.size.y, mask("pass_ember" if ember else "pass"))
 	var hold_n: PackedByteArray = sim.block_counts(ox, oy, bw, box.size.y, mask("hold"))
-	var dig_n: PackedByteArray = sim.block_counts(ox, oy, bw, box.size.y, mask("teeth" if teeth else "soft"))
+	var dig_n: PackedByteArray = sim.block_counts(ox, oy, bw, box.size.y, mask("ember" if ember else ("teeth" if teeth else "soft")))
 	var wet_n := PackedByteArray()
 	if sounding:
 		wet_n = sim.block_counts(ox, oy, bw, box.size.y, mask("liquid"))
@@ -633,13 +635,14 @@ static func _nibble(game, b, mt: Dictionary, claimed: Dictionary) -> void:
 	var sim = game.sim
 	var q: Vector2i = mt.t
 	var teeth: bool = game.researched.has("hard_teeth")
+	var ember: bool = game.researched.has("ember_brood")
 	mt.work = minf(mt.work + D.DT, 4.0)
 	var r := bite_rect(q)
 	var any := false
 	for yy in range(r.position.y, r.end.y):
 		for xx in range(r.position.x, r.end.x):
 			var m: int = sim.get_cell(xx, yy)
-			if not can_dig(m, teeth):
+			if not can_dig(m, teeth, ember):
 				continue
 			any = true
 			var cost := 1.0 / (D.bore_rate(m) * D.MITE_SPEED)

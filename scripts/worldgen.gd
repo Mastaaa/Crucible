@@ -4,9 +4,9 @@ extends RefCounted
 ##   Surface   0-200      sky and a flat pad holding the Hub
 ##   Topsoil   200-1500   dirt with stone lumps, two sealed aquifers (~19,000 water cells each)
 ##   Stone     1500-3000  stone, glimmer veins (~38,000 cells), air caves, water pockets
-##   Magma     3000-4500  stone, 3-5 lava pockets and a ~32,000-cell lava lake
+##   Magma     3000-4500  hot rock, 3-5 lava pockets and a ~32,000-cell lava lake
 ##   Chamber   4500-5120  bedrock shell around the Crucible; the only way in is a
-##                        40-cell stone plug in the ceiling
+##                        40-cell plug of hot rock in the ceiling
 ## Layer boundaries wobble by up to 48 cells. Bedrock lines the sides and floor.
 ## Springs sit on the floor of every aquifer and pocket and in some caves.
 ## Coal lies in seams through the Topsoil and Stone, and caps one lava pocket
@@ -180,6 +180,7 @@ func generate(sim: RefCounted, seed_value: int) -> Dictionary:
 	var springs := _find_springs(seed_value, aquifers, cave_rects)
 	var deposits := _deposits(seed_value, lava_pockets, lake)
 	_ground(seed_value, aquifers, topsoil_end)
+	_heat(wobble)
 
 	sim.set_cells(g)
 	g = PackedByteArray()
@@ -388,6 +389,22 @@ func _chamber(plug_x: int, shell_top: PackedInt32Array, altar_rect: Rect2i) -> v
 			if g[y * W + x] == D.AIR:
 				break
 			g[y * W + x] = D.STONE
+
+
+## Phase 9: the Magma band's stone is hot rock, from a wobbling line near its top
+## down (the plug included). Last, so every other feature lands as before.
+func _heat(wobble: FastNoiseLite) -> void:
+	var top := PackedInt32Array()
+	top.resize(W)
+	var lo := H
+	for x in W:
+		top[x] = D.HOT_TOP + int(round(wobble.get_noise_1d(x + 2100.0 * F) * 6.0 * F))
+		lo = mini(lo, top[x])
+	for y in range(lo, H):
+		var row := y * W
+		for x in range(2, W - 2):
+			if y >= top[x] and g[row + x] == D.STONE:
+				g[row + x] = D.HOT_ROCK
 
 
 ## Coal seams and sulfur deposits. They draw on their own random stream and

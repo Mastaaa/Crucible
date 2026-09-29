@@ -126,6 +126,7 @@ public:
 		uint8_t overhang = 0;
 		uint32_t cave = ONE / 3; // chance a sweep that an unsupported cell of it gives way
 		bool cohesive = false; // hangs only from its own kind (or rock that never gives way)
+		int16_t kin = -1; // what counts as its own kind for that (-1: itself)
 		// water: a cell touching a liquid that isn't hot turns into wash_to (air: washed
 		// away), with chance `wash` each time the wash pass checks it
 		int16_t wash_to = -1;
@@ -301,6 +302,7 @@ private:
 	void process_chunk(Ctx &cx, int c);
 
 	inline bool solid(uint8_t m) const { return mats[m].kind == K_STATIC || mats[m].kind == K_POWDER; }
+	inline int kin_of(uint8_t m) const { return mats[m].kin >= 0 ? mats[m].kin : m; }
 	inline bool open(int j) const { return !solid(cells[j]); }
 	inline bool thin(uint8_t m) const { return mats[m].kind == K_EMPTY || mats[m].kind == K_GAS; }
 	inline bool is_fire_cell(int i) const {

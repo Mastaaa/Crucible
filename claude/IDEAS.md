@@ -24,7 +24,7 @@ Rough phase: 9 (Depth) for deposits; the starter generator could land sooner.
 **Hooks and friction**
 - What exists now: the Hub's built-in floor trickle, the Waterwheel (T1, falling water),
   Coal (1 power when banked; seams are already a finite power deposit), Caches as storage.
-  Steam Turbine is on the phase-9 list and shows in the tree but can't be picked.
+  Steam Turbine (phase 9: steam rising through it; steam only from what the player stages).
 - Solar is nearly free to build: the engine already lights cells with sky light down open
   shafts, per cell, with rock shadows. A panel can read the light on its own cells, so the
   pit rule falls out on its own, and anything that later roofs the shaft (a cave-in, a Strut,
@@ -143,7 +143,7 @@ Rough phase: framing for 9, 10 and post-10; not a feature on its own.
   or carried over the network.
 
 **Hooks and friction**
-- Heat is already spec'd as a depth band (hot rock below ~600 pre-rescale) and a phase-9 item.
+- Heat exists since phase 9 as a material: hot rock fills the Magma band (from about row 3000).
   Machines reading heat from their own cells works the same way solar would read light (entry 1).
 - Composite upgrades give entry 5 (refining) its main sink.
 - Tension with entry 2: factory chains are the most "plan it out and get sad" genre there is.

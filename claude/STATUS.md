@@ -6,17 +6,21 @@ history (what shipped when, old numbers, test notes) is the root STATUS.md:
 Claude adds a section at its top each phase and doesn't need to read the rest.
 
 ## Handoff
-- Last done: phase 8d, mites as bodies. Phases 8b-8d are merged into `main`.
-- Next: phase 9, depth (heat, deeper materials, the Crucible's power draw).
-- Open with Alex: mite pace (about 2-3x slower than v2
-  against building size) is for phase 10.
+- Last done: phase 9, depth (hot rock, Coolant Jacket, Steam Turbine, the Crucible's
+  power draw), on branch claude/charming-mayer-evn3ro, not merged yet. Phases 8b-8d
+  are in `main`.
+- Next: phase 10, pacing (incremental curve, bot, tuning). Deeper materials and curios
+  wait until after phase 10, when new features start in earnest (Alex's call).
+- Open with Alex, for phase 10: mite pace (about 2-3x slower than v2 against building
+  size); the Steam Turbine tops out near 2 power/s over a room of steam (its 4/s cap is
+  out of reach at a cell a column a tick); how fast water should quench hot rock.
 - Known rough edges: the screenshot scripts (bar shot_bodies), smoke_v2, flow and
   scenario_water* still use v2 coordinates; the top bar clips the Help button when the
   depth label shows; a network rebuild on a dense 380-building network takes ~34 ms.
 
 ## Test baseline (all must hold before committing)
-- `bash native/run_tests.sh` (about 7 minutes): every scenario (nine, with
-  scenario_bodies) and engine_compare end `FAILURES: 0`.
+- `bash native/run_tests.sh` (about 7 minutes): every scenario (ten, with
+  scenario_depth) and engine_compare end `FAILURES: 0`.
 - Descent probe (tests/descent.gd, seed 7): head at 700 at 2 min, 1000 at 5, 1400 at 7.
 - Network bench (tests/bench_net.gd): about 2.5 ms a tick once its floors cave in (4.1 at
   60 s on the slower container, same as main there).
@@ -37,8 +41,9 @@ World: 768 x 5120 cells, seed-generated. Layers: surface (sky to row 200), Topso
 to ~1500, packed dirt thickening toward its bottom, stone lumps, sand pockets, gravel
 patches, coal seams, two aquifers lined with clay and settled into arches), a gravel bed
 at the boundary, Stone (to ~3000: glimmer veins with lodes, caves, water pockets, coal,
-sulfur nodules), Magma (lava pockets, a lava lake, sulfur crusts), and the Chamber
-(bedrock shell, the Crucible on an altar under a 40-wide plug). Worldgen features draw from their
+sulfur nodules), Magma (hot rock from a wobbling line near 3000, lava pockets, a lava
+lake, sulfur crusts), and the Chamber (bedrock shell, the Crucible on an altar under a
+40-wide plug of hot rock). Worldgen features draw from their
 own noise or RNG so each seed's layout stays put.
 
 Engine (C++ GDExtension, Noita-style): 32x32 chunks with dirty rects, four checkerboard
@@ -49,6 +54,7 @@ Powders, liquids (density sorting, free fall), gases (buoyancy, life), fire that
 air, free particles, blasts by rays, light per 4x4 block (sky down open shafts, glowing
 materials, lamps; rock shadows; only near what's watched or explored on screen), and slow
 passes: erosion, weathering (ceiling drip), wash (water wear), collapse (spans), tremors.
+A cell with a reaction partner beside it stays awake until it reacts.
 It also keeps the "as last seen" map and flags 256 x 256 render tiles that changed. The GDScript fallback sim
 (sim.gd) lacks chemistry, per-cell light, settling, collapse, holds and wash.
 
@@ -59,7 +65,7 @@ with its cave rate a sweep, breaks off a piece (24-64 wide, 6-20 deep, ragged, n
 upward like the arch) as a rigid body. Stretches under 4 wide, or over a gap under 20
 tall (a crawlspace), crumble a cell at a time as before. Stone is cohesive (hangs only
 from stone or never-giving rock; a notch with stone within 8 cells above it doesn't cut
-the row).
+the row); hot rock is stone's kin, so the two hang from each other.
 
 Rigid bodies (engine, bodies.cpp): a piece keeps its own bitmap and pose, and sits in
 the grid as ordinary cells tagged with its id (powder piles on it, water flows round it,
@@ -76,22 +82,31 @@ Settling holds freshly dug ground 20 s. Strut holds are permanent. Worldgen runs
 
 Ground (spans): gravel 40 (fast, water-proof), dirt 70 (weathers; water turns it to sand),
 coal and sulfur 90 (coal comes down twice as fast as dirt), clay 110 (water-proof), stone
-150 (cohesive; water turns it to dirt, slowly), packed dirt 240 (slow to dig, water softens
+150 (cohesive; water turns it to dirt, slowly), hot rock 150 (as stone; water boils on it
+into steam, about 3 cells a second per floor cell it wets, and slowly quenches it to stone), packed dirt 240 (slow to dig, water softens
 it slowly), glimmer/obsidian/bedrock never. Sand is a powder that water carries off.
+
+Heat (phase 9): hot rock stops the Drill and Borers until the Coolant Jacket; then each
+cuts it for 1 Water per 2000 cells from a 4-Water tank the network fills (a Borer
+charging up waits for it while there's water), and the water goes up as steam from the
+cut (a Borer steps past it, so it leaves by its tail). Mites dig it with Ember Brood;
+Thumpers break it like stone.
 
 Resources: Stone, Glimmer, Obsidian, Water, Power. A unit is 600 cells (CELLS_PER_UNIT).
 Coal pays Stone + Power, sulfur Stone + Glimmer.
 
 Network: the Hub sends packets along Conduits (relays, 160) and Relay Masts (280); every
 other building links to a relay within 80. Blueprints fill by packet. Machines hold a
-10-power reserve refilled by packet from the nearest Hub, Cache or Waterwheel with stock.
+10-power reserve refilled by packet from the nearest Hub, Cache or generator with stock.
 Links have HP (fire, sulfur, lava wear them); broken links and hurt buildings ask for a
 Stone. Struts need no link.
 
 Buildings (key): Hub; fixed Drill (right of the Hub, 3-wide shaft straight down; Drill
 Bit / Drill Shaft upgrades; 30 wide); Conduit 1; Thumper 2 (timed blasts, thrown by them,
 draggable); Hopper 3; Bulkhead 4 (drag a wall); Lab 5; Spout 6; Floodgate 7; Waterwheel
-8; Cache 9; Lamp 0; Borer B (points four ways; Homing); Relay Mast M; Warren G (mites
+8; Cache 9; Lamp 0; Borer B (points four ways; Homing); Relay Mast M; Steam Turbine U
+(steam rising into its bottom leaves by its top, 0.2 power a v2 cell; about 2/s over a
+room of steam); Warren G (mites
 nibble a chamber in 4x4 bites, then tunnel to a marker and dig a circle); Strut X
 (instant beam rock to rock, up to 160 long and 10 thick, props and holds rock within 50
 of each end; snaps without its anchors). Everything but the Hub and Crucible must stay
@@ -120,13 +135,13 @@ none within 120 of a Strut).
 Research: Labs turn power (and Glimmer/Obsidian for later tiers) into the picked tech
 (T). Tiers open by discovery: 2 at the first Glimmer mined, 3 at the first lava seen,
 4 when the Crucible is in view. Plain techs by tier plus an Upgrades column with levels.
-Phase-9 techs (Steam Turbine, Coolant Jacket) show but can't be picked.
 
 Fog and light: underground is dark; a block is explored when it's lit and within sight
 of a building; explored ground shows live while lit, as last seen when not.
 
-Crucible: 32 Glimmer, 48 Obsidian, 64 Water delivered while charging; the charge drains
-if packets stop for 5 s; tremors every 15 s while charging.
+Crucible: 32 Glimmer, 48 Obsidian, 64 Water delivered while charging, and 4 power/s
+drawn from a 20-power reserve (filled ahead of every machine); the charge drains if
+packets stop for 5 s or it's out of power for 5 s; tremors every 15 s while charging.
 
 ## Standing quirks worth knowing
 - Tests that carve rooms into seed 7 wall them with plain dirt first (sand pockets pour,

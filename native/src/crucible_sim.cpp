@@ -349,6 +349,7 @@ void CrucibleSim::configure(const Array &materials, const Array &reactions) {
 			m.cave = chance_of(d, "cave");
 		}
 		m.cohesive = (bool)d.get("cohesive", false);
+		m.kin = (int16_t)(int)d.get("kin", -1);
 		m.wash_to = (int16_t)(int)d.get("wash_to", -1);
 		m.wash = chance_of(d, "wash");
 		if (m.flame && fire_id < 0) {
@@ -614,11 +615,14 @@ void CrucibleSim::update_cell(Ctx &cx, int i, int x, int y, uint8_t m) {
 	if (M.hot) {
 		heat_neighbour(cx, i, x, y, r);
 	}
-	// Reactions with the four neighbours (up, down, left, right).
+	// Reactions with the four neighbours (up, down, left, right). A cell with
+	// something to react with stays awake until it does (water resting on hot rock
+	// keeps boiling).
 	if (M.reactive) {
 		const int offs[4] = { -W, W, -1, 1 };
 		const int ox[4] = { 0, 0, -1, 1 };
 		const int oy[4] = { -1, 1, 0, 0 };
+		bool partner = false;
 		for (int k = 0; k < 4; k++) {
 			int j = i + offs[k];
 			uint8_t n = cells[j];
@@ -626,6 +630,7 @@ void CrucibleSim::update_cell(Ctx &cx, int i, int x, int y, uint8_t m) {
 			if (ri < 0) {
 				continue;
 			}
+			partner = true;
 			const Reaction &R = reacts[ri];
 			if (!roll(cx.rng, R.chance)) {
 				continue;
@@ -640,6 +645,9 @@ void CrucibleSim::update_cell(Ctx &cx, int i, int x, int y, uint8_t m) {
 			}
 			cx.reactions++;
 			return;
+		}
+		if (partner) {
+			cx.next.touch(x, y);
 		}
 	}
 	switch (M.kind) {
@@ -1389,10 +1397,10 @@ bool CrucibleSim::due(int i, int xx, int a, int b, int w) const {
 // How far along the row (step -1 or 1) the nearest cell holding cohesive cell i up
 // is: one of its own kind with something solid under it, or rock that never gives
 // way (no span: bedrock, obsidian, glimmer, buildings). Walks only through its own
-// kind, and past gaps with its own kind within BRIDGE_UP above them; cap + 1 when
+// kind (its kin: hot rock and stone count as one), and past gaps with its own kind within BRIDGE_UP above them; cap + 1 when
 // there's none within cap.
 int CrucibleSim::cling(int i, int step, int cap) const {
-	const uint8_t m = cells[i];
+	const int kin = kin_of(cells[i]);
 	int x = i % W;
 	for (int k = 1; k <= cap; k++) {
 		int xx = x + step * k;
@@ -1401,7 +1409,7 @@ int CrucibleSim::cling(int i, int step, int cap) const {
 		}
 		int j = i + step * k;
 		uint8_t c = cells[j];
-		if (c != m) {
+		if (kin_of(c) != kin) {
 			const Mat &C = mats[c];
 			if (C.kind == K_STATIC && C.span == 0) {
 				return k;
@@ -1411,7 +1419,7 @@ int CrucibleSim::cling(int i, int step, int cap) const {
 			bool bridged = false;
 			for (int up = 1; up <= BRIDGE_UP && j - up * W >= 0; up++) {
 				uint8_t u = cells[j - up * W];
-				if (u == m) {
+				if (kin_of(u) == kin) {
 					bridged = true;
 					break;
 				}

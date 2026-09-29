@@ -129,6 +129,9 @@ var c_inflight := PackedInt32Array([0, 0, 0, 0, 0])
 var c_tokens := 0.0
 var c_last_packet := -1.0
 var c_draining := false
+var c_power := 0.0                 # what the Crucible holds for its draw while charging
+var c_powered_t := 0.0             # when it last had power for its draw
+var c_starved := false             # out of power long enough to drain
 var tremor_timer := D.TREMOR_EVERY_S
 var tremor_left := 0
 var cave_cells := 0               # cells caved in recently (for the cave-in alert)
@@ -364,6 +367,9 @@ func new_game(s: int) -> void:
 	c_tokens = 0.0
 	c_last_packet = -1.0
 	c_draining = false
+	c_power = 0.0
+	c_powered_t = 0.0
+	c_starved = false
 	tremor_timer = D.TREMOR_EVERY_S
 	tremor_left = 0
 	cave_cells = 0
@@ -1077,6 +1083,8 @@ func _update_buildings() -> void:
 				_gate(b)
 		elif t == D.B_WATERWHEEL:
 			_wheel(b)
+		elif t == D.B_TURBINE:
+			_turbine(b)
 		elif t == D.B_LAMP:
 			_lamp(b)
 		elif t == D.B_LAB:
@@ -1118,15 +1126,20 @@ func _drill(b: Building) -> void:
 		if b.power < pc:
 			b.starved = true
 			break
+		if m == D.HOT_ROCK and not _cool(b, 1):
+			break
 		b.work -= cost
 		b.power -= pc
 		used_acc += pc
 		sim.set_cell(c.x, c.y, D.AIR)
+		if m == D.HOT_ROCK:
+			_vent(b, Rect2i(c, Vector2i.ONE), D.COOLANT_STEAM_PER_CELL)
 		excavated(c)
 		for r: int in D.mat_yields(m):
 			_bank(Vector2(c), r, 1.0 / D.CELLS_PER_UNIT)
 		b.cells_bored += 1
 		cells_drilled += 1
+		b.stuck = ""
 		_breach_check(b, c)
 
 
@@ -1136,7 +1149,7 @@ func _drill_row(b: Building, c: Vector2i) -> bool:
 	var r := b.channel_row(c)
 	var row := b.channel_span(r, r + 1)
 	var counts: PackedInt32Array = sim.rect_counts(row.position.x, row.position.y, row.size.x, row.size.y)
-	var mask := Mats.mask("dig" if researched.has("obsidian_saw") else "dig_no_obsidian")
+	var mask := cut_mask()
 	var cost := 0.0
 	var pw := 0.0
 	var n := 0
@@ -1147,13 +1160,17 @@ func _drill_row(b: Building, c: Vector2i) -> bool:
 		cost += k / (D.bore_rate(m) * b.lanes() * drill_speed())
 		pw += k * drill_power(m, r)
 		n += k
-	if n < 2 or b.work < cost or b.power < pw:
+	var hot: int = counts[D.HOT_ROCK] if mask[D.HOT_ROCK] != 0 else 0
+	if n < 2 or b.work < cost or b.power < pw or b.coolant < hot * D.COOLANT_WATER_PER_CELL:
 		return false
 	var dug: PackedInt32Array = sim.dig_rect(row.position.x, row.position.y, row.size.x, row.size.y, mask,
 			D.SETTLE_RADIUS, int(D.SETTLE_S * D.TICKS_PER_S))
 	b.work -= cost
 	b.power -= pw
 	used_acc += pw
+	if dug[D.HOT_ROCK] > 0:
+		_cool(b, dug[D.HOT_ROCK])
+		_vent(b, row, dug[D.HOT_ROCK] * D.COOLANT_STEAM_PER_CELL)
 	var at := Vector2(row.get_center())
 	for m: int in Mats.dig_ids():
 		if dug[m] > 0:
@@ -1161,6 +1178,7 @@ func _drill_row(b: Building, c: Vector2i) -> bool:
 				_bank(at, res, dug[m] / D.CELLS_PER_UNIT)
 	b.cells_bored += n
 	cells_drilled += n
+	b.stuck = ""
 	# Breaches: only worth looking cell by cell with liquid round the row.
 	var around := row.grow(1)
 	if sim.count_in_rect(around.position.x, around.position.y, around.size.x, around.size.y, Mats.mask("liquid")) > 0:
@@ -1174,7 +1192,7 @@ func _drill_row(b: Building, c: Vector2i) -> bool:
 ## yet, keep looking next tick"; (-1, -1) that the channel is clear to `reach`.
 func _drill_find(b: Building) -> Vector2i:
 	var end := mini(b.reach, b.scan_from + D.DRILL_SCAN_ROWS)
-	var mask := Mats.mask("dig" if researched.has("obsidian_saw") else "dig_no_obsidian")
+	var mask := cut_mask()
 	var lo := b.scan_from
 	var hi := end
 	if hi > lo and _count_in(b.channel_span(lo, hi), mask) > 0:
@@ -1200,11 +1218,55 @@ func _count_in(r: Rect2i, mask: PackedByteArray) -> int:
 	return sim.count_in_rect(r.position.x, r.position.y, r.size.x, r.size.y, mask)
 
 
-## What the Drill and Borers can cut: anything diggable, obsidian only with the Saw.
+## What the Drill and Borers can cut: anything diggable, obsidian only with the Saw
+## and hot rock only with the Coolant Jacket.
 func can_cut(m: int) -> bool:
 	if m == D.OBSIDIAN and not researched.has("obsidian_saw"):
 		return false
+	if m == D.HOT_ROCK and not researched.has("coolant_jacket"):
+		return false
 	return D.is_drillable(m)
+
+
+const DRY := "Out of water for the Coolant Jacket."
+
+
+## can_cut as a mask for the engine's rectangle queries.
+func cut_mask() -> PackedByteArray:
+	var saw := researched.has("obsidian_saw")
+	var cool := researched.has("coolant_jacket")
+	return Mats.mask(("dig" if saw else "dig_no_obsidian") + ("" if cool else "_no_hot"))
+
+
+## The Coolant Jacket's water for `cells` of hot rock: false (and it waits for more)
+## when there isn't enough.
+func _cool(b: Building, cells: int) -> bool:
+	var need := cells * D.COOLANT_WATER_PER_CELL
+	if b.coolant < need:
+		b.stuck = DRY
+		return false
+	b.coolant -= need
+	return true
+
+
+## The jacket's water goes up as steam: `amount` cells more, placed in open cells of
+## `r` (what doesn't fit waits for the next cut).
+func _vent(b: Building, r: Rect2i, amount: float) -> void:
+	b.steam_due += amount
+	var n := int(b.steam_due)
+	if n <= 0:
+		return
+	var k := 0
+	var start := ticks % r.size.x
+	for yy in range(r.position.y, r.end.y):
+		for i in r.size.x:
+			if k >= n:
+				break
+			var xx := r.position.x + (start + i) % r.size.x
+			if sim.get_cell(xx, yy) == D.AIR:
+				sim.set_cell(xx, yy, D.STEAM)
+				k += 1
+	b.steam_due -= k
 
 
 ## The channel grows one row at a time. It stops at bedrock or buildings across
@@ -1214,17 +1276,22 @@ func can_cut(m: int) -> bool:
 func _drill_can_extend(b: Building) -> bool:
 	var blocked := 0
 	var lava := 0
+	var hot := 0
 	var n := b.lanes()
 	for k in n:
 		var c := b.channel_cell(b.reach, k)
 		if c.x < 2 or c.x > D.W - 3 or c.y < 2 or c.y > D.H - 3:
 			return false
 		var m: int = sim.get_cell(c.x, c.y)
-		if m == D.BEDROCK or m == D.BUILDING or (m == D.OBSIDIAN and not can_cut(m)):
+		if m == D.BEDROCK or m == D.BUILDING or ((m == D.OBSIDIAN or m == D.HOT_ROCK) and not can_cut(m)):
 			blocked += 1
+			if m == D.HOT_ROCK:
+				hot += 1
 		elif m == D.LAVA:
 			lava += 1
-	return blocked < n and lava < n
+	var ok := blocked < n and lava < n
+	b.stuck = "" if ok or hot == 0 else "Hot rock below: it needs the Coolant Jacket."
+	return ok
 
 
 ## A breach is liquid that was sealed until this cell went: no other open
@@ -1393,6 +1460,43 @@ func _wheel(b: Building) -> void:
 			sim.set_cell(exit.x, exit.y, D.WATER)
 			b.gen_tokens -= 1.0
 			made += D.WHEEL_POWER_PER_CELL
+	b.store[D.R_POWER] = minf(b.store[D.R_POWER] + made, D.GEN_BUFFER)
+	b.flow = lerpf(b.flow, made / D.DT, 0.03)
+	if b.flow < 0.005:
+		b.flow = 0.0
+	b.spin = fmod(b.spin + b.flow * D.DT * 2.0, TAU)
+
+
+## Steam rising into a Turbine's bottom comes out of its top, and every cell makes
+## power. Like the Waterwheel, it keeps some and the network takes the rest; steam
+## piled up over it stalls it.
+func _turbine(b: Building) -> void:
+	var made := 0.0
+	if b.enabled:
+		b.gen_tokens = minf(b.gen_tokens + D.TURBINE_CELLS_PER_S * D.DT, maxf(3.0, D.TURBINE_CELLS_PER_S * D.DT * 2.0))
+		var start := ticks % b.w
+		var out_k := 0             # the next cell over it to try as an exit
+		for k in b.w:
+			if b.gen_tokens < 1.0:
+				break
+			var ix := b.x + (start + k) % b.w
+			var m: int = sim.get_cell(ix, b.y + b.h)
+			if m < D.STEAM or m > D.STEAM_LAST:
+				continue
+			# Out of the top: the first open cell along it.
+			var exit := Vector2i(-1, -1)
+			while out_k < b.w:
+				var o := Vector2i(b.x + (start + out_k) % b.w, b.y - 1)
+				out_k += 1
+				if sim.get_cell(o.x, o.y) == D.AIR:
+					exit = o
+					break
+			if exit.x < 0:
+				break
+			sim.set_cell(ix, b.y + b.h, D.AIR)
+			sim.set_cell(exit.x, exit.y, m)
+			b.gen_tokens -= 1.0
+			made += D.TURBINE_POWER_PER_CELL
 	b.store[D.R_POWER] = minf(b.store[D.R_POWER] + made, D.GEN_BUFFER)
 	b.flow = lerpf(b.flow, made / D.DT, 0.03)
 	if b.flow < 0.005:
@@ -1676,15 +1780,16 @@ func _borer(b: Building) -> void:
 		return
 	var cap := reserve_cap(b)
 	b.work = minf(b.work + D.DT, 2.0)
-	if b.mode == 0 and researched.has("homing") and b.power <= cap * 0.5 and not b.connected and b.trail.size() > 1:
+	if b.mode == 0 and researched.has("homing") and (b.power <= cap * 0.5 or b.stuck == DRY) \
+			and not b.connected and b.trail.size() > 1:
 		b.mode = 1
 		b.trail_idx = b.trail.size() - 1
 		b.stuck = ""
 		alert("info", "Borer heading home to recharge, from depth %d" % b.y, b.center())
-	elif b.mode == 1 and b.connected and b.power >= cap - 1.0:
+	elif b.mode == 1 and b.connected and b.power >= cap - 1.0 and _tank_full(b):
 		b.mode = 3              # back in reach and topped up on the way: back to work
 	if b.mode == 2:
-		if b.power >= cap - 1.0:
+		if b.power >= cap - 1.0 and _tank_full(b):
 			b.mode = 3
 		return
 	if b.mode == 1 or b.mode == 3:
@@ -1702,10 +1807,14 @@ func _borer_dig(b: Building, c: Vector2i, m: int) -> bool:
 	if b.power < pc:
 		b.starved = true
 		return false
+	if m == D.HOT_ROCK and not _cool(b, 1):
+		return false
 	b.work -= cost
 	b.power -= pc
 	used_acc += pc
 	sim.set_cell(c.x, c.y, D.AIR)
+	if m == D.HOT_ROCK:
+		_vent(b, Rect2i(c, Vector2i.ONE), D.COOLANT_STEAM_PER_CELL)   # out its tail once it steps
 	excavated(c)
 	for r: int in D.mat_yields(m):
 		_bank(Vector2(c), r, 1.0 / D.CELLS_PER_UNIT)
@@ -1713,6 +1822,12 @@ func _borer_dig(b: Building, c: Vector2i, m: int) -> bool:
 	cells_drilled += 1
 	_breach_check(b, c)
 	return true
+
+
+## A Borer charging up waits for its Coolant Jacket's tank too, while the network
+## has water to fill it with.
+func _tank_full(b: Building) -> bool:
+	return not researched.has("coolant_jacket") or b.coolant >= D.COOLANT_CAP - 1.0 or total(D.R_WATER) < 1.0
 
 
 ## One step along (dx, dy), if there's time and power for it.
@@ -1755,6 +1870,8 @@ func _borer_bore(b: Building) -> void:
 					lava_n += 1
 			elif m == D.OBSIDIAN:
 				hard = "Obsidian ahead: it needs the Obsidian Saw."
+			elif m == D.HOT_ROCK:
+				hard = "Hot rock ahead: it needs the Coolant Jacket."
 			elif m == D.BUILDING:
 				hard = "A building is in the way."
 			else:
@@ -1882,7 +1999,7 @@ func _spring_top(c: Vector2i, x: int) -> int:
 func _power_stats() -> void:
 	var made := D.HUB_POWER_PER_S
 	for b: Building in buildings:
-		if b.type == D.B_WATERWHEEL and b.built:
+		if D.is_generator(b.type) and b.built:
 			made += b.flow
 	power_made = made
 	power_used = lerpf(power_used, used_acc / (30.0 * D.DT), 0.5)
@@ -2571,7 +2688,7 @@ func _refund(p: Packet) -> void:
 func total(r: int) -> float:
 	var t: float = stock[r]
 	for b: Building in buildings:
-		if b.built and (b.type == D.B_CACHE or b.type == D.B_WATERWHEEL):
+		if b.built and (b.type == D.B_CACHE or D.is_generator(b.type)):
 			t += b.store[r]
 	return t
 
@@ -2635,7 +2752,7 @@ func _best_source(target: Building, r: int, mode: int) -> int:
 			continue
 		if mode >= 1 and s.type == D.B_CACHE:
 			continue
-		if mode == 2 and (s.type != D.B_WATERWHEEL or s.store[r] < D.GEN_BUFFER * 0.5 + 1.0):
+		if mode == 2 and (not D.is_generator(s.type) or s.store[r] < D.GEN_BUFFER * 0.5 + 1.0):
 			continue
 		if store_of(s)[r] < 1.0:
 			continue
@@ -2652,7 +2769,7 @@ func _dispatch() -> void:
 		var rate := D.HUB_PACKETS_PER_S
 		if s.type == D.B_CACHE:
 			rate = D.CACHE_PACKETS_PER_S
-		elif s.type == D.B_WATERWHEEL:
+		elif D.is_generator(s.type):
 			rate = D.GEN_PACKETS_PER_S
 		s.send_tokens = minf(s.send_tokens + rate * D.DT, 1.0)
 		if s.send_tokens >= 1.0:
@@ -2709,7 +2826,8 @@ func _dispatch() -> void:
 					send_log.append(game_time)
 				if target == crucible:
 					c_inflight[r] += 1
-					c_tokens -= 1.0
+					if r != D.R_POWER:
+						c_tokens -= 1.0
 				else:
 					target.inflight[r] += 1
 					if target.built and target.type == D.B_SPOUT and r == D.R_WATER:
@@ -2747,6 +2865,11 @@ func _requests(avail: PackedByteArray) -> Array:
 				best = r
 		if best >= 0:
 			out.append([crucible, best, 1, 0, -1])
+	# Its power draw goes ahead of every machine's.
+	if cstate == 1 and crucible.connected and avail[D.R_POWER] != 0:
+		var want := int(D.CRUCIBLE_POWER_RESERVE - c_power) - c_inflight[D.R_POWER]
+		if want > 0:
+			out.append([crucible, D.R_POWER, want, 0, -1])
 	# Power goes one packet at a time to whichever machine is emptiest, so a
 	# working machine isn't kept waiting while idle ones top up their reserves.
 	var urgent: Array = []
@@ -2820,6 +2943,13 @@ func _requests(avail: PackedByteArray) -> Array:
 				if need > 0:
 					out.append([lab, r, need, 0, -1])
 	out.append_array(later)
+	# Coolant Jackets fill up while they're on the network, so a Borer takes a full
+	# tank out past it.
+	if avail[D.R_WATER] != 0 and researched.has("coolant_jacket"):
+		for b: Building in buildings:
+			if (b.type == D.B_DRILL or b.type == D.B_BORER) and b.built and b.connected \
+					and b.coolant + b.inflight[D.R_WATER] <= D.COOLANT_CAP - 1.0:
+				out.append([b, D.R_WATER, 1, 0, -1])
 	var n := buildings.size() if avail[D.R_WATER] != 0 else 0
 	for k in n:
 		var b: Building = buildings[(spout_rr + k) % n]
@@ -2842,7 +2972,7 @@ func _requests(avail: PackedByteArray) -> Array:
 	for s: Building in src_list:
 		if avail[D.R_POWER] == 0:
 			break
-		if s.type == D.B_WATERWHEEL:
+		if D.is_generator(s.type):
 			surplus += maxi(int(s.store[D.R_POWER] - D.GEN_BUFFER * 0.5), 0)
 	surplus = mini(surplus, int(D.HUB_POWER_CAP - stock[D.R_POWER]) - hub.inflight[D.R_POWER])
 	if surplus > 0:
@@ -2875,7 +3005,9 @@ func _deliver(p: Packet) -> void:
 	var b: Building = p.target
 	if b == crucible:
 		c_inflight[p.res] -= 1
-		if cstate == 1:
+		if cstate == 1 and p.res == D.R_POWER:
+			c_power += 1.0
+		elif cstate == 1:
 			c_delivered[p.res] += 1.0
 			c_last_packet = game_time
 		else:
@@ -2905,6 +3037,8 @@ func _deliver(p: Packet) -> void:
 		var pay := minf(b.power, D.SPOUT_POWER_PER_PACKET)
 		b.power -= pay
 		used_acc += pay
+	elif (b.type == D.B_DRILL or b.type == D.B_BORER) and p.res == D.R_WATER:
+		b.coolant += 1.0
 	elif b.type == D.B_CACHE:
 		b.store[p.res] += 1.0
 	elif b.type == D.B_LAB:
@@ -3228,6 +3362,9 @@ func activate_crucible() -> void:
 	c_delivered = PackedFloat64Array([0.0, 0.0, 0.0, 0.0, 0.0])
 	c_tokens = 1.0
 	c_last_packet = -1.0
+	c_power = 0.0
+	c_powered_t = game_time
+	c_starved = false
 	tremor_timer = D.TREMOR_EVERY_S
 	alert("crucible", "The Crucible is charging. Keep it fed.", crucible.center())
 
@@ -3242,7 +3379,14 @@ func crucible_charge() -> float:
 
 
 func _update_crucible() -> void:
-	c_draining = c_last_packet >= 0.0 and game_time - c_last_packet > D.CRUCIBLE_STALL_S
+	# Charging draws power steadily; out of it for as long as a stall, it drains too.
+	var burn := D.CRUCIBLE_POWER_PER_S * D.DT
+	if c_power >= burn:
+		c_power -= burn
+		used_acc += burn
+		c_powered_t = game_time
+	c_starved = game_time - c_powered_t > D.CRUCIBLE_STALL_S
+	c_draining = c_starved or (c_last_packet >= 0.0 and game_time - c_last_packet > D.CRUCIBLE_STALL_S)
 	if c_draining:
 		for r in D.NRES:
 			c_delivered[r] = maxf(0.0, c_delivered[r] - D.RECIPE[r] * D.CRUCIBLE_DRAIN_PER_S * D.DT)

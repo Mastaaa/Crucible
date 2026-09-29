@@ -31,7 +31,7 @@ func _initialize() -> void:
 	var info := WorldGen.new().generate(sim, seed_value)
 	print("generate ms: ", Time.get_ticks_msec() - t0, " (arched ", info["arched"], ")")
 	var counts := {}
-	for m in [D.WATER, D.LAVA, D.GLIMMER, D.AIR, D.STONE, D.DIRT, D.PACKED_DIRT, D.GRAVEL, D.SAND, D.CLAY, D.COAL, D.SULFUR]:
+	for m in [D.WATER, D.LAVA, D.GLIMMER, D.AIR, D.STONE, D.DIRT, D.PACKED_DIRT, D.GRAVEL, D.SAND, D.CLAY, D.COAL, D.SULFUR, D.HOT_ROCK]:
 		counts[D.mat_name(m)] = sim.count(m)
 	print("counts: ", counts)
 	print("info: plug_x=", info["plug_x"], " lake=", info["lake"], " crucible=", info["crucible"], " aquifers=", info["aquifers"], " lava_pockets=", info["lava_pockets"], " glimmer=", info["glimmer"], " springs=", info["springs"].size())
