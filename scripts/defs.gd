@@ -283,11 +283,12 @@ const SETTLE_S := 20.0
 const SETTLE_RADIUS := S
 # Collapse (phase 8): a ceiling wider than its material's span (see "span" and
 # "overhang" in the data file) caves in from the middle until it's an arch. The
-# engine sweeps COLLAPSE_ROWS rows a tick, bottom up (the whole map every 20 ticks).
-const COLLAPSE_ROWS := 256
-const CAVE_ALERT_CELLS := 12 * S * S # cells down in a couple of seconds before it's called a cave-in
+# engine sweeps COLLAPSE_ROWS rows a tick, bottom up (the whole map every 10 ticks).
+const COLLAPSE_ROWS := 512
+const CAVE_ALERT_CELLS := 12 * S     # cells down in a couple of seconds before it's called a cave-in (a front S times wider)
 # Strut: a beam S cells thick across a gap, rock at both ends, built at once.
 const STRUT_MAX := 16 * S            # longest gap it spans
+const STRUT_THICK := S               # how thick the beam is, where the gap allows
 const STRUT_HOLD := 5 * S            # rock within this of either anchor never caves in, weathers or loosens
 const STRUT_DAMP_R := 12.0 * S       # with Tremor Dampers, tremors spare stone this close to a Strut
 const SENSE_RADIUS := 10.0 * S  # drills feel hidden pockets this far off

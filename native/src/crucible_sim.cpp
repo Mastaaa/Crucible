@@ -1418,7 +1418,8 @@ int CrucibleSim::collapse_row(int y, bool to_air) {
 // How far along the row (step -1 or 1) the nearest cell holding cohesive cell i up
 // is: one of its own kind with something solid under it, or rock that never gives
 // way (no span: bedrock, obsidian, glimmer, buildings). Walks only through its own
-// kind; cap + 1 when there's none within cap.
+// kind, and past gaps with its own kind right above them; cap + 1 when there's
+// none within cap.
 int CrucibleSim::cling(int i, int step, int cap) const {
 	const uint8_t m = cells[i];
 	int x = i % W;
@@ -1431,7 +1432,15 @@ int CrucibleSim::cling(int i, int step, int cap) const {
 		uint8_t c = cells[j];
 		if (c != m) {
 			const Mat &C = mats[c];
-			return (C.kind == K_STATIC && C.span == 0) ? k : cap + 1;
+			if (C.kind == K_STATIC && C.span == 0) {
+				return k;
+			}
+			// A gap its own kind bridges from just above (a cell weathered out of a
+			// thick roof) doesn't cut the row.
+			if (cells[j - W] == m) {
+				continue;
+			}
+			return cap + 1;
 		}
 		if (solid(cells[j + W])) {
 			return k;
@@ -2102,9 +2111,12 @@ Vector4i CrucibleSim::ring_counts(int x, int y, int w, int h, bool inside) const
 // `inside`); fire counts flames, hot gas and burning cells; scald counts steam.
 // Corrosive counts within `reach` cells of it. The last two are what could hold it
 // up: solid cells (static or powder) and other buildings' cells on its outline,
-// corners included.
+// corners included (powder counts only under it).
 void CrucibleSim::hazards_at(int x, int y, int w, int h, bool inside, int reach, int32_t *out) const {
 	int hot = 0, fire = 0, scald = 0, liq = 0, opn = 0, cor = 0, ground = 0, strut = 0;
+	// Rock holds it from any side; powder only from underneath, and only when it
+	// rests on something itself (a sprinkle of loose dirt on its roof, or grains
+	// falling past, hold nothing up).
 	auto hold_at = [&](int xx, int yy) {
 		if (xx < 0 || yy < 0 || xx >= W || yy >= H) {
 			return;
@@ -2112,7 +2124,7 @@ void CrucibleSim::hazards_at(int x, int y, int w, int h, bool inside, int reach,
 		const Mat &M = mats[cells[yy * W + xx]];
 		if (M.structure) {
 			strut++;
-		} else if (M.kind == K_STATIC || M.kind == K_POWDER) {
+		} else if (M.kind == K_STATIC || (M.kind == K_POWDER && yy == y + h && yy + 1 < H && solid(cells[(yy + 1) * W + xx]))) {
 			ground++;
 		}
 	};

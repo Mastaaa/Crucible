@@ -789,10 +789,24 @@ func strut_rect(c: Vector2i, horiz: bool) -> Rect2i:
 		if n.x >= D.W - 2 or n.y >= D.H - 2 or not Mats.buildable_in(sim.get_cell(n.x, n.y)):
 			break
 		b = n
-	return Rect2i(a, b - a + Vector2i.ONE)
+	# Thickness: down from the cursor's row (flat) or right from its column
+	# (upright), STRUT_THICK at most, stopping where the gap does, and always
+	# thinner than it is long (its shape says which way it runs).
+	var line := Rect2i(a, b - a + Vector2i.ONE)
+	var across := Vector2i(0, 1) if horiz else Vector2i(1, 0)
+	var length := maxi(line.size.x, line.size.y)
+	var t := 1
+	while t < D.STRUT_THICK and t + 1 < length:
+		var next := Rect2i(line.position + across * t, line.size)
+		if next.end.x > D.W - 2 or next.end.y > D.H - 2 or \
+				sim.count_in_rect(next.position.x, next.position.y, next.size.x, next.size.y, Mats.mask("closed")) > 0:
+			break
+		t += 1
+	return Rect2i(line.position, line.size + across * (t - 1))
 
 
 ## The two cells a Strut at `r` rests on, one past each end.
+## (Its first row or column, the line through the cursor it was drawn from.)
 static func strut_anchors(r: Rect2i) -> Array:
 	if r.size.x >= r.size.y:
 		return [Vector2i(r.position.x - 1, r.position.y), Vector2i(r.end.x, r.position.y)]

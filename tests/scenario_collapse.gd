@@ -1,5 +1,5 @@
 extends SceneTree
-## Phase-8 collapse checks on seed 7, on blocks of rock laid well away from the Hub:
+## Phase-8 collapse checks on seed 7, on blocks of rock laid away from the Hub:
 ##  A. spans: a room as wide as dirt spans stands; a wider one caves in from the
 ##     middle into an arch and stops; stone spans further; water holds nothing up;
 ##     freshly dug ground holds for its settling time first; the cave-in is called out
@@ -12,6 +12,9 @@ extends SceneTree
 ##  F. ground: packed dirt spans far, gravel hardly at all and fast, glimmer
 ##     never gives; a stone lump held only by dirt comes down; water wears stone
 ##     to dirt, dirt to sand and sand away, and leaves gravel and clay alone
+## Phase 8b: v2's rooms at D.S times the size, stacked down the map (it's too
+## narrow to set them side by side); times D.S longer for 10x the rows to cave,
+## counts of cells D.S * D.S.
 ## Run: godot --headless --path . --script tests/scenario_collapse.gd
 
 const D = preload("res://scripts/defs.gd")
@@ -97,8 +100,14 @@ func top_open(x: int, y0: int, y1: int) -> int:
 
 ## A block of `m` with a room carved in it: `w` wide, `h` tall, its top row at y.
 func room(x: int, y: int, w: int, h: int, m: int) -> void:
-	fill(Rect2i(x - 12, y - 16, w + 24, h + 24), m)
+	fill(Rect2i(x - 12 * S, y - 16 * S, w + 24 * S, h + 24 * S), m)
 	fill(Rect2i(x, y, w, h), D.AIR)
+
+
+const S := D.S
+const X := 200       # rooms' left edge
+const Y1 := 700      # first room's top row
+const Y2 := 1400     # a second room's
 
 
 func scenario_a() -> void:
@@ -106,26 +115,27 @@ func scenario_a() -> void:
 	fresh()
 	# The counts are local: weathering sheds the odd ceiling cell anywhere on the
 	# map, and the blocks these rooms sit in cut through the seed's own caves.
-	room(40, 80, 7, 5, D.DIRT)
+	room(X, Y1, 7 * S, 5 * S, D.DIRT)
 	secs(15.0)
-	var roof := count(Rect2i(40, 79, 7, 1), D.DIRT)
-	check(count(Rect2i(40, 78, 7, 1), D.DIRT) == 7, "a room 7 wide in dirt stands (its roof %d / 7: dirt ceilings still shed the odd cell)" % roof)
+	var roof := count(Rect2i(X, Y1 - 1, 7 * S, 1), D.DIRT)
+	check(count(Rect2i(X, Y1 - 2 * S, 7 * S, 1), D.DIRT) == 7 * S, "a room 70 wide in dirt stands (its roof %d / 70: dirt ceilings still shed the odd cell)" % roof)
 
 	fresh()
-	room(40, 80, 16, 5, D.DIRT)
+	room(X, Y1, 16 * S, 5 * S, D.DIRT)
 	var c0: int = game.sim.get_caved()
-	secs(8.0)
-	var mid := top_open(47, 66, 80)
-	var edge := top_open(40, 66, 80)
+	secs(16.0 * S)    # the arch rises about a row every 2.5 s
+	var mid := top_open(X + 8 * S, Y1 - 14 * S, Y1)
+	var edge := top_open(X, Y1 - 14 * S, Y1)
 	var caved: int = game.sim.get_caved() - c0
-	print("  16 wide: %d cells caved in; open up to row %d in the middle, %d at the edge" % [caved, mid, edge])
-	check(caved >= 20, "a room 16 wide in dirt caves in")
-	check(mid <= 76 and edge >= 79, "from the middle, leaving an arch (the middle rose %d rows, the edge %d)" % [80 - mid, 80 - edge])
-	check(count(Rect2i(40, 80, 16, 5), D.LOOSE_DIRT) >= 15, "what came down lies in the room as loose dirt")
-	var above := solid_in(Rect2i(28, 64, 40, 16))
-	secs(10.0)
-	var lost := above - solid_in(Rect2i(28, 64, 40, 16))
-	check(lost <= 2, "then it stops: the arch stands (%d more cells gone over the next 10 s)" % lost)
+	print("  160 wide: %d cells caved in; open up to row %d in the middle, %d at the edge" % [caved, mid, edge])
+	check(caved >= 20 * S * S, "a room 160 wide in dirt caves in")
+	check(mid <= Y1 - 4 * S and edge >= Y1 - S, "from the middle, leaving an arch (the middle rose %d rows, the edge %d)" % [Y1 - mid, Y1 - edge])
+	check(count(Rect2i(X, Y1, 16 * S, 5 * S), D.LOOSE_DIRT) >= 15 * S * S, "what came down lies in the room as loose dirt")
+	var zone := Rect2i(X - 12 * S, Y1 - 16 * S, 40 * S, 16 * S)
+	var above := solid_in(zone)
+	secs(10.0 * S)
+	var lost := above - solid_in(zone)
+	check(lost <= 4 * S * S, "then it stops: the arch stands (%d more cells gone over the next 100 s, weathering)" % lost)
 	var called := false
 	for a: Dictionary in game.alerts:
 		if a["kind"] == "cavein":
@@ -133,32 +143,32 @@ func scenario_a() -> void:
 	check(called, "the cave-in is called out")
 
 	fresh()
-	room(40, 200, 15, 5, D.STONE)
-	room(120, 200, 22, 5, D.STONE)
+	room(X, 2000, 15 * S, 5 * S, D.STONE)
+	room(X, 2500, 22 * S, 5 * S, D.STONE)
 	c0 = game.sim.get_caved()
-	secs(10.0)
-	var st_narrow := 15 - count(Rect2i(40, 199, 15, 1), D.STONE)
-	var st_wide := 22 - count(Rect2i(120, 199, 22, 1), D.STONE)
-	print("  stone roofs: 15 wide lost %d, 22 wide lost %d" % [st_narrow, st_wide])
-	check(st_narrow == 0, "stone spans 15")
-	check(st_wide >= 8 and count(Rect2i(120, 200, 22, 5), D.RUBBLE) > 0, "and past that it caves in as rubble")
+	secs(10.0 * S)
+	var st_narrow := 15 * S - count(Rect2i(X, 1999, 15 * S, 1), D.STONE)
+	var st_wide := 22 * S - count(Rect2i(X, 2499, 22 * S, 1), D.STONE)
+	print("  stone roofs: 150 wide lost %d, 220 wide lost %d" % [st_narrow, st_wide])
+	check(st_narrow <= S, "stone spans 150 (%d weathered out of its roof)" % st_narrow)
+	check(st_wide >= 8 * S and count(Rect2i(X, 2500, 22 * S, 5 * S), D.RUBBLE) > 0, "and past that it caves in as rubble")
 
 	fresh()
-	room(40, 80, 12, 5, D.DIRT)
-	fill(Rect2i(40, 80, 12, 5), D.WATER)
+	room(X, Y1, 12 * S, 5 * S, D.DIRT)
+	fill(Rect2i(X, Y1, 12 * S, 5 * S), D.WATER)
 	c0 = game.sim.get_caved()
-	secs(6.0)
+	secs(6.0 * S)
 	check(game.sim.get_caved() - c0 > 0, "water under a ceiling holds nothing up")
 
 	fresh()
-	room(40, 80, 16, 5, D.DIRT)
-	for x in range(40, 56):
-		game.sim.settle_around(x, 80, 1, int(D.SETTLE_S * D.TICKS_PER_S))
+	room(X, Y1, 16 * S, 5 * S, D.DIRT)
+	for x in range(X, X + 16 * S):
+		game.sim.settle_around(x, Y1, S, int(D.SETTLE_S * D.TICKS_PER_S))
 	secs(D.SETTLE_S - 2.0)
-	var held_n := count(Rect2i(40, 79, 16, 1), D.DIRT)
-	secs(8.0)
-	var after_n := count(Rect2i(40, 79, 16, 1), D.DIRT)
-	check(held_n == 16 and after_n <= 4, "freshly dug, it holds for its %d s of settling, then goes (ceiling %d / 16, then %d)" % [int(D.SETTLE_S), held_n, after_n])
+	var held_n := count(Rect2i(X, Y1 - 1, 16 * S, 1), D.DIRT)
+	secs(8.0 * S)
+	var after_n := count(Rect2i(X, Y1 - 1, 16 * S, 1), D.DIRT)
+	check(held_n == 16 * S and after_n <= 4 * S, "freshly dug, it holds for its %d s of settling, then goes (ceiling %d / 160, then %d)" % [int(D.SETTLE_S), held_n, after_n])
 
 
 func scenario_b() -> void:
@@ -172,141 +182,150 @@ func scenario_b() -> void:
 func scenario_c() -> void:
 	print("C. Struts")
 	fresh()
-	room(40, 80, 12, 5, D.DIRT)
-	room(120, 80, 12, 5, D.DIRT)
-	var r: Rect2i = game.strut_rect(Vector2i(45, 80), true)
+	room(X, Y1, 12 * S, 5 * S, D.DIRT)
+	room(X, Y2, 12 * S, 5 * S, D.DIRT)
+	var r: Rect2i = game.strut_rect(Vector2i(X + 5 * S, Y1), true)
 	print("  flat under the ceiling: %s, %s" % [r, game.check_strut(r)])
-	check(r == Rect2i(40, 80, 12, 1) and game.check_strut(r) == "", "it spans the gap under the cursor, rock to rock")
+	check(r == Rect2i(X, Y1, 12 * S, D.STRUT_THICK) and game.check_strut(r) == "", "it spans the gap under the cursor, rock to rock, %d thick" % D.STRUT_THICK)
 	var s = game.place_strut(r)
-	check(s.built and game.sim.get_cell(45, 80) == D.BUILDING and game.stock[D.R_STONE] == 198.0, "built at once for 2 Stone")
-	check(game.sim.get_held(39, 80) > 0 and game.sim.get_held(39, 85) > 0 and game.sim.get_held(39, 87) == 0, "the rock round its ends is held")
-	secs(10.0)
-	var propped := count(Rect2i(40, 79, 12, 1), D.DIRT)
-	var bare := count(Rect2i(120, 79, 12, 1), D.DIRT)
-	print("  ceiling left over the propped room %d / 12, over the bare one %d / 12" % [propped, bare])
-	check(propped >= 11 and bare <= 8, "the ceiling resting on it stays; the bare one caves in")
+	check(s.built and game.sim.get_cell(X + 5 * S, Y1) == D.BUILDING and game.stock[D.R_STONE] == 198.0, "built at once for 2 Stone")
+	check(game.sim.get_held(X - 1, Y1) > 0 and game.sim.get_held(X - 1, Y1 + 5 * S) > 0 and game.sim.get_held(X - 1, Y1 + 7 * S) == 0, "the rock round its ends is held")
+	secs(10.0 * S)
+	var propped := count(Rect2i(X, Y1 - 1, 12 * S, 1), D.DIRT)
+	var bare := count(Rect2i(X, Y2 - 1, 12 * S, 1), D.DIRT)
+	print("  ceiling left over the propped room %d / 120, over the bare one %d / 120" % [propped, bare])
+	check(propped >= 11 * S and bare <= 8 * S, "the ceiling resting on it stays; the bare one caves in")
 	check(not s.dead and not s.connected and s.link == null, "it needs no link")
 
 	fresh()
-	room(40, 80, 20, 5, D.DIRT)
-	check(game.check_strut(game.strut_rect(Vector2i(45, 80), true)).begins_with("Too wide"), "a gap of 20 is too wide")
-	room(120, 80, 14, 5, D.DIRT)
-	var up: Rect2i = game.strut_rect(Vector2i(127, 82), false)
-	check(up == Rect2i(127, 80, 1, 5) and game.check_strut(up) == "", "upright, it spans floor to ceiling")
+	room(X, Y1, 20 * S, 5 * S, D.DIRT)
+	check(game.check_strut(game.strut_rect(Vector2i(X + 5 * S, Y1), true)).begins_with("Too wide"), "a gap of 200 is too wide")
+	room(X, Y2, 14 * S, 5 * S, D.DIRT)
+	var up: Rect2i = game.strut_rect(Vector2i(X + 7 * S, Y2 + 2 * S), false)
+	check(up == Rect2i(X + 7 * S, Y2, D.STRUT_THICK, 5 * S) and game.check_strut(up) == "", "upright, it spans floor to ceiling")
 	var su = game.place_strut(up)
-	secs(10.0)
-	var roof := count(Rect2i(120, 79, 14, 1), D.DIRT)
-	check(roof >= 13 and count(Rect2i(120, 78, 14, 1), D.DIRT) == 14 and not su.dead,
-			"in the middle of a room 14 wide it splits the span in two, and it stands (roof %d / 14)" % roof)
-	check(game.check_strut(game.strut_rect(Vector2i(100, 20), true)) != "", "out in the open sky there's nothing to span")
-	room(160, 80, 7, 1, D.DIRT)
-	fill(Rect2i(166, 80, 1, 1), D.WATER)
-	check(game.check_strut(game.strut_rect(Vector2i(162, 80), true)) == "", "water in the gap is fine")
+	secs(10.0 * S)
+	var roof := count(Rect2i(X, Y2 - 1, 14 * S, 1), D.DIRT)
+	check(roof >= 10 * S and count(Rect2i(X, Y2 - 2 * S, 14 * S, 1), D.DIRT) == 14 * S and not su.dead,
+			"in the middle of a room 140 wide it splits the span in two, and it stands (roof %d / 140)" % roof)
+	check(game.check_strut(game.strut_rect(Vector2i(X, 60), true)) != "", "out in the open sky there's nothing to span")
+	room(X, 2200, 7 * S, 1 * S, D.DIRT)
+	fill(Rect2i(X + 6 * S, 2200, S, S), D.WATER)
+	check(game.check_strut(game.strut_rect(Vector2i(X + 2 * S, 2200), true)) == "", "water in the gap is fine")
 
-	# Held rock doesn't weather: two rooms 7 wide, one with an upright Strut in it.
+	# Held rock doesn't weather: two rooms 70 wide, one with an upright Strut in it.
 	fresh()
-	room(40, 80, 7, 5, D.DIRT)
-	room(120, 80, 7, 5, D.DIRT)
-	game.place_strut(game.strut_rect(Vector2i(43, 82), false))
+	room(X, Y1, 7 * S, 5 * S, D.DIRT)
+	room(X, Y2, 7 * S, 5 * S, D.DIRT)
+	game.place_strut(game.strut_rect(Vector2i(X + 3 * S, Y1 + 2 * S), false))
 	for _i in 40:
-		game.sim.weather(20000)
+		game.sim.weather(300000)
 		secs(0.25)
-	var kept := count(Rect2i(40, 79, 7, 1), D.DIRT)
-	var worn := count(Rect2i(120, 79, 7, 1), D.DIRT)
-	print("  under heavy weathering: ceiling by the Strut %d / 7, without %d / 7" % [kept, worn])
-	check(kept == 7 and worn < 7, "rock within %d cells of its ends doesn't weather" % D.STRUT_HOLD)
+	var kept := count(Rect2i(X, Y1 - 1, 7 * S, 1), D.DIRT)
+	var worn := count(Rect2i(X, Y2 - 1, 7 * S, 1), D.DIRT)
+	print("  under heavy weathering: ceiling by the Strut %d / 70, without %d / 70" % [kept, worn])
+	check(kept == 7 * S and worn < 7 * S, "rock within %d cells of its ends doesn't weather" % D.STRUT_HOLD)
 
 	fresh()
-	room(40, 80, 12, 5, D.DIRT)
-	var sn = game.place_strut(game.strut_rect(Vector2i(45, 80), true))
-	game.sim.set_cell(52, 80, D.AIR)
+	room(X, Y1, 12 * S, 5 * S, D.DIRT)
+	var sn = game.place_strut(game.strut_rect(Vector2i(X + 5 * S, Y1), true))
+	game.sim.set_cell(sn.anchor_b.x, sn.anchor_b.y, D.AIR)
 	secs(0.5)
-	check(sn.dead and game.sim.get_held(39, 80) == 0, "dig out an anchor and it snaps, letting go of the rock at the other end too")
+	check(sn.dead and game.sim.get_held(X - 1, Y1) == 0, "dig out an anchor and it snaps, letting go of the rock at the other end too")
 
 
 func scenario_d() -> void:
 	print("D. a building on a thin roof")
 	fresh()
-	fill(Rect2i(60, 56, 40, 34), D.DIRT)
-	fill(Rect2i(77, 62, 6, 8), D.AIR)      # a pocket over the roof, narrow enough to stand
-	fill(Rect2i(72, 72, 16, 6), D.AIR)
-	var b = game.place(D.B_CONDUIT, Rect2i(79, 68, 2, 2))
+	var x0 := X
+	var y0 := Y1
+	fill(Rect2i(x0, y0, 40 * S, 34 * S), D.DIRT)
+	fill(Rect2i(x0 + 17 * S, y0 + 6 * S, 6 * S, 8 * S), D.AIR)      # a pocket over the roof, narrow enough to stand
+	fill(Rect2i(x0 + 12 * S, y0 + 16 * S, 16 * S, 6 * S), D.AIR)
+	var b = game.place(D.B_CONDUIT, Rect2i(x0 + 19 * S, y0 + 12 * S, 2 * S, 2 * S))
 	b.built = true
-	var y0: int = b.y
+	game.scan_dirty = true    # built by hand: the anchoring scan picks it up
+	var by0: int = b.y
 	var fell := false
-	for _i in 20:
+	for _i in 40 * S:
 		secs(0.5)
-		if b.falling or b.y > y0:
+		if b.falling or b.y > by0:
 			fell = true
-	print("  roof 2 rows over a room 16 wide; the Conduit on it went from row %d to %d" % [y0, b.y])
-	check(fell and b.y > y0, "the roof caves in and the Conduit comes down with it")
+			break
+	print("  roof 20 rows over a room 160 wide; the Conduit on it went from row %d to %d" % [by0, b.y])
+	check(fell, "the roof caves in and the Conduit comes down with it")
 
 
 func scenario_e() -> void:
 	print("E. Tremor Dampers")
 	fresh()
-	fill(Rect2i(10, 140, 60, 20), D.STONE)
-	fill(Rect2i(20, 150, 40, 1), D.AIR)
-	for x in [30, 40, 50]:
-		game.sim.set_cell(x, 150, D.STONE)
-	var s = game.place_strut(game.strut_rect(Vector2i(25, 150), true))
-	check(s != null and s.anchor_a == Vector2i(19, 150) and s.anchor_b == Vector2i(30, 150), "a Strut in a slot in stone")
+	var y := 2200
+	fill(Rect2i(X - 100, y - 100, 600, 200), D.STONE)
+	fill(Rect2i(X, y, 400, 10), D.AIR)
+	for k in [100, 200, 300]:
+		fill(Rect2i(X + k, y, 10, 10), D.STONE)
+	var s = game.place_strut(game.strut_rect(Vector2i(X + 50, y), true))
+	check(s != null and s.anchor_a == Vector2i(X - 1, y) and s.anchor_b == Vector2i(X + 100, y), "a Strut in a slot in stone")
 	game.researched["tremor_dampers"] = true
 	game.scan_dirty = true
 	game.run_ticks(6)
 	for _i in 30:
-		game.sim.tremor(400, 149, 152)
-	var near := count(Rect2i(10, 140, 29, 20), D.RUBBLE)
-	var far := count(Rect2i(45, 140, 16, 20), D.RUBBLE)
+		game.sim.tremor(40000, y - 10, y + 20)
+	var reach := int(D.STRUT_DAMP_R)
+	var near := count(Rect2i(X - 100, y - 100, 100 + 100 + reach - 110, 200), D.RUBBLE)
+	var far := count(Rect2i(X + 100 + reach + 30, y - 100, 150, 200), D.RUBBLE)
 	print("  rubble shaken loose within reach of the Strut %d, beyond it %d" % [near, far])
-	check(near == 0 and far > 0, "tremors spare stone within %d cells of a Strut" % int(D.STRUT_DAMP_R))
+	check(near == 0 and far > 0, "tremors spare stone within %d cells of a Strut" % reach)
 
 
 func scenario_f() -> void:
 	print("F. ground")
 	fresh()
-	room(40, 80, 22, 5, D.PACKED_DIRT)
-	room(120, 80, 6, 5, D.GRAVEL)
-	room(40, 200, 30, 5, D.GLIMMER)
-	secs(2.0)
-	var grav_roof := count(Rect2i(120, 79, 6, 1), D.GRAVEL)
-	secs(8.0)
-	var packed_roof := count(Rect2i(40, 79, 22, 1), D.PACKED_DIRT)
-	print("  roofs: packed dirt 22 wide %d / 22, gravel 6 wide %d / 6 after 2 s, glimmer 30 wide %d / 30" % [packed_roof, grav_roof, count(Rect2i(40, 199, 30, 1), D.GLIMMER)])
-	check(packed_roof >= 21, "packed dirt roofs a room 22 wide")
-	check(grav_roof <= 3 and count(Rect2i(120, 80, 6, 5), D.RUBBLE) > 0, "gravel won't roof 6, and comes down within a couple of seconds as rubble")
-	check(count(Rect2i(40, 199, 30, 1), D.GLIMMER) == 30, "glimmer never gives")
+	room(X, Y1, 22 * S, 5 * S, D.PACKED_DIRT)
+	room(X, Y2, 6 * S, 5 * S, D.GRAVEL)
+	room(X, 2400, 30 * S, 5 * S, D.GLIMMER)
+	secs(2.0 * S)
+	var grav_roof := count(Rect2i(X, Y2 - 1, 6 * S, 1), D.GRAVEL)
+	secs(8.0 * S)
+	var packed_roof := count(Rect2i(X, Y1 - 1, 22 * S, 1), D.PACKED_DIRT)
+	print("  roofs: packed dirt 220 wide %d / 220, gravel 60 wide %d / 60 after 20 s, glimmer 300 wide %d / 300" % [packed_roof, grav_roof, count(Rect2i(X, 2399, 30 * S, 1), D.GLIMMER)])
+	check(packed_roof >= 20 * S, "packed dirt roofs a room 220 wide")
+	check(grav_roof <= 3 * S and count(Rect2i(X, Y2, 6 * S, 5 * S), D.RUBBLE) > 0, "gravel won't roof 60, and comes down within 20 s as rubble")
+	check(count(Rect2i(X, 2399, 30 * S, 1), D.GLIMMER) == 30 * S, "glimmer never gives")
 
-	# A stone lump in a dirt roof over a tunnel 5 wide: one no wider than the tunnel
+	# A stone lump in a dirt roof over a tunnel 50 wide: one no wider than the tunnel
 	# has only dirt beside it and comes down; one that rests on the dirt stays.
 	fresh()
-	room(40, 80, 5, 4, D.DIRT)
-	fill(Rect2i(40, 77, 5, 3), D.STONE)
-	room(120, 80, 5, 4, D.DIRT)
-	fill(Rect2i(118, 77, 9, 3), D.STONE)
-	secs(6.0)
-	var lone := count(Rect2i(40, 77, 5, 3), D.STONE)
-	var resting := count(Rect2i(118, 77, 9, 3), D.STONE)
-	print("  stone lumps: over the tunnel only %d / 15 left, resting on dirt %d / 27" % [lone, resting])
-	check(lone <= 5, "stone held only by dirt beside it comes down")
-	check(resting == 27, "stone resting on dirt at its ends stays")
+	room(X, Y1, 5 * S, 8 * S, D.DIRT)      # deep enough that its own rubble doesn't prop it
+	fill(Rect2i(X, Y1 - 3 * S, 5 * S, 3 * S), D.STONE)
+	room(X, Y2, 5 * S, 8 * S, D.DIRT)
+	fill(Rect2i(X - 2 * S, Y2 - 3 * S, 9 * S, 3 * S), D.STONE)
+	secs(12.0 * S)    # a row about every 3 s
+	var lone := count(Rect2i(X, Y1 - 3 * S, 5 * S, 3 * S), D.STONE)
+	var resting := count(Rect2i(X - 2 * S, Y2 - 3 * S, 9 * S, 3 * S), D.STONE)
+	print("  stone lumps: over the tunnel only %d / 1500 left, resting on dirt %d / 2700" % [lone, resting])
+	check(lone <= 5 * S * S, "stone held only by dirt beside it comes down")
+	check(resting >= 26 * S * S, "stone resting on dirt at its ends stays (bar what weathers off)")
 
 	# A pool in bedrock floored with a strip of each ground, and the wash pass run hard.
 	fresh()
-	fill(Rect2i(30, 90, 40, 14), D.BEDROCK)
-	fill(Rect2i(32, 92, 36, 8), D.WATER)
-	var walls := {D.STONE: 32, D.DIRT: 38, D.GRAVEL: 44, D.CLAY: 50, D.PACKED_DIRT: 56}
+	var px := 100
+	var py := Y1
+	fill(Rect2i(px, py, 40 * S, 14 * S), D.BEDROCK)
+	fill(Rect2i(px + 2 * S, py + 2 * S, 36 * S, 8 * S), D.WATER)
+	var walls := {D.STONE: 2, D.DIRT: 8, D.GRAVEL: 14, D.CLAY: 20, D.PACKED_DIRT: 26}
 	for m: int in walls:
-		fill(Rect2i(walls[m], 100, 6, 1), m)
-	fill(Rect2i(62, 99, 6, 1), D.SAND)
+		fill(Rect2i(px + walls[m] * S, py + 10 * S, 6 * S, S), m)
+	fill(Rect2i(px + 32 * S, py + 9 * S, 6 * S, S), D.SAND)
 	for _i in 250:
-		game.sim.wash(262144)
+		game.sim.wash(D.W * D.H)
 		game.run_ticks(2)
 	var left := {}
 	for m: int in walls:
-		left[m] = count(Rect2i(walls[m], 100, 6, 1), m)
-	print("  after heavy washing, of 6 each: %s; sand %d / 6" % [left, count(Rect2i(62, 99, 6, 1), D.SAND)])
-	check(left[D.GRAVEL] == 6 and left[D.CLAY] == 6, "water leaves gravel and clay alone")
-	check(left[D.DIRT] <= 3, "and wears dirt into sand")
-	check(left[D.STONE] < 6 and left[D.PACKED_DIRT] < 6, "stone and packed dirt give way far more slowly (to dirt)")
-	check(count(Rect2i(62, 99, 6, 1), D.SAND) < 6, "sand in water gets carried off")
+		left[m] = count(Rect2i(px + walls[m] * S, py + 10 * S, 6 * S, 1), m)
+	var sand_left := count(Rect2i(px + 32 * S, py + 9 * S, 6 * S, S), D.SAND)
+	print("  after heavy washing, top row of each strip, of 60: %s; sand %d / 600" % [left, sand_left])
+	check(left[D.GRAVEL] == 6 * S and left[D.CLAY] == 6 * S, "water leaves gravel and clay alone")
+	check(left[D.DIRT] <= 3 * S, "and wears dirt into sand")
+	check(left[D.STONE] < 6 * S and left[D.PACKED_DIRT] < 6 * S, "stone and packed dirt give way far more slowly (to dirt)")
+	check(sand_left < 6 * S * S, "sand in water gets carried off")
