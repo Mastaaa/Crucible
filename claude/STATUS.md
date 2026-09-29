@@ -6,10 +6,9 @@ history (what shipped when, old numbers, test notes) is the root STATUS.md:
 Claude adds a section at its top each phase and doesn't need to read the rest.
 
 ## Handoff
-- Last done: phase 8d, mites as bodies (8c, rigid bodies, is merged). On branch
-  claude/charming-mayer-evn3ro.
+- Last done: phase 8d, mites as bodies. Phases 8b-8d are merged into `main`.
 - Next: phase 9, depth (heat, deeper materials, the Crucible's power draw).
-- Open with Alex: whether to merge 8d into main; mite pace (about 2-3x slower than v2
+- Open with Alex: mite pace (about 2-3x slower than v2
   against building size) is for phase 10.
 - Known rough edges: the screenshot scripts (bar shot_bodies), smoke_v2, flow and
   scenario_water* still use v2 coordinates; the top bar clips the Help button when the
