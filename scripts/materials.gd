@@ -308,6 +308,17 @@ static func buildable_in(m: int) -> bool:
 
 
 static var _masks := {}
+static var _dig_ids := PackedInt32Array()
+
+
+## Every material that can be dug.
+static func dig_ids() -> PackedInt32Array:
+	ensure()
+	if _dig_ids.is_empty():
+		for m in 256:
+			if dig_rates[m] > 0.0:
+				_dig_ids.append(m)
+	return _dig_ids
 
 
 ## A byte per material id, 1 where `what` holds: "open" (buildable_in), "closed"
@@ -326,6 +337,9 @@ static func mask(what: String) -> PackedByteArray:
 				"closed": hit = not buildable_in(m)
 				"solid": hit = k == K_STATIC or k == K_POWDER
 				"dig": hit = dig_rates[m] > 0.0
+				"liquid": hit = k == K_LIQUID
+				"worth_liquid": hit = k == K_LIQUID and yield_of(m) >= 0
+				"powder": hit = k == K_POWDER
 				"dig_no_obsidian": hit = dig_rates[m] > 0.0 and names[m] != "Obsidian"
 			out[m] = 1 if hit else 0
 		_masks[what] = out

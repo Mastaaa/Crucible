@@ -868,6 +868,44 @@ func block_counts(bx: int, by: int, bw: int, bh: int, mask: PackedByteArray) -> 
 	return out
 
 
+func rect_counts(x: int, y: int, w: int, h: int) -> PackedInt32Array:
+	var out := PackedInt32Array()
+	out.resize(256)
+	for yy in range(maxi(y, 0), mini(y + h, H)):
+		for xx in range(maxi(x, 0), mini(x + w, W)):
+			out[cells[yy * W + xx]] += 1
+	return out
+
+
+func dig_rect(x: int, y: int, w: int, h: int, mask: PackedByteArray, settle_r: int, settle_ticks: int) -> PackedInt32Array:
+	var out := PackedInt32Array()
+	out.resize(256)
+	for yy in range(maxi(y, 0), mini(y + h, H)):
+		for xx in range(maxi(x, 0), mini(x + w, W)):
+			var m: int = cells[yy * W + xx]
+			if mask[m]:
+				out[m] += 1
+				set_cell(xx, yy, AIR)
+				settle_around(xx, yy, settle_r, settle_ticks)
+	return out
+
+
+func block_circles(circles: PackedInt32Array) -> PackedByteArray:
+	var out := PackedByteArray()
+	out.resize(BW * (H >> 2))
+	for k in range(0, circles.size() - 2, 3):
+		var px := float(circles[k])
+		var py := float(circles[k + 1])
+		var r := float(circles[k + 2])
+		for ky in range(maxi(int((py - r) / 4.0), 0), mini(int((py + r) / 4.0), (H >> 2) - 1) + 1):
+			for kx in range(maxi(int((px - r) / 4.0), 0), mini(int((px + r) / 4.0), BW - 1) + 1):
+				var dx := kx * 4 + 2.0 - px
+				var dy := ky * 4 + 2.0 - py
+				if dx * dx + dy * dy <= (r + 2.0) * (r + 2.0):
+					out[ky * BW + kx] = 255
+	return out
+
+
 ## Spots within `radius` where a w x h footprint is all `open_mask` and touches a
 ## `solid_mask` cell on a side, nearest first, as (dx, dy, rests) triples.
 func place_spots(x: int, y: int, w: int, h: int, radius: int, open_mask: PackedByteArray, solid_mask: PackedByteArray) -> PackedInt32Array:

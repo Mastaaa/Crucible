@@ -177,6 +177,10 @@ private:
 	std::vector<uint8_t> tile_dirty; // render tiles whose cells (or aux) changed since take_dirty_tiles
 	std::vector<uint8_t> mem_dirty; // render tiles whose remembered cells changed since take_mem_tiles
 	int TW = 3, TH = 4; // render tiles across and down
+	// Corrosive cells per chunk, recounted when the chunk has been touched (for
+	// hazards_at's corrosion reach, which is wide at this scale).
+	mutable std::vector<int32_t> corr_count;
+	mutable std::vector<uint8_t> corr_valid;
 	std::vector<int32_t> shields; // circles (x, y, r) that tremors leave alone
 	std::vector<uint8_t> stamp;
 	std::vector<std::atomic<uint8_t>> lava_dirty;
@@ -339,6 +343,9 @@ public:
 	PackedInt32Array materials_in(const PackedByteArray &mask) const;
 	int count_in_rect(int x, int y, int w, int h, const PackedByteArray &mask) const;
 	PackedByteArray block_counts(int bx, int by, int bw, int bh, const PackedByteArray &mask) const;
+	PackedInt32Array rect_counts(int x, int y, int w, int h) const;
+	PackedInt32Array dig_rect(int x, int y, int w, int h, const PackedByteArray &mask, int settle_r, int settle_ticks);
+	PackedByteArray block_circles(const PackedInt32Array &circles) const;
 	PackedInt32Array place_spots(int x, int y, int w, int h, int radius, const PackedByteArray &open_mask, const PackedByteArray &solid_mask);
 
 	void set_threads(int n);

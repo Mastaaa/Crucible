@@ -171,6 +171,8 @@ void CrucibleSim::set_size(int w, int h) {
 	TH = (H + (1 << TSHIFT) - 1) >> TSHIFT;
 	tile_dirty.assign((size_t)TW * TH, 1);
 	mem_dirty.assign((size_t)TW * TH, 1);
+	corr_count.assign(NCH, 0);
+	corr_valid.assign(NCH, 0);
 	stamp.assign(N, 0);
 	light_lv.clear(); // sized by light_update, a value per 4x4 block
 	light_px.clear();
@@ -1206,6 +1208,7 @@ void CrucibleSim::set_cells(const PackedByteArray &data) {
 	std::fill(settle.begin(), settle.end(), 0);
 	std::fill(vel.begin(), vel.end(), (uint8_t)0);
 	std::fill(tile_dirty.begin(), tile_dirty.end(), (uint8_t)1);
+	std::fill(corr_valid.begin(), corr_valid.end(), (uint8_t)0);
 	parts.clear();
 	for (auto &f : lava_dirty) {
 		f.store(1);
@@ -1993,6 +1996,7 @@ void CrucibleSim::mark_tiles(const Rects &r) {
 	for (int c = 0; c < NCH; c++) {
 		if (r.x1[c] >= 0) {
 			tile_dirty[(size_t)((c / CW) / per) * TW + ((c % CW) / per)] = 1;
+			corr_valid[c] = 0;
 		}
 	}
 }
@@ -2181,10 +2185,35 @@ void CrucibleSim::hazards_at(int x, int y, int w, int h, bool inside, int reach,
 		}
 	}
 	if (reach > 0) {
-		for (int yy = std::max(0, y - reach); yy < std::min(H, y + h + reach); yy++) {
-			for (int xx = std::max(0, x - reach); xx < std::min(W, x + w + reach); xx++) {
-				if (mats[cells[yy * W + xx]].corrosive) {
-					cor++;
+		int x0 = std::max(0, x - reach), x1 = std::min(W, x + w + reach);
+		int y0 = std::max(0, y - reach), y1 = std::min(H, y + h + reach);
+		// Only look cell by cell when a chunk in reach holds anything corrosive.
+		bool any = false;
+		for (int cy = y0 >> CSHIFT; cy <= (y1 - 1) >> CSHIFT && !any; cy++) {
+			for (int cx = x0 >> CSHIFT; cx <= (x1 - 1) >> CSHIFT; cx++) {
+				int c = cy * CW + cx;
+				if (!corr_valid[c] || next.x1[c] >= 0) {
+					int n = 0;
+					for (int yy = cy << CSHIFT; yy < (cy + 1) << CSHIFT; yy++) {
+						for (int xx = cx << CSHIFT; xx < (cx + 1) << CSHIFT; xx++) {
+							n += mats[cells[yy * W + xx]].corrosive ? 1 : 0;
+						}
+					}
+					corr_count[c] = n;
+					corr_valid[c] = next.x1[c] >= 0 ? 0 : 1;
+				}
+				if (corr_count[c] > 0) {
+					any = true;
+					break;
+				}
+			}
+		}
+		if (any) {
+			for (int yy = y0; yy < y1; yy++) {
+				for (int xx = x0; xx < x1; xx++) {
+					if (mats[cells[yy * W + xx]].corrosive) {
+						cor++;
+					}
 				}
 			}
 		}
@@ -2313,6 +2342,85 @@ PackedByteArray CrucibleSim::block_counts(int bx, int by, int bw, int bh, const 
 				n += (mk[row[0]] ? 1 : 0) + (mk[row[1]] ? 1 : 0) + (mk[row[2]] ? 1 : 0) + (mk[row[3]] ? 1 : 0);
 			}
 			o[j * bw + i] = (uint8_t)n;
+		}
+	}
+	return out;
+}
+
+// How many cells of each material (256 entries) lie in the rectangle.
+PackedInt32Array CrucibleSim::rect_counts(int x, int y, int w, int h) const {
+	PackedInt32Array out;
+	out.resize(256);
+	int32_t *o = out.ptrw();
+	memset(o, 0, sizeof(int32_t) * 256);
+	for (int yy = std::max(y, 0); yy < std::min(y + h, H); yy++) {
+		for (int xx = std::max(x, 0); xx < std::min(x + w, W); xx++) {
+			o[cells[yy * W + xx]]++;
+		}
+	}
+	return out;
+}
+
+// Digs out every cell `mask` flags in the rectangle at once (as set_cell to air
+// would), then holds the ground round it still for `settle_ticks` (settle_around
+// over the rectangle grown by `settle_r`). Returns how many of each material went
+// (256 entries). For machines that clear a row at a time.
+PackedInt32Array CrucibleSim::dig_rect(int x, int y, int w, int h, const PackedByteArray &mask, int settle_r, int settle_ticks) {
+	PackedInt32Array out;
+	out.resize(256);
+	int32_t *o = out.ptrw();
+	memset(o, 0, sizeof(int32_t) * 256);
+	if (mask.size() < 256) {
+		return out;
+	}
+	const uint8_t *mk = mask.ptr();
+	int n = 0;
+	for (int yy = std::max(y, 0); yy < std::min(y + h, H); yy++) {
+		for (int xx = std::max(x, 0); xx < std::min(x + w, W); xx++) {
+			uint8_t m = cells[yy * W + xx];
+			if (mk[m]) {
+				o[m]++;
+				set_cell(xx, yy, AIR);
+				n++;
+			}
+		}
+	}
+	if (n > 0 && settle_ticks > 0) {
+		int until = tick + settle_ticks;
+		for (int yy = std::max(2, y - settle_r); yy <= std::min(H - 3, y + h - 1 + settle_r); yy++) {
+			for (int xx = std::max(2, x - settle_r); xx <= std::min(W - 3, x + w - 1 + settle_r); xx++) {
+				int i = yy * W + xx;
+				uint8_t k = mats[cells[i]].kind;
+				if ((k == K_STATIC || k == K_POWDER) && settle[i] < until) {
+					settle[i] = until;
+				}
+			}
+		}
+	}
+	return out;
+}
+
+// A block map (W/4 x H/4, 255 or 0) of the blocks whose middle lies within r + 2
+// of some (x, y, r) in `circles`: the same reach light_update gives sight.
+PackedByteArray CrucibleSim::block_circles(const PackedInt32Array &circles) const {
+	const int BW = W / 4, BH = H / 4;
+	PackedByteArray out;
+	out.resize((int64_t)BW * BH);
+	uint8_t *o = out.ptrw();
+	memset(o, 0, (size_t)BW * BH);
+	const int32_t *c = circles.ptr();
+	for (int k = 0; k + 2 < (int)circles.size(); k += 3) {
+		float px = (float)c[k], py = (float)c[k + 1], r = (float)c[k + 2];
+		int kx0 = std::max((int)((px - r) / 4.0f), 0), kx1 = std::min((int)((px + r) / 4.0f), BW - 1);
+		int ky0 = std::max((int)((py - r) / 4.0f), 0), ky1 = std::min((int)((py + r) / 4.0f), BH - 1);
+		float r2 = (r + 2.0f) * (r + 2.0f);
+		for (int ky = ky0; ky <= ky1; ky++) {
+			for (int kx = kx0; kx <= kx1; kx++) {
+				float dx = kx * 4 + 2.0f - px, dy = ky * 4 + 2.0f - py;
+				if (dx * dx + dy * dy <= r2) {
+					o[ky * BW + kx] = 255;
+				}
+			}
 		}
 	}
 	return out;
@@ -2488,6 +2596,9 @@ void CrucibleSim::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("materials_in", "mask"), &CrucibleSim::materials_in);
 	ClassDB::bind_method(D_METHOD("count_in_rect", "x", "y", "w", "h", "mask"), &CrucibleSim::count_in_rect);
 	ClassDB::bind_method(D_METHOD("block_counts", "bx", "by", "bw", "bh", "mask"), &CrucibleSim::block_counts);
+	ClassDB::bind_method(D_METHOD("rect_counts", "x", "y", "w", "h"), &CrucibleSim::rect_counts);
+	ClassDB::bind_method(D_METHOD("dig_rect", "x", "y", "w", "h", "mask", "settle_r", "settle_ticks"), &CrucibleSim::dig_rect);
+	ClassDB::bind_method(D_METHOD("block_circles", "circles"), &CrucibleSim::block_circles);
 	ClassDB::bind_method(D_METHOD("place_spots", "x", "y", "w", "h", "radius", "open_mask", "solid_mask"), &CrucibleSim::place_spots);
 	ClassDB::bind_method(D_METHOD("set_threads", "n"), &CrucibleSim::set_threads);
 	ClassDB::bind_method(D_METHOD("set_fall", "accel", "max_speed"), &CrucibleSim::set_fall);

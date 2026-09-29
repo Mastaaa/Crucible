@@ -4,12 +4,13 @@ extends SceneTree
 ## open one each time) on nothing but the Hub's own power. Prints a timeline. Not
 ## a bot: no Waterwheels, no Hoppers for the floods, no second Lab, so it's a slow
 ## line to compare builds against.
-## Run: godot --headless --path . --script tests/descent.gd [-- --until=330 --limit=1800]
+## Depths are rows under the surface's top (v2's 330, the Stone band, is 1650 now).
+## Run: godot --headless --path . --script tests/descent.gd [-- --until=1650 --limit=1800]
 
 const D = preload("res://scripts/defs.gd")
 var game: Node
 var f := 0
-var until := 330
+var until := 1650
 var limit := 1800.0
 
 
@@ -45,7 +46,9 @@ func _process(_d: float) -> bool:
 		return false
 	game.new_game(7)
 	game.paused = true
-	var lab = game.place(D.B_LAB, Rect2i(118, 37, 4, 3))
+	# v2's spot left of the Hub, scaled about the pad.
+	var sz: Vector2i = D.B_SIZES[D.B_LAB]
+	var lab = game.place(D.B_LAB, Rect2i((D.W >> 1) - 10 * D.S, D.GROUND_Y - sz.y, sz.x, sz.y))
 	var d = game.drill
 	print("time  head  reach  stone  power  water  research")
 	var last := -1

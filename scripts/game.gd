@@ -1019,6 +1019,8 @@ func _drill(b: Building) -> void:
 			if b.reach % 2 == 0:
 				reveal(b.drill_head(), D.REVEAL_DIG)
 			continue
+		if _drill_row(b, c):
+			continue
 		var m: int = sim.get_cell(c.x, c.y)
 		var cost := 1.0 / (D.bore_rate(m) * b.lanes() * drill_speed())
 		if b.work < cost:
@@ -1037,6 +1039,45 @@ func _drill(b: Building) -> void:
 		b.cells_bored += 1
 		cells_drilled += 1
 		_breach_check(b, c)
+
+
+## Dig the rest of the channel row `c` is in at once, if the Drill can pay for all
+## of it now; false (nothing done) if not, and it digs cell by cell instead.
+func _drill_row(b: Building, c: Vector2i) -> bool:
+	var r := b.channel_row(c)
+	var row := b.channel_span(r, r + 1)
+	var counts: PackedInt32Array = sim.rect_counts(row.position.x, row.position.y, row.size.x, row.size.y)
+	var mask := Mats.mask("dig" if researched.has("obsidian_saw") else "dig_no_obsidian")
+	var cost := 0.0
+	var pw := 0.0
+	var n := 0
+	for m: int in Mats.dig_ids():
+		var k: int = counts[m]
+		if k == 0 or mask[m] == 0:
+			continue
+		cost += k / (D.bore_rate(m) * b.lanes() * drill_speed())
+		pw += k * drill_power(m, r)
+		n += k
+	if n < 2 or b.work < cost or b.power < pw:
+		return false
+	var dug: PackedInt32Array = sim.dig_rect(row.position.x, row.position.y, row.size.x, row.size.y, mask,
+			D.SETTLE_RADIUS, int(D.SETTLE_S * D.TICKS_PER_S))
+	b.work -= cost
+	b.power -= pw
+	used_acc += pw
+	var at := Vector2(row.get_center())
+	for m: int in Mats.dig_ids():
+		if dug[m] > 0:
+			for res: int in D.mat_yields(m):
+				_bank(at, res, dug[m] / D.CELLS_PER_UNIT)
+	b.cells_bored += n
+	cells_drilled += n
+	# Breaches: only worth looking cell by cell with liquid round the row.
+	var around := row.grow(1)
+	if sim.count_in_rect(around.position.x, around.position.y, around.size.x, around.size.y, Mats.mask("liquid")) > 0:
+		for k in b.lanes():
+			_breach_check(b, b.channel_cell(r, k))
+	return true
 
 
 ## The first cell left to dig in the channel, from `scan_from` down. A long
@@ -1145,6 +1186,15 @@ func _hopper(b: Building) -> void:
 	var start := ticks % n
 	var take_water := b.filter != 2
 	var take_solids := b.filter != 1
+	# Nothing to take anywhere round its rim (the usual case): skip the look.
+	var wet := 0
+	if take_water:
+		wet = sim.count_in_rect(b.x - 1, b.y - 1, bw + 2, bh + 1, Mats.mask("worth_liquid"))
+	var loose := 0
+	if take_solids:
+		loose = sim.count_in_rect(b.x, b.y - 1, bw, 1, Mats.mask("powder"))
+	if wet == 0 and loose == 0:
+		return
 	for k in n:
 		if b.intake < 1.0:
 			break
@@ -3190,23 +3240,13 @@ func _upload_tile(arr: Texture2DArray, which: int, t: int) -> void:
 
 
 func _refresh_sense() -> void:
-	var fresh := PackedByteArray()
-	fresh.resize(KW * KH)
+	var circles := PackedInt32Array()
 	for b: Building in buildings:
 		if (b.type != D.B_DRILL and b.type != D.B_BORER) or not b.built:
 			continue
 		for p: Vector2 in [b.center(), b.drill_head()]:
-			var sr := D.SENSE_RADIUS
-			var kx0 := maxi(int((p.x - sr) / 4.0), 0)
-			var kx1 := mini(int((p.x + sr) / 4.0), KW - 1)
-			var ky0 := maxi(int((p.y - sr) / 4.0), 0)
-			var ky1 := mini(int((p.y + sr) / 4.0), KH - 1)
-			for ky in range(ky0, ky1 + 1):
-				for kx in range(kx0, kx1 + 1):
-					var dx := kx * 4 + 2.0 - p.x
-					var dy := ky * 4 + 2.0 - p.y
-					if dx * dx + dy * dy <= (sr + 2.0) * (sr + 2.0):
-						fresh[ky * KW + kx] = 255
+			_circle(circles, p, D.SENSE_RADIUS)
+	var fresh: PackedByteArray = sim.block_circles(circles)
 	if fresh != sense:
 		sense = fresh
 		sense_changed = true
