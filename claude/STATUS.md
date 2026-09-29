@@ -7,12 +7,12 @@ Claude adds a section at its top each phase and doesn't need to read the rest.
 
 ## Handoff
 - Last done: phase 8b, the rescale (768 x 5120, buildings 10x), plus free fall,
-  nibbling mites, block light, tiled rendering and the speed work it needed. All on
-  branch claude/charming-mayer-evn3ro; `main` has only the git/cloud setup.
+  nibbling mites, block light, tiled rendering and the speed work it needed. Merged
+  into `main`.
 - Next: phase 8c, rigid bodies (falling chunks, falling buildings, Thumper collisions;
   mites as bodies per claude/IDEAS.md entry 4).
-- Open with Alex: whether to merge the rescale into main; mite pace (about 2-3x
-  slower than v2 against building size) is for phase 10.
+- Open with Alex: mite pace (about 2-3x slower than v2 against building size) is for
+  phase 10.
 - Known rough edges: the screenshot scripts, smoke_v2, flow and scenario_water* still
   use v2 coordinates; the top bar clips the Help button when the depth label shows; a
   network rebuild on a dense 380-building network takes ~34 ms.
