@@ -19,16 +19,21 @@ Claude adds a section at its top each phase and doesn't need to read the rest.
 - Known rough edges: the screenshot scripts (bar shot_bodies and shot_title), smoke_v2,
   flow and scenario_water* still use v2 coordinates; the top bar clips the Help button
   when the depth label shows; a network rebuild on a dense 380-building network takes
-  ~34 ms; an aquifer's spring buried by rubble stops refilling it.
+  ~34 ms; an aquifer's spring buried by rubble stops refilling it; a jacket's steam
+  still scalds the Conduit line behind it on the way down (Borers that bore down
+  through hot rock lose Conduits to it; the bot relays them).
 
 ## Test baseline (all must hold before committing)
 - `bash native/run_tests.sh` (about 7 minutes): every scenario (eleven, with
   scenario_run) and engine_compare end `FAILURES: 0`.
 - Descent probe (tests/descent.gd, seed 7): head at 500 at 1.5 min, 700 at 5.5, 1000 at
   13.5, 1400 at 19.5 (research is the clock early on).
-- Autoplay bot (tests/autoplay.gd, seed 7): Stone band 20:02, Tier 2 22:08, Tier 3
-  25:55, the Saw ~45:00, bedrock 51:37, Tier 4 52:45, the Crucible lit at 1:00:01.
-  A full run takes about an hour of real time; `--save`/`--load` checkpoints help.
+- Autoplay bot (tests/autoplay.gd): on every seed tried (5, 7, 11, 23) the Stone band
+  at ~20-21 min, Tier 2 ~21-22, Tier 3 ~26-28, bedrock ~51-52, Tier 4 ~53-54; lit at
+  1:00:01 (7), 58:39 (11), 59:07 (23). A run takes about an hour of real time;
+  `--save`/`--load` checkpoints and `--threads=1` (three seeds side by side) help.
+  Its logistics (water, Stone, lines through steam) still stall some runs: see the
+  root STATUS's phase 10 section.
 - Network bench (tests/bench_net.gd): about 2.5 ms a tick once its floors cave in (4.1 at
   60 s on the slower container, same as main there).
 - `tests/prof_scale.gd`: a fresh game ticks in about 0.7 ms (1.3 ms on a slower

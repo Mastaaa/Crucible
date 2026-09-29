@@ -8,23 +8,26 @@ extends SceneTree
 ##
 ## The plan:
 ##  - a Lab researches the Drill down to the Topsoil's bottom, and a Conduit chain
-##    follows it down its shaft;
-##  - a Borer leaves the Drill's foot and goes straight down its own column (clear
-##    of any water) to the hot rock, a Conduit line following: everything else
-##    hangs off that column;
+##    follows it down its shaft (stopping over any water the Drill let in);
+##  - a Borer leaves the Drill's foot (or, if the shaft has flooded, from over the
+##    water and sideways) and goes straight down its own column (clear of any water)
+##    to the hot rock, a Conduit line following: everything else hangs off that column;
 ##  - Borers sweep out of it along the richest glimmer bands (Tier 2);
 ##  - a Borer tunnels most of the way to the nearest water, a Hopper goes in behind
-##    it, then it breaks through: the Hopper drinks the flow (Water);
+##    it, then it breaks through: the Hopper drinks the flow (Water). If the flow
+##    stops, Hoppers go into the aquifer itself, and a dry one means the next aquifer;
 ##  - a Borer along just over the hot line to over the lava with the least hot rock
 ##    above it, and a Thumper blasts down from there (Tier 3);
-##  - with the Coolant Jacket and the Obsidian Saw, a Borer goes down from there
-##    through the hot rock and the lava (quenching it into obsidian) to the bedrock;
-##  - another goes across to the plug and down it into the chamber (Tier 4), and a
-##    Conduit in the plug's mouth links the Crucible; then it's fed and lit.
+##  - with the Coolant Jacket and the Obsidian Saw, jacketed Borers dive into that lava
+##    for obsidian (then into the lava lake), and another bores down to the bedrock by
+##    a way clear of lava and caves, then across and down the plug (Tier 4);
+##  - Conduits down the plug hang one under the dome in reach of the Crucible; three
+##    Caches by the plug fill, and it's lit, the line kept whole through the tremors.
+## Every Borer's Conduit line starts again from the nearest live relay if it breaks.
 ##
 ## godot --headless --path . --script tests/autoplay.gd -- --seed=7 [--max=7200] [--quiet]
 ##   [--save=SECONDS] (checkpoint to user://bot_<seed>_<t>.save) [--load=PATH] [--dump=SECONDS]
-##   [--rect=x,y,w,h] (what --dump maps) [--threads=N] (the sim's; results don't depend on it)
+##   [--rect=x,y,w,h] (what --dump maps) [--threads=N] (the sim's threads, to run seeds side by side)
 
 const D = preload("res://scripts/defs.gd")
 const Save = preload("res://scripts/save.gd")
@@ -144,9 +147,11 @@ func think() -> void:
 		place_conduits()
 		drive_borers()
 		keep_linked()
+		mend()
 		return
 	research()
 	shaft_chain()
+	mend()
 	place_conduits()
 	drive_borers()
 	deep()
@@ -262,6 +267,18 @@ func shaft_bottom() -> int:
 	return y
 
 
+## The first water down the Drill's shaft (an aquifer it bored through drains into
+## it), or the bottom if there's none.
+func shaft_water() -> int:
+	var d = game.drill
+	var x: int = d.x + 15
+	var y: int = D.GROUND_Y
+	var bottom := shaft_bottom()
+	while y < bottom and game.sim.get_cell(x, y) != D.WATER:
+		y += 1
+	return y
+
+
 ## A Conduit line down the Drill's shaft against its left wall, a relay's spacing
 ## apart, and to just over its foot when something is to be sent from there.
 func shaft_chain() -> void:
@@ -271,7 +288,7 @@ func shaft_chain() -> void:
 	var x: int = d.x + 10
 	if st["chain_to"] == 0:
 		st["chain_to"] = d.y + d.h - 108
-	var top := shaft_bottom() - 30
+	var top := mini(shaft_bottom(), shaft_water()) - 30
 	var last_y := top - 35
 	var gap: int = last_y - st["chain_to"]
 	if gap < 120 and not (st.get("need_foot", false) and st["chain_to"] < top - 70):
@@ -293,9 +310,18 @@ func shaft_chain() -> void:
 ## goes down once its spot is open and in reach, or a few cells off it if debris
 ## sits there or the wall is, never further from the Conduit before it than a
 ## relay reaches.
-func want_conduit(at: Vector2i, prev: Vector2i) -> void:
+func want_conduit(at: Vector2i, prev: Vector2i, route := -1) -> void:
 	st["pending"] = st.get("pending", [])
-	st["pending"].append({"at": at, "prev": prev})
+	st["pending"].append({"at": at, "prev": prev, "route": route})
+
+
+## Conduits still queued for a Borer's line.
+func _queued(route: int) -> int:
+	var n := 0
+	for p: Dictionary in st.get("pending", []):
+		if p.get("route", -1) == route:
+			n += 1
+	return n
 
 
 func place_conduits() -> void:
@@ -303,7 +329,7 @@ func place_conduits() -> void:
 	for p: Dictionary in st.get("pending", []):
 		var done := false
 		for dy in [0, -6, 6, -12, 12, -20]:
-			for dx in [0, -4, -8, -12, 4, 8, 12]:
+			for dx in [0, -4, -8, -12, 4, 8, 12, -18, 18, -24, 24, -30, 30, -36, 36]:
 				var c: Vector2i = p["at"] + Vector2i(dx, dy)
 				if Vector2(c - p["prev"]).length() > D.RELAY_RANGE - 8.0:
 					continue
@@ -353,13 +379,25 @@ func _follow(b, rt: Dictionary) -> void:
 	var vertical: bool = b.dir == 0 or b.dir == 3
 	var tail := Vector2i(b.x + 10, b.y - 30) if b.dir == 0 else (Vector2i(b.x + 10, b.y + b.h + 30) if b.dir == 3 \
 			else Vector2i(b.x + b.w + 30 if b.dir == 1 else b.x - 30, b.y + b.h - 10))
+	# Cut off with nothing queued (its line broke, or spots were given up on): the
+	# line starts again from the nearest relay still on the network.
+	if not b.connected and _queued(b.id) == 0:
+		var near: Vector2i = rt["last"]
+		var best := INF
+		for r in game.buildings:
+			if D.is_relay_type(r.type) and r.connected and r.built:
+				var dd := Vector2(r.center()).distance_to(Vector2(tail))
+				if dd < best:
+					best = dd
+					near = Vector2i(r.center())
+		rt["last"] = near
 	var last: Vector2i = rt["last"]
 	# Round a corner: the next point is where the old line meets the new one.
 	if (vertical and absi(last.x - tail.x) > 12) or (not vertical and absi(last.y - tail.y) > 12):
 		var corner := Vector2i(tail.x, last.y) if vertical else Vector2i(last.x, tail.y)
 		if Vector2(corner - last).length() > 110.0:
 			corner = last + Vector2i(Vector2(corner - last).normalized() * 110.0)
-		want_conduit(corner, last)
+		want_conduit(corner, last, b.id)
 		rt["last"] = corner
 		rt["laid"] = rt.get("laid", []) + [corner]
 		return
@@ -368,7 +406,7 @@ func _follow(b, rt: Dictionary) -> void:
 		return
 	var step := minf(gap, 110.0)
 	var to := last + Vector2i((Vector2(tail - last).normalized() * step).round())
-	want_conduit(to, last)
+	want_conduit(to, last, b.id)
 	rt["last"] = to
 	rt["laid"] = rt.get("laid", []) + [to]
 
@@ -403,6 +441,14 @@ func drive_borers() -> void:
 		if rt["hold"] and not b.enabled:
 			jobs.append("Borer (%s) held at %d,%d" % [rt["why"], int(c.x), int(c.y)])
 			continue
+		# A sweep cut off and starved for a minute is given up on (its line didn't
+		# keep up); the Borers that matter get their lines mended instead.
+		if rt["why"] == "glimmer" and not b.connected and b.starved:
+			rt["stranded"] = rt.get("stranded", 0) + 1
+			if rt["stranded"] >= 60:
+				b.enabled = false
+		else:
+			rt["stranded"] = 0
 		# Hot rock before the Coolant Jacket: glimmer Borers wait for it; the rest are done.
 		var hot: bool = b.stuck.begins_with("Hot rock") and not game.researched.has("coolant_jacket")
 		if not b.enabled or (b.stuck != "" and b.stuck != game.DRY and not (hot and rt["why"] == "glimmer")):
@@ -419,6 +465,42 @@ func drive_borers() -> void:
 			continue
 		jobs.append("Borer (%s) %d/%d at %d,%d%s%s" % [rt["why"], rt["leg"] + 1, legs.size(), int(c.x), int(c.y),
 				"" if b.connected else " (off)", "" if b.stuck == "" else ": " + b.stuck])
+
+
+## Relays cut off from the network (a Conduit scalded, burnt or crushed out of a
+## line): a new line from the nearest one still on it to the nearest cut-off one,
+## every 10 s. One in reach whose link broke is left to mend itself with a Stone.
+func mend() -> void:
+	if waiting("mend") or _queued(-3) > 0:
+		return
+	wait("mend", 10.0)
+	var live: Array = []
+	var dead: Array = []
+	for b in game.buildings:
+		if D.is_relay_type(b.type) and b.built and not b.falling:
+			if b.connected:
+				live.append(b)
+			elif not b.drowned:
+				dead.append(b)
+	var best := INF
+	var a := Vector2i()
+	var z := Vector2i()
+	for d in dead:
+		for l in live:
+			var dd := Vector2(d.center()).distance_to(l.center())
+			if dd < best:
+				best = dd
+				a = Vector2i(l.center())
+				z = Vector2i(d.center())
+	if best == INF or best <= D.RELAY_RANGE - 10.0:
+		return
+	var last := a
+	while Vector2(z - last).length() > 110.0:
+		var to := last + Vector2i((Vector2(z - last).normalized() * 110.0).round())
+		want_conduit(to, last, -3)
+		last = to
+	if not quiet:
+		print("%s  mending the network from %s to %s" % [clock(game.game_time), a, z])
 
 
 ## Onto its next leg once it's past this one's stop (checked every few ticks, so
@@ -508,10 +590,15 @@ func deep() -> void:
 	if d.reach < d.reach_limit:
 		return
 	var foot_y := shaft_bottom()
+	# Water standing in the shaft (the Drill bored through an aquifer): set off from
+	# over it, sideways, so the column stays dry.
+	var wet := shaft_water() < foot_y
+	if wet:
+		foot_y = shaft_water() - 12
 	# The column: the nearest x off the Drill's that has no water or lava near it all
 	# the way down to the hot rock.
 	var cx: int = d.x + 15
-	for off in [0, 70, -70, 140, -140, 210, -210]:
+	for off in ([70, -70, 140, -140, 210, -210] if wet else [0, 70, -70, 140, -140, 210, -210]):
 		var x: int = d.x + 15 + off
 		if x < 40 or x > D.W - 40:
 			continue
@@ -553,6 +640,20 @@ func glimmer() -> void:
 			var n := _count(Rect2i(x0, y, x1 - x0, 30), [D.GLIMMER])
 			if n >= least and n > best.get("n", 0):
 				best = {"y": y, "side": side, "key": key, "n": n}
+	# No glimmer left worth a sweep and Stone running short: sweep for Stone.
+	if best.is_empty() and game.total(D.R_STONE) < 60.0:
+		for y in range(D.LAYERS[2]["top"], st["col_floor"] - 70, 30):
+			if _col_taken(y):
+				continue
+			for side in [1, 2]:
+				var key := "%d %d" % [floori(y / 30.0), side]
+				if st["swept"].has(key):
+					continue
+				var x0: int = 4 if side == 1 else cx + 15
+				var x1: int = cx - 15 if side == 1 else D.W - 4
+				var n := _count(Rect2i(x0, y, x1 - x0, 30), [D.STONE])
+				if n > best.get("n", 0):
+					best = {"y": y, "side": side, "key": key, "n": n}
 	if best.is_empty():
 		wait("glimmer", 30.0)
 		return
@@ -591,6 +692,15 @@ func tap() -> void:
 				best = w
 		if best.size.x == 0:
 			st["tap"] = "done"
+			# The Drill's shaft may have one: an aquifer it bored through drains into it,
+			# fed by its spring. A Hopper over the pool catches what falls.
+			if shaft_water() < shaft_bottom() and not st.has("shaft_hopper"):
+				for k in range(0, 60, 4):
+					var sr := Rect2i(game.drill.x, shaft_water() - 22 - k, 30, 20)
+					if game.check_place(D.B_HOPPER, sr) == "":
+						st["shaft_hopper"] = game.place(D.B_HOPPER, sr).id
+						print("%s  water: a Hopper over the pool in the Drill's shaft at %s" % [clock(game.game_time), sr.position])
+						return
 			print("%s  no water to tap off the column" % clock(game.game_time))
 			return
 		var r := col_spot(clampi(best.get_center().y - 15, D.LAYERS[2]["top"], st["col_floor"] - 90))
@@ -640,6 +750,8 @@ func tap() -> void:
 		var w: Rect2i = st["tap_w"]
 		resume(bo, [[st["tap_side"], (w.position.x - 30) if st["tap_side"] == 1 else (w.end.x + 30)]])
 		st["tap"] = "done"
+		st.erase("water_last")
+		wait("sump", 90.0)          # the water takes a while to come through
 		print("%s  water: the tap is open" % clock(game.game_time))
 
 
@@ -647,7 +759,7 @@ func tap() -> void:
 ## water, a Hopper goes into the aquifer itself, as low as it can link: it drinks
 ## from its sides, and the springs keep the aquifer topped up.
 func sump() -> void:
-	if st.get("tap", "") != "done" or not st.has("tap_w") or waiting("sump") or st.get("sumps", 0) >= 3:
+	if st.get("tap", "") != "done" or not st.has("tap_w") or waiting("sump"):
 		return
 	wait("sump", 30.0)
 	var now: float = game.total(D.R_WATER)
@@ -656,14 +768,15 @@ func sump() -> void:
 	if last < 0.0 or now > last + 1.0:
 		return
 	var aq: Rect2i = st["tap_w"]
-	if _count(aq, [D.WATER]) < 600:
-		# Drained, and its spring isn't keeping up (rubble can bury one): tap the next.
+	if _count(aq, [D.WATER]) < 600 or st.get("sumps", 0) >= 3:
+		# Drained, and its spring isn't keeping up (rubble can bury one), or Hoppers
+		# in it get nothing: tap the next.
 		if st.get("tapped", []).size() < 3:
 			st["tapped"] = st.get("tapped", []) + [aq]
 			for k in ["tap", "tap_w", "tap_side", "tap_row", "tap_hopper", "water_last"]:
 				st.erase(k)
 			st["sumps"] = 0
-			print("%s  water: that aquifer is dry; the next one" % clock(game.game_time))
+			print("%s  water: nothing more from that aquifer; the next one" % clock(game.game_time))
 		return
 	var cx: int = st["col_x"]
 	var best := Rect2i()
@@ -672,9 +785,14 @@ func sump() -> void:
 		for x in range(aq.position.x - 10, aq.end.x - 19, 4):
 			var r := Rect2i(x, y, 30, 20)
 			var d := absf(r.get_center().x - cx) * 0.2 + (aq.end.y - y) * 2.0     # low first: it stays under water
-			if d < best_d and game.check_place(D.B_HOPPER, r) == "":
-				best = r
-				best_d = d
+			if d >= best_d or game.check_place(D.B_HOPPER, r) != "":
+				continue
+			# Its power comes by a relay: one under water passes nothing on.
+			var l = game.find_link(D.B_HOPPER, r)
+			if l == null or l.drowned or _count(l.rect(), [D.WATER]) > 0:
+				continue
+			best = r
+			best_d = d
 	if best.size.x == 0:
 		print("%s  !! the tap has stopped and there's no spot for a Hopper in its aquifer" % clock(game.game_time))
 		st["sumps"] = st.get("sumps", 0) + 1
@@ -706,10 +824,21 @@ func lava() -> void:
 	if t != null:
 		jobs.append("Thumper at %d (%d blasts, power %.1f%s)" % [t.y, t.blasts, t.power, "" if t.connected else ", off the network"])
 		var last: Vector2i = st.get("lava_last", Vector2i(t.center()))
-		if not t.connected and not t.flying and t.y - last.y > 70:
-			var to := Vector2i(last.x, mini(last.y + 110, t.y - 35))
-			want_conduit(to, last)
-			st["lava_last"] = to
+		if not t.connected and not t.flying:
+			# Its crater wanders: the line goes after it from the nearest live relay.
+			if _queued(-2) == 0:
+				var best := INF
+				for r in game.buildings:
+					if D.is_relay_type(r.type) and r.connected and r.built:
+						var dd := Vector2(r.center()).distance_to(t.center())
+						if dd < best:
+							best = dd
+							last = Vector2i(r.center())
+			var gap := Vector2(t.center()).distance_to(Vector2(last))
+			if gap > 70.0 and _queued(-2) == 0:
+				var to := last + Vector2i((Vector2(Vector2i(t.center()) - last).normalized() * minf(110.0, gap - 35.0)).round())
+				want_conduit(to, last, -2)
+				st["lava_last"] = to
 		return
 	if _busy("lava") > 0 or st["tries"] >= 6:
 		return
@@ -798,6 +927,25 @@ func descent() -> void:
 	# From the column's foot down to the bedrock by a way that keeps clear of lava.
 	var cx: int = st["col_x"]
 	var fl: int = st["col_floor"]
+	# Water standing at the column's foot (a spring in a cave by it, a tap's
+	# overflow) leaves nowhere to start from: a Hopper drinks it first.
+	var foot := Rect2i(cx - 60, fl - 160, 120, 180)
+	var wet := _count(foot, [D.WATER])
+	var dr = by_id(st.get("drain", -1))
+	if dr != null and wet < 100:
+		game.demolish(dr)
+		st.erase("drain")
+	elif dr == null and wet > 200:
+		var h := _in_water(D.B_HOPPER, foot)
+		if h.size.x > 0:
+			st["drain"] = game.place(D.B_HOPPER, h).id
+			print("%s  water at the column's foot: a Hopper to drink it" % clock(game.game_time))
+		wait("descent", 10.0)
+		return
+	elif dr != null:
+		jobs.append("draining the column's foot")
+		wait("descent", 10.0)
+		return
 	var r := near_spot(D.B_BORER, Vector2i(cx, fl - 60), 100, fl - 220)
 	if r.size.x == 0:
 		print("%s  !! no spot for the descent near the column's foot" % clock(game.game_time))
@@ -820,6 +968,18 @@ func descent() -> void:
 	print("%s  a Borer down to the bedrock by x %d, from %s: %s" % [clock(game.game_time), dx, r.position, legs])
 
 
+## The lowest spot for a `type` (a Hopper, say) in the water in `area`, or an
+## empty Rect2i.
+func _in_water(type: int, area: Rect2i) -> Rect2i:
+	var sz: Vector2i = D.B_SIZES[type]
+	for y in range(area.end.y - sz.y, area.position.y - 1, -4):
+		for x in range(area.position.x, area.end.x - sz.x + 1, 4):
+			var r := Rect2i(Vector2i(x, y), sz)
+			if _count(r, [D.WATER]) > r.get_area() / 3.0 and game.check_place(type, r) == "":
+				return r
+	return Rect2i()
+
+
 ## A Borer's legs from `from` down to the bedrock over the chamber, keeping clear
 ## of lava and caves: a search over 30-cell blocks (down or across, never up).
 func lava_free_legs(from: Vector2i) -> Array:
@@ -837,7 +997,12 @@ func lava_free_legs(from: Vector2i) -> Array:
 		for i in nx:
 			var blk := Rect2i(x0 + i * bs, y0 + j * bs, bs, bs)
 			var near := blk.grow(16)
-			free[Vector2i(i, j)] = _count(blk.grow(20), [D.LAVA]) == 0 \
+			var built := false
+			for b in game.buildings:
+				if b.rect().intersects(blk) and not b.rect().encloses(Rect2i(from - Vector2i(15, 30), Vector2i(30, 30))):
+					built = true
+					break
+			free[Vector2i(i, j)] = not built and _count(blk.grow(20), [D.LAVA]) == 0 \
 					and _count(near, open) - _count(near.intersection(col), open) < bs * 3
 	var start := Vector2i(clampi(floori((from.x - x0) / float(bs)), 0, nx - 1), 0)
 	var prev := {start: start}
@@ -906,15 +1071,21 @@ func obsidian() -> void:
 		st["dry_dives"] = 0
 		print("%s  obsidian: the pocket's spent; on to the lava lake" % clock(game.game_time))
 	var r := Rect2i()
-	var stop := 0
+	var legs: Array = []
 	if st.get("dive_at", "") == "lake":
+		# From the nearest spot the network reaches: down into it from over it, or
+		# across into its side (a Borer that breaks into its cave drops in).
 		var lk: Rect2i = game.info["lake"]
 		var lx := lk.get_center().x
 		var ly := lk.position.y
 		while ly < lk.end.y and game.sim.get_cell(lx, ly) != D.LAVA:
 			ly += 1
 		r = near_spot(D.B_BORER, Vector2i(lx, ly - 80), 200, ly - 260)
-		stop = lk.end.y
+		if r.size.x == 0:
+			r = near_spot(D.B_BORER, Vector2i(lx, ly + 20), 320)
+		if r.size.x > 0 and absi(r.get_center().x - lx) > (lk.size.x >> 2):
+			legs.append([1 if lx < r.get_center().x else 2, lx])
+		legs.append([0, lk.end.y])
 	else:
 		var t = by_id(st.get("thumper", -1))
 		if t != null:
@@ -926,8 +1097,8 @@ func obsidian() -> void:
 			if b.type != D.B_HOPPER and b.rect().intersects(Rect2i(st["lava_x"] - 60, top + 30, 120, 400)):
 				game.demolish(b)
 		r = near_spot(D.B_BORER, Vector2i(st["lava_x"], top + 40), 150, top - 20)
-		stop = st["lava_y"] + 120
-	if r.size.x == 0 or send_borer(r, [[0, stop]], "dive", false) == null:
+		legs.append([0, st["lava_y"] + 120])
+	if r.size.x == 0 or send_borer(r, legs, "dive", false) == null:
 		wait("obsidian", 20.0)
 		return
 	st["dives"] = st.get("dives", 0) + 1
@@ -1002,7 +1173,11 @@ func plug() -> void:
 
 func crucible() -> void:
 	var c = game.crucible
-	if game.cstate != 0 or not c.connected:
+	if game.cstate != 0:
+		return
+	if not c.connected:
+		if st.get("plug", "") == "done":
+			keep_linked()
 		return
 	for r in D.NRES:
 		if game.total(r) < D.RECIPE[r]:
@@ -1033,7 +1208,7 @@ func crucible() -> void:
 		if not k.built or k.store[D.R_POWER] < D.CACHE_TOPUP[D.R_POWER] - 5.0:
 			jobs.append("filling the Caches")
 			return
-	if game.stock[D.R_POWER] < D.HUB_POWER_CAP - 10.0 or _busy("dive") + _busy("glimmer") > 0:
+	if game.stock[D.R_POWER] < D.HUB_POWER_CAP - 10.0 or _busy("dive") > 0:
 		jobs.append("filling the Hub")
 		return
 	game.activate_crucible()

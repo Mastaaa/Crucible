@@ -14,7 +14,7 @@ A run, start to finish:
   random seed, or type one), Quit. Esc opens it from a run. The run saves on quit, on
   going to the title and every 5 minutes. A loaded run steps exactly as the saved one.
 - Speeds: pause, 1x, 2x, 4x on the top bar and keys. When the machine can't keep up,
-  the game slows rather than the frame rate, and the bar says what speed it's managing.
+  the frame rate holds and the game runs slower; the bar shows the speed it's managing.
 - Lost: the Hub takes damage like any building (blasts, falling rock, fire, lava,
   sulfur, collisions). It patches itself with one of its own Stones every 10 s at
   most while under 60%, and a banner warns under 35%. When it goes, the run is over
@@ -34,8 +34,8 @@ Rules that changed:
   tank instead of burning (dry, it burns). So obsidian comes from diving jacketed Borers
   into lava, or from water poured on it as before.
 - Water that lands on or against a jacketed Borer goes into its tank. Boring down, its
-  own steam condenses up the shaft and rained back onto it in a pool that drowned the
-  Conduit line following it.
+  own steam condensed up the shaft and rained back onto it, and the pool on its roof
+  drowned the Conduit line following it.
 - Condensing steam: half turns back to water, half is lost. Before, a finished jacket
   tunnel kept its steam cycling (boiling on the hot rock, condensing, dripping back)
   indefinitely, scalding its Conduits: about 27 Stone a minute of repairs. Water still
@@ -64,7 +64,8 @@ researches the Coolant Jacket and the Saw; dives jacketed Borers into that lava 
 and then the lava lake for obsidian; bores down to the bedrock on a path clear of lava
 and caves and on through the plug; hangs a Conduit under the dome for the Crucible;
 fills three Caches and lights it, holding everything else and relaying the line
-whenever a tremor knocks it out. Seed 7:
+whenever a tremor knocks it out. Seed 7 (before: the old numbers; tuned: resumed
+through checkpoints at 30:00 and 45:00 while the tap and endgame were fixed):
 
 | | before | tuned |
 |---|---|---|
@@ -76,7 +77,30 @@ whenever a tremor knocks it out. Seed 7:
 | Tier 4 | 26:18 | 52:45 |
 | the Crucible lit | 29:12 | 1:00:01 |
 
-Seeds 5, 11 and 23: runs in progress (filled in by the next commit).
+Other seeds, same numbers (several runs resumed from checkpoints while the bot was
+being fixed, so treat single minutes loosely):
+
+| | 5 | 7 | 11 | 23 |
+|---|---|---|---|---|
+| Stone band | 20:40 | 20:02 | 20:12 | 20:55 |
+| Tier 2 | 21:37 | 22:09 | 20:45 | 22:27 |
+| Tier 3 | 27:43 | 25:40 | 27:05 | 27:08 |
+| bedrock | 52:06 | 51:16 | 51:17 | 51:38 |
+| Tier 4 | 54:01 | 52:40 | 53:16 | 53:01 |
+| the Crucible lit | (stalled) | 1:00:01 | 58:39 | 59:07 |
+
+The curve holds across seeds; the bot's logistics don't always. Its water, Stone and
+Conduit lines through steam are seed-sensitive: seed 5 stalled at 47 of 48 Obsidian
+with its line to the Crucible not going down, and the final bot's own run of seed 7
+from scratch linked the Crucible at 52:52 and then stalled once on Stone (the Caches
+never built) and once on a plug Borer cut off from its water. What it copes with now:
+an aquifer the Drill floods into its shaft (the column starts over the water, and the
+shaft's pool becomes a last-resort tap), taps that cave in or run dry (Hoppers into
+the aquifer, then the next aquifer), a Thumper's line after its wandering crater,
+broken lines (restarted from the nearest live relay; a general mender for cut-off
+relays), water pooled at the column's foot (drained first), a spent lava pocket (the
+lava lake next), Stone running short (sweeps for Stone), and tremors cutting the
+Crucible off mid-charge (the line relaid).
 
 ## Phase 9 done: depth (10, pacing, is next)
 
