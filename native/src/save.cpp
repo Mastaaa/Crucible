@@ -25,20 +25,25 @@ namespace {
 const uint32_t MAGIC = 0x56535243u; // "CRSV"
 const uint32_t VERSION = 1;
 
+// Writing goes twice over the state: once with no buffer to count the bytes, then
+// into one buffer of that size (a growing vector copied the ~47 MB several times).
 struct Out {
-	std::vector<uint8_t> b;
+	uint8_t *b = nullptr;
+	size_t i = 0;
 	template <class T>
 	void put(const T &v) {
-		const uint8_t *p = reinterpret_cast<const uint8_t *>(&v);
-		b.insert(b.end(), p, p + sizeof(T));
+		if (b) {
+			std::memcpy(b + i, &v, sizeof(T));
+		}
+		i += sizeof(T);
 	}
 	template <class T>
 	void vec(const std::vector<T> &v) {
 		put<uint32_t>((uint32_t)v.size());
-		if (!v.empty()) {
-			const uint8_t *p = reinterpret_cast<const uint8_t *>(v.data());
-			b.insert(b.end(), p, p + v.size() * sizeof(T));
+		if (b && !v.empty()) {
+			std::memcpy(b + i, v.data(), v.size() * sizeof(T));
 		}
+		i += v.size() * sizeof(T);
 	}
 };
 
@@ -75,20 +80,31 @@ struct In {
 } // namespace
 
 PackedByteArray CrucibleSim::save_state() const {
+	Out count;
+	write_state(count);
+	PackedByteArray out;
+	out.resize((int64_t)count.i);
 	Out o;
+	o.b = out.ptrw();
+	write_state(o);
+	return out;
+}
+
+template <class O>
+void CrucibleSim::write_state(O &o) const {
 	o.put(MAGIC);
 	o.put(VERSION);
-	o.put<int32_t>(W);
-	o.put<int32_t>(H);
+	o.template put<int32_t>(W);
+	o.template put<int32_t>(H);
 	o.put(seed);
 	o.put(grng);
-	o.put<int32_t>(tick);
-	o.put<int32_t>(mark);
-	o.put<int32_t>(collapse_cursor);
-	o.put<int32_t>(next_body_id);
+	o.template put<int32_t>(tick);
+	o.template put<int32_t>(mark);
+	o.template put<int32_t>(collapse_cursor);
+	o.template put<int32_t>(next_body_id);
 	for (int v : { reactions_total, ignitions_total, eroded, crumbled, caved, washed, last_cave_x, last_cave_y,
 				 bodies_made, bodies_shattered, bodies_settled }) {
-		o.put<int32_t>(v);
+		o.template put<int32_t>(v);
 	}
 	o.vec(cells);
 	o.vec(aux);
@@ -104,7 +120,7 @@ PackedByteArray CrucibleSim::save_state() const {
 	o.vec(next.x1);
 	o.vec(next.y1);
 	o.vec(impacts);
-	o.put<uint32_t>((uint32_t)parts.size());
+	o.template put<uint32_t>((uint32_t)parts.size());
 	for (const Particle &q : parts) {
 		o.put(q.x);
 		o.put(q.y);
@@ -113,11 +129,11 @@ PackedByteArray CrucibleSim::save_state() const {
 		o.put(q.mat);
 		o.put(q.aux);
 	}
-	o.put<uint32_t>((uint32_t)bodies.size());
+	o.template put<uint32_t>((uint32_t)bodies.size());
 	for (const Body &b : bodies) {
-		o.put<int32_t>(b.id);
-		o.put<int32_t>(b.w);
-		o.put<int32_t>(b.h);
+		o.template put<int32_t>(b.id);
+		o.template put<int32_t>(b.w);
+		o.template put<int32_t>(b.h);
 		o.vec(b.mat);
 		o.vec(b.aux);
 		o.vec(b.edge);
@@ -125,20 +141,14 @@ PackedByteArray CrucibleSim::save_state() const {
 					 b.sx, b.sy, b.sa, b.ax, b.ay, b.aa }) {
 			o.put(v);
 		}
-		o.put<int32_t>(b.count);
+		o.template put<int32_t>(b.count);
 		o.vec(b.at);
 		o.vec(b.from);
-		o.put<uint8_t>(b.creature ? 1 : 0);
-		o.put<int32_t>(b.age);
-		o.put<int32_t>(b.rest);
-		o.put<int32_t>(b.last_hit);
+		o.template put<uint8_t>(b.creature ? 1 : 0);
+		o.template put<int32_t>(b.age);
+		o.template put<int32_t>(b.rest);
+		o.template put<int32_t>(b.last_hit);
 	}
-	PackedByteArray out;
-	out.resize((int64_t)o.b.size());
-	if (!o.b.empty()) {
-		std::memcpy(out.ptrw(), o.b.data(), o.b.size());
-	}
-	return out;
 }
 
 bool CrucibleSim::load_state(const PackedByteArray &data) {

@@ -13,6 +13,8 @@ A run, start to finish:
 - Title screen: Continue (the one save slot, with its seed and time), Start Run (a
   random seed, or type one), Quit. Esc opens it from a run. The run saves on quit, on
   going to the title and every 5 minutes. A loaded run steps exactly as the saved one.
+  A save of a 45-minute run is about 480 KB and takes about 80 ms (the engine's
+  snapshot, 47 MB before compression, is written into one buffer: 30 ms, was 100-350).
 - Speeds: pause, 1x, 2x, 4x on the top bar and keys. When the machine can't keep up,
   the frame rate holds and the game runs slower; the bar shows the speed it's managing.
 - Lost: the Hub takes damage like any building (blasts, falling rock, fire, lava,

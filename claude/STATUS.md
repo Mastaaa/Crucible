@@ -45,6 +45,8 @@ Claude adds a section at its top each phase and doesn't need to read the rest.
 - `tests/prof_scale.gd`: a fresh game ticks in about 0.7 ms (1.3 ms on a slower
   container, where main measured the same; compare against main on the same machine).
 - `tests/bench_bodies.gd`: 100 slabs falling at once, about 3.5 ms a tick (worst 14).
+- Saving (phase 10): a 45-minute run writes in about 80 ms (sim snapshot ~30 ms, 47 MB
+  raw, ~480 KB on disk) and loads in about 50-100 ms.
 - `python3 native/lsp_check.py . <changed .gd files>`: no warnings.
 
 ## Scale (phase 8b)

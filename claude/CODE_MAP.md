@@ -42,7 +42,8 @@ index as [Stone, Glimmer, Obsidian, Water, Power].
   tile a layer, `tile_at`), palette, and block textures (light, fog, heat, sense).
 - `native/src/crucible_sim.{h,cpp}`: the engine (CrucibleSim, a RefCounted).
 - `native/src/save.cpp`: `save_state`/`load_state` (everything a run needs to step on
-  exactly as before: cells, aux, holds, settle, bodies, RNG, tick).
+  exactly as before: cells, aux, holds, settle, bodies, RNG, tick). `write_state` runs
+  twice, counting the bytes and then writing them into one buffer.
 - `native/src/bodies.cpp`: rigid bodies and collapse into pieces (members of CrucibleSim);
   `native/src/rng.h`: the random helpers both share.
 - Session tooling in `native/`: `cloud_setup.sh` (run by `.claude/hooks/session-start.sh`),

@@ -438,6 +438,8 @@ public:
 	bool remove_body(int id);
 
 	PackedByteArray save_state() const; // save.cpp
+	template <class O>
+	void write_state(O &o) const; // save.cpp: counts the bytes, or writes them
 	bool load_state(const PackedByteArray &data);
 
 	void set_threads(int n);
