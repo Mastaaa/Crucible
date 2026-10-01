@@ -18,6 +18,16 @@ seed's layout. Seeds 5, 7, 11, 23 are identical outside the Heap (tests/scenario
 No engine change. scenario_power and scenario_chemistry clear the Heap in `fresh()`:
 they carve shafts open to the surface where seed 7's Heap stands.
 
+## A3 (part): goal layer v1
+
+The Hub issues flat orders from data/instructions.json: a five-step tutorial (skippable
+from the first run), then a standing order every 150 s. Rewards are power paid into the
+Hub. Depth bands are chapters with one objective each, logged through the event tracker.
+A panel shows the run goal, depth, a tremor line, the chapter and the open order.
+Research now also eats goods by tier (Stone, plus Water at tier 3). The Hub trickle is
+0.2 power/s. scenario_goals is new; scenario_power and scenario_research were adjusted for
+the trickle. The descent probe now takes ~1800 s to depth 500; the bot was not re-run.
+
 ## Phase 10 done: pacing (the pre-alpha is complete)
 
 Tests: eleven suites end `FAILURES: 0`, with the new scenario_run. The engine changed

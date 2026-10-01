@@ -121,13 +121,13 @@ func scenario_a() -> void:
 	drills.append(put(D.B_DRILL, R(143, 37, 3, 3)))
 	game.drill.cells_bored = 0
 	var starved_ticks := 0
-	for s in 30:
+	for s in 300:    # 0.2 power/s from the Hub: ten times as long as at 2/s
 		for _t in 60:
 			game.run_ticks(1)
 			for d in drills:
 				if d.starved:
 					starved_ticks += 1
-		if s % 3 != 2:
+		if s % 30 != 29:
 			continue
 		var line := "  t=%2ds hub power %5.1f  used %.2f/s |" % [s + 2, game.stock[D.R_POWER], game.power_used]
 		for d in drills:
@@ -182,6 +182,7 @@ func scenario_c() -> void:
 		conduits.append(build(D.B_CONDUIT, R(150, y, 2, 2)))
 	var cache = build(D.B_CACHE, R(153, 97, 3, 3))
 	var drill = put(D.B_DRILL, R(157, 97, 3, 3))
+	game.stock[D.R_POWER] = 100.0    # the Hub's own trickle is 0.2/s now
 	secs(40.0)
 	print("  after 40 s: cache holds %s   drill bored %d   hub %s" % [_fmt(cache.store), drill.cells_bored, _fmt(game.stock)])
 	check(cache.built and drill.built, "cache and drill built")

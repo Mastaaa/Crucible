@@ -82,6 +82,8 @@ func check(ok: bool, what: String) -> void:
 func research(id: String, limit: float) -> float:
 	game.pick_research(id)
 	for t in int(limit * 60.0):
+		if t % 60 == 0:
+			game.stock[D.R_POWER] = 100.0    # the Hub's trickle is 0.2/s now; research is measured on a full store
 		game.run_ticks(1)
 		if game.researched.has(id):
 			return (t + 1) / 60.0
