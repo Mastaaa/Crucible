@@ -13,7 +13,8 @@ uncover elements, deposits and curios; exploit reactions or get blindsided by th
 - Claude's docs, in the repo, read in this order at the start of a session: this brief,
   claude/STATUS.md (lean: the game as it stands, the handoff, test baselines),
   claude/SESSION_SETUP.md (the routine: build, test, deliver), and claude/CODE_MAP.md when about
-  to read code. claude/IDEAS.md is Alex's parking lot (open it only when pointed at an entry).
+  to read code. claude/ALPHA_PLAN.md is the Alpha plan's design (read it for A1 onward).
+  claude/IDEAS.md is Alex's parking lot (open it only when pointed at an entry).
 - The root STATUS.md is the full per-phase history for Alex; Claude adds each phase's section at
   its top and doesn't read the rest.
 - Spec: claude/SPEC_v2.md, a copy of the Claude Docs doc "Crucible — v2 Spec"
@@ -98,11 +99,37 @@ uncover elements, deposits and curios; exploit reactions or get blindsided by th
      a first run about 2 hours, the bot about 1.
    - Deposits worth 6x a cell; the Coolant Jacket takes on lava; condensing steam loses half.
 
-After 10: new features in earnest, starting with deeper materials and curios (moved out
-of phase 9) and claude/IDEAS.md. Buildings and coolant will be reworked after the
-pre-alpha, so phase 10's jacket rules and building-tied tuning are placeholders.
+## Alpha roadmap (A1 to A7; design in claude/ALPHA_PLAN.md)
+
+Agreed with Alex; nothing is implemented yet. The player is an autonomous machine built to
+reach and light the Crucibles; Hub orders are flat instructions. Three focus areas: more
+materials with real chemistry, modular machines (Create-like), and biomes.
+
+1. A1, temperature and reactions: a per-cell temperature field (slow pass), melting and
+   boiling points as data, family-tag reaction rules, hot rock rebuilt on it, a lab bench mode.
+2. A2, materials wave 1 (about 12) and a spawn-region system, with a hand-placed Spoil Heap
+   near the Hub.
+3. A3, machine framework and the hard cut: legacy buildings go (Hub, Crucible, Nodes, Lab,
+   Lamp, Strut and Bulkhead stay; the Warren is kept for the Drone Cage). The starter quarry
+   (Cutter Excavator, Tank, Winch, Funnel, Windmill, Nodes), Chute, Conveyor, Bus Hopper, a
+   skippable tutorial as Hub instructions, research that consumes produced goods, and the Hub's
+   trickle cut to about 0.2 power/s.
+4. A4, movers and excavators: Gantry, Piston, Turntable, full Cutter, Laser Excavator, tethered
+   Thumper, Macerator, Press, the Drone Cage; tests and the bot rewritten.
+5. A5, materials wave 2 (about 25 in all), processing chains, sensors, Mk I to IV upgrades,
+   Vault cells; the bot completes a run again.
+6. A6, a slightly wider world and biome patches built on the spawn-region system.
+7. A7, pacing and polish against the bot.
+
+Parked past Alpha: enemies, curios and wreckage, weather, Schematics, logic wiring, randomised
+chemistry (a "pocket dimension" update), more than one Crucible per world. Between A3 and A5 no
+run can be finished; phase 10's jacket rules, building-tied tuning and the bot's logistics are
+placeholders that the cut removes.
 
 ## Standing decisions
+(The v3 decisions below hold until the Alpha plan replaces them. Where they conflict, claude/ALPHA_PLAN.md
+wins: buildings, the Drill, the Warren and mites, the Hub's power, and heat as a material.)
+
 - Engine in C++; Noita-style chunks, dirty rects, checkerboard threading, deterministic per-chunk RNG.
 - Materials are data. Alex wants to design a wider material set before more are implemented;
   Coal and Sulfur are the approved first two, hot rock (phase 9's heat) the third. Deeper

@@ -10,14 +10,15 @@ Claude adds a section at its top each phase and doesn't need to read the rest.
   claude/charming-mayer-evn3ro, not merged yet: a run can be won or lost, saved and
   continued; the autoplay bot plays a whole run; the curve is retuned for a first run of
   about 2 hours (the bot, which knows the map, about 1). Phases 8b-8d are in `main`.
-- Next: new features in earnest, starting with deeper materials and curios, then
-  claude/IDEAS.md (Alex's call).
-- Placeholder: Alex plans to rework how buildings and coolant work after the
-  pre-alpha. Phase 10's jacket rules (lava shield, quenching, drinking), the tuning
-  numbers tied to Borers and research, and the bot's Borer and Conduit logistics
-  are expected to change with it; don't polish them. The run shell (title, save
-  slot, speeds, win and lose, milestones) and the bot's harness (checkpoints,
-  dumps, milestone timeline) should carry over.
+- Next: the Alpha roadmap, A1 first (a per-cell temperature field and family-tag reaction
+  rules, with a lab bench mode). Plan and decisions: PROJECT_BRIEF's Alpha roadmap and
+  claude/ALPHA_PLAN.md. Nothing in it is implemented yet.
+- Placeholder: A3 cuts the current buildings (Hub, Crucible, Conduits, Lab, Lamp, Strut and
+  Bulkhead stay; the Warren becomes the Drone Cage). Phase 10's jacket rules (lava shield,
+  quenching, drinking), the tuning numbers tied to Borers and research, and the bot's Borer
+  and Conduit logistics go with it; don't polish them. The run shell (title, save slot,
+  speeds, win and lose, milestones) and the bot's harness (checkpoints, dumps, milestone
+  timeline) should carry over.
 - Settled in phase 10 (tuned with the bot): mites at v2's pace against the buildings;
   the Turbine's 4/s now reachable (0.4 a cell, as fast as a room of steam rises); water
   still quenches hot rock slowly (a staged steam room would die otherwise) and condensing

@@ -8,6 +8,23 @@ moves into PROJECT_BRIEF's roadmap or standing decisions.
 
 ---
 
+## Where these landed (Alpha plan, 2026-10-01)
+Scheduled in claude/ALPHA_PLAN.md and PROJECT_BRIEF's Alpha roadmap. The entries below stay as the
+original notes.
+- 1 (power): Windmills are in the starter kit (A3) and the Hub's trickle drops to about 0.2/s.
+  Solar, Thermoelectric Plate, Combustor and a geyser or oil Tap are parts in the catalogue
+  (A5, A6).
+- 2 (fuck around and find out): the Gantry, Winch and Turntable replace movable buildings (A4).
+  The tutorial is written as Hub instructions and is skippable. The Warren is repurposed as the
+  Drone Cage hauler.
+- 3 (enemies) and 7's curios, wreckage, weather: parked past Alpha. 4 (mites as bodies): done in 8d.
+- 5, 6 and 8 (refining, composites, pixel handling): A3 to A5. Vessel modules, Bus Hopper
+  import and export, Mk I to IV upgrades paid in refined goods, Pump, Sieve, Blower and Caster.
+- 7's byproducts and hazard-proofing: byproducts fall out of the temperature and reaction rules;
+  hazard-proofing is picked up by the Mk upgrades.
+
+---
+
 ## 1. Early power generation (logged 2026-09-28)
 Rough phase: 9 (Depth) for deposits; the starter generator could land sooner.
 
