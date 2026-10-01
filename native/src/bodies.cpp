@@ -204,7 +204,7 @@ int CrucibleSim::crumble_cell(int i, int x, int y) {
 	// A burning piece keeps burning on the way down.
 	uint8_t a = (M.burn_life && aux[i] && mats[into].burn_life) ? aux[i] : init_aux((uint8_t)into, lcg(grng));
 	if (M.glows) {
-		mark_lava(x, y);
+		mark_heat(x, y);
 	}
 	if (mats[into].kind == K_POWDER) {
 		cells[i] = (uint8_t)into;
@@ -385,10 +385,12 @@ int CrucibleSim::make_body_from(const std::vector<int32_t> &list, float vx, floa
 	b.h = y1 - y0 + 1;
 	b.mat.assign((size_t)b.w * b.h, 0);
 	b.aux.assign((size_t)b.w * b.h, 0);
+	b.temp.assign((size_t)b.w * b.h, 0);
 	for (int gi : list) {
 		int li = (gi / W - y0) * b.w + (gi % W - x0);
 		b.mat[li] = cells[gi];
 		b.aux[li] = aux[gi];
+		b.temp[li] = temp[gi];
 		b.at.push_back(gi);
 		b.from.push_back(li);
 		owner[gi] = (uint16_t)id;
@@ -496,6 +498,7 @@ bool CrucibleSim::body_tick(Body &b) {
 		int gi = b.at[k], li = b.from[k];
 		if (owner[gi] == b.id && cells[gi] == b.mat[li]) {
 			b.aux[li] = aux[gi];
+			b.temp[li] = temp[gi];
 			b.at[keep] = gi;
 			b.from[keep] = li;
 			keep++;
@@ -760,6 +763,7 @@ void CrucibleSim::unstamp(Body &b) {
 		owner[gi] = 0;
 		if (cells[gi] == b.mat[li]) {
 			b.aux[li] = aux[gi];
+			b.temp[li] = temp[gi];
 			cells[gi] = AIR;
 			aux[gi] = 0;
 		}
@@ -824,6 +828,7 @@ void CrucibleSim::restamp(Body &b) {
 					}
 					cells[j] = c;
 					aux[j] = aux[gi];
+					temp[j] = temp[gi];
 					vel[j] = 0;
 					next.touch(gx, gy - up);
 					placed = true;
@@ -835,6 +840,8 @@ void CrucibleSim::restamp(Body &b) {
 			}
 			cells[gi] = m;
 			aux[gi] = b.aux[li];
+			temp[gi] = b.temp[li];
+			tnext[((gi / W) >> CSHIFT) * CW + ((gi % W) >> CSHIFT)] = 1;
 			owner[gi] = (uint16_t)b.id;
 			vel[gi] = 0;
 			settle[gi] = 0;
@@ -870,7 +877,7 @@ void CrucibleSim::shatter(Body &b) {
 		uint8_t a = (M.burn_life && aux[gi] && mats[into].burn_life) ? aux[gi] : init_aux((uint8_t)into, lcg(grng));
 		int x = gi % W, y = gi / W;
 		if (M.glows) {
-			mark_lava(x, y);
+			mark_heat(x, y);
 		}
 		if (mats[into].kind == K_POWDER && (lcg(grng) & 7) != 0) {
 			cells[gi] = (uint8_t)into;

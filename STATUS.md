@@ -4,6 +4,52 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A1 done: temperature and reactions
+
+Tests: thirteen suites end `FAILURES: 0` (with the goal layer's scenario_goals), including
+the new scenario_temperature. The engine changed (temperature, reactions, saving): close
+Godot before pulling, restart after.
+
+What's new:
+- Every cell has a temperature. A slow pass (every 8 ticks, only where something is
+  changing) leaks heat between neighbours by their conductivity, holds sources at their
+  heat (lava 1100, fire 450, burning coal 500) and pulls rock back toward its depth's
+  ambient: about 15 at the surface, 90 at the Stone band's bottom, 550 in the Magma band.
+- Melting, boiling and catching fire are data. Water boils at 100. Hot rock under 250
+  is stone again, stone over 800 is hot rock, either over 1200 is lava, and lava under
+  600 is obsidian. Coal kindles at 700 when it has an open side, sulfur at 600.
+- Reactions can name a family on either side (Fuel, Corrosive, Molten so far), and a
+  rule written for a material pair overrides the family's. A rule can want a
+  temperature window, warm what it makes, and run faster beside a catalyst family.
+- Lab Bench on the title screen: a flat open room at 20 degrees, the whole map known,
+  a brush with every material plus Heat, Cool and Blast (F9; [ ] material, Shift + [ ]
+  size). F6 paints the temperature over the map, there or in a run; the cursor line
+  shows the degrees under it. The bench never touches the save.
+- Fog: ground never seen is black, bedrock included. Seen ground shows live while it's
+  lit and dimmed as last seen while it isn't. The glimmer glints and lava glow that
+  used to show through the fog are gone; the Drill's sense outline stays.
+
+Rules that changed:
+- Hot rock is the Magma band's stone held hot by its ambient. Water boils on it by
+  conduction, at about the old rate (the depth test's room: 296 of 12,000 cells quenched
+  in 60 s). Carried near the surface it cools to stone within half a minute; scenario_depth
+  keeps its shallow set-pieces hot with `keep_hot`.
+- Stone beside lava heats into hot rock a few cells deep. Fuel still catches from lava
+  and flames touching it as before, and now also from heat alone, past its kindle point
+  with an open side.
+- The Hot rock + Water reaction is gone (the pass does it); Lava + Water is now Molten +
+  Water.
+- The Coolant Jacket, Ember Brood and the Drill still check for the Hot rock material,
+  not the degrees. A3 cuts those machines.
+
+Engine: `get_temp`, `set_temp`, `heat_rect`, `heat_circle`, `rect_temp`, `set_ambient`,
+`reset_temps`, `set_temp_params`, `paint_circle`, `get_stat_tchunks`. The save is version
+2 (temperatures, the pass's awake chunks, body temperatures); a version 1 save loads
+with temperatures from the ambient. The heat texture is now the hottest cell per 4x4
+block. The pass costs about 0.2 ms a tick in a fresh game, with 150 to 200 of the
+map's 3840 chunks awake: prof_scale's tick went from 1.40 to 1.55 ms against main on the
+same container (the sim's share from 0.11 to 0.39).
+
 ## A2 spawn regions done: the Spoil Heap (branch claude/alpha-spawn-regions-cocmr1)
 
 `data/spawn_regions.json` names where a material may appear: areas (a mound beside the

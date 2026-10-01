@@ -36,6 +36,8 @@ const RUBBLE := 8
 const WATER := 9
 const LAVA := 10
 const OBSIDIAN := 4
+const BEDROCK := 1
+const BUILDING := 5
 const STEAM := 11
 const STEAM_LAST := 18
 const K_EMPTY := 0
@@ -983,3 +985,54 @@ func set_creature(_id: int, _on: bool) -> bool:
 
 func remove_body(_id: int) -> bool:
 	return false
+
+
+# Temperature (A1): the GDScript sim has no field; everything sits at the ambient.
+var stat_tchunks := 0
+
+
+func get_temp(_x: int, _y: int) -> int:
+	return 20
+
+
+func set_temp(_x: int, _y: int, _degrees: int) -> void:
+	pass
+
+
+func heat_rect(_x: int, _y: int, _w: int, _h: int, _degrees: int) -> void:
+	pass
+
+
+func heat_circle(_x: int, _y: int, _r: int, _degrees: int) -> void:
+	pass
+
+
+func rect_temp(_x: int, _y: int, _w: int, _h: int) -> Vector3i:
+	return Vector3i(20, 20, 20)
+
+
+func set_ambient(_rows: PackedInt32Array) -> void:
+	pass
+
+
+func reset_temps() -> void:
+	pass
+
+
+func set_temp_params(_p: Dictionary) -> void:
+	pass
+
+
+## The bench's brush: a circle of m; with keep_fixed, buildings and bedrock stay.
+func paint_circle(x: int, y: int, r: int, m: int, keep_fixed: bool) -> int:
+	var n := 0
+	for yy in range(maxi(y - r, 2), mini(y + r, H - 3) + 1):
+		for xx in range(maxi(x - r, 2), mini(x + r, W - 3) + 1):
+			if (xx - x) * (xx - x) + (yy - y) * (yy - y) > r * r:
+				continue
+			var old := get_cell(xx, yy)
+			if old == m or (keep_fixed and (old == BUILDING or old == BEDROCK)):
+				continue
+			set_cell(xx, yy, m)
+			n += 1
+	return n

@@ -47,8 +47,8 @@ from A1 on.
 ## Phases
 | Phase | Scope | Exit check |
 |---|---|---|
-| A1 | Per-cell temperature field, family-tag reaction rules, catalyst modifier, existing reactions and hot rock migrated, lab bench mode (paint any material, see temperature). | Current game plays as before on the new rules. Tests and the bot's baselines hold or are re-baselined with reasons. |
-| A2 | Wave 1 materials (about 12), a spawn-region system (home range and depth band per material), the hand-placed Spoil Heap near the Hub. | Every wave 1 reaction demonstrable on the lab bench. Existing features keep each seed's layout. |
+| A1 (done) | Per-cell temperature field, family-tag reaction rules, catalyst modifier, existing reactions and hot rock migrated, lab bench mode (paint any material, see temperature). | Current game plays as before on the new rules. Tests and the bot's baselines hold or are re-baselined with reasons. |
+| A2 | Wave 1 materials (about 12), a spawn-region system (home range and depth band per material), the hand-placed Spoil Heap near the Hub. The impact, swell and setting engine extensions left from A1. | Every wave 1 reaction demonstrable on the lab bench. Existing features keep each seed's layout. |
 | A3 | Hard cut of the legacy buildings, keeping the survivors above. Machine framework core and the starter quarry. Chute, Conveyor, Bus Hopper. Goal layer v1: skippable tutorial as Hub instructions, chapter milestones in the event tracker, research that consumes goods. Hub trickle cut. | A fresh run's first 15 minutes play through the new loop. The gaps the cut exposes are written down. |
 | A4 | Gantry, Piston, Turntable, full Cutter, Laser Excavator with filler swap, tethered Thumper, Macerator, Press. Warren becomes the Drone Cage. Tests and the bot rewritten for the new machines. | The bot digs from the surface to the Magma band on the new machines. |
 | A5 | Wave 2 materials to about 25, processing chains, sensors, Mk upgrades, Vault cells. | Every tier is reachable through goods. The bot completes a run. |
@@ -60,6 +60,14 @@ so no run can be finished. Scenario tests and the bot that place legacy building
 usable at A3 and are rewritten in A4.
 
 ## Temperature and reactions (A1)
+Done. As built (details in claude/STATUS.md): an int16 per cell in eighths of a degree, a
+pass every 8 ticks over the chunks that are changing, per-material `conduct`, `sink`, `hold`,
+`temp`, `heats`/`cools` {at, to, cost} and `kindle`, and an ambient per row. Families so far:
+Fuel (coal, sulfur), Corrosive (sulfur, fumes), Molten (lava). Reactions gained `min_temp`,
+`max_temp`, `heat`, `catalyst` and `boost`. Impact triggers, the swell and the setting stage
+moved to A2, to land with the wave 1 materials that use them. The Coolant Jacket still reads the
+Hot rock material; A3 cuts it. The fog went black where nothing has been seen (Alex, during A1).
+The plan as written:
 - The field is a slow pass like erosion, dirty-rect driven. Each material carries a
   conductivity and melting, boiling and freezing points. Lava, steam, obsidian, ice and smelting
   fall out of the same rule. Phase 9's hot rock and the Coolant Jacket's rules are rebuilt on it.
@@ -76,8 +84,8 @@ usable at A3 and are rewritten in A4.
 - Budget: a fresh game ticks in about 0.7 ms today. Watch the tick time and the save size.
 
 ## Materials (A2, A5)
-Today's data has 28 entries and three pair reactions (Lava + Water, Fire + Water, Hot rock +
-Water). Placeholder names for the first ten pitches:
+Today's data has 28 entries and two reactions (Molten + Water, Fire + Water); hot rock's
+boiling moved to the temperature pass in A1. Placeholder names for the first ten pitches:
 
 | Name | Phase | Family | Behaviour |
 |---|---|---|---|

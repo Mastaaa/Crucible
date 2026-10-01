@@ -33,8 +33,16 @@ static var burns := PackedByteArray()
 static var corrosives := PackedByteArray()
 static var sighted := PackedStringArray()
 static var ids := {}                    # name -> first id
+static var families := {}               # family name -> its bit (A1): reactions can name a family
+static var family_of := PackedInt32Array()   # per id: the material's family bits
 static var sim_materials: Array = []    # for CrucibleSim.configure
 static var sim_reactions: Array = []
+# Temperature defaults by kind (A1): how readily heat crosses into a neighbour (0..1)
+# and how strongly the depth's ambient pulls the cell back (0..1). Rock sits in the
+# ground and settles back; loose, liquid and open cells only trade heat with what
+# touches them.
+const CONDUCT_BY_KIND := [0.04, 0.2, 0.12, 0.4, 0.04]
+const SINK_BY_KIND := [0.0, 1.0, 0.25, 0.0, 0.0]
 static var _palette: Image = null
 static var _pal_rows: Array = []        # [color, color2, accent, style, mix, grain, flags, life_max, burn_life] per id
 
@@ -54,6 +62,7 @@ static func ensure() -> void:
 	yields.resize(256)
 	for i in 256:
 		yields[i] = PackedInt32Array()
+	family_of.resize(256)
 	hots.resize(256)
 	burns.resize(256)
 	corrosives.resize(256)
@@ -72,6 +81,14 @@ static func ensure() -> void:
 		var nm: String = e.get("name", "")
 		if id >= 0 and id < 256 and not ids.has(nm):
 			ids[nm] = id
+		for fam in _list(e.get("family", [])):
+			if ids.has(fam):
+				push_error("%s: family %s is also a material's name" % [nm, fam])
+			elif not families.has(fam):
+				if families.size() >= 16:
+					push_error("%s: more than 16 families (%s)" % [nm, fam])
+				else:
+					families[fam] = 1 << families.size()
 	for e: Dictionary in data.get("materials", []):
 		var id := int(e.get("id", -1))
 		if id < 0 or id > 255:
@@ -91,10 +108,16 @@ static func ensure() -> void:
 		var burn: Dictionary = e.get("burn", {})
 		var life: Array = e.get("life", [0, 0])
 		var stages := int(e.get("stages", 1))
+		var fam_bits := 0
+		for fam in _list(e.get("family", [])):
+			fam_bits |= int(families.get(fam, 0))
+		var heats: Dictionary = e.get("heats", {})
+		var cools: Dictionary = e.get("cools", {})
 		for s in stages:
 			var mid := id + s
 			names[mid] = e.get("name", "Unknown")
 			kinds[mid] = kind
+			family_of[mid] = fam_bits
 			dig_rates[mid] = float(e.get("dig_rate", 0.0))
 			dig_powers[mid] = float(e.get("dig_power", 0.2))
 			worths[mid] = float(e.get("worth", 1.0))
@@ -143,9 +166,29 @@ static func ensure() -> void:
 				"kin": _ref(e, "kin"),
 				"wash_to": _ref(e, "wash_to"),
 				"wash": float(e.get("wash", 0.0)),
+				"conduct": float(e.get("conduct", CONDUCT_BY_KIND[kind])),
+				"sink": float(e.get("sink", SINK_BY_KIND[kind])),
+				"family": fam_bits,
 			}
 			if e.has("cave"):
 				m["cave"] = float(e["cave"])
+			# Temperature (A1): what a source holds itself at, the points where it
+			# becomes something else, and the heat it catches fire at.
+			if e.has("temp"):
+				m["placed"] = float(e["temp"])
+			if e.has("hold"):
+				m["hold"] = float(e["hold"])
+				m["hold_rate"] = float(e.get("hold_rate", 0.25))
+			if not heats.is_empty():
+				m["heats_at"] = float(heats.get("at", 0.0))
+				m["heats_to"] = _ref(heats, "to", e)
+				m["heats_cost"] = float(heats.get("cost", 0.0))
+			if not cools.is_empty():
+				m["cools_at"] = float(cools.get("at", 0.0))
+				m["cools_to"] = _ref(cools, "to", e)
+				m["cools_cost"] = float(cools.get("cost", 0.0))
+			if e.has("kindle"):
+				m["kindle"] = float(e["kindle"])
 			if not burn.is_empty():
 				m["burn_life"] = int(burn.get("life", 60))
 				m["ignite"] = float(burn.get("ignite", 0.05))
@@ -154,22 +197,92 @@ static func ensure() -> void:
 				m["burn_gas"] = _ref(burn, "gas", e)
 				m["gas_chance"] = float(burn.get("gas_chance", 0.0))
 				m["flame_chance"] = float(burn.get("flame_chance", 0.0))
+				if burn.has("temp"):
+					m["burn_temp"] = float(burn["temp"])
 			if e.has("age_chance"):
 				m["age_chance"] = int(e["age_chance"])
 				m["age_to"] = mid + 1 if s < stages - 1 else _ref(e, "condenses_to")
 			sim_materials.append(m)
 			_pal_rows[mid] = _pal_row(e, s, stages, int(life[1]), int(m.get("burn_life", 0)))
-	for rx: Dictionary in data.get("reactions", []):
+	sim_reactions = expand_reactions(data.get("reactions", []))
+
+
+## One name or a list of them, as a list.
+static func _list(v) -> Array:
+	return v if v is Array else [v]
+
+
+## Every material id in a family, or the one id a material name means (empty
+## for an unknown name).
+static func members(nm: String) -> PackedInt32Array:
+	ensure()
+	var out := PackedInt32Array()
+	if ids.has(nm):
+		out.append(ids[nm])
+	elif families.has(nm):
+		var bit: int = families[nm]
+		for m in 256:
+			if family_of[m] & bit:
+				out.append(m)
+	return out
+
+
+## The reaction table for the sim (A1). Each "when" names two materials or
+## families (a family rule stands for every pair of their members); "becomes"
+## names what each side turns into, or "same" to keep it. Rules written for a
+## material pair go in first, so they override the family rules behind them
+## (the sim keeps the first rule it sees for a pair). Optional keys: min_temp and
+## max_temp (degrees the first cell must be within), heat (degrees given to both
+## outputs), catalyst (a family) and boost (how many times the chance with one
+## of that family touching).
+static func expand_reactions(rules: Array) -> Array:
+	var by_rank := [[], [], []]
+	for rx: Dictionary in rules:
 		var w: Array = rx.get("when", [])
 		var b: Array = rx.get("becomes", [])
 		if w.size() != 2 or b.size() != 2:
-			push_error("Reaction needs two materials in 'when' and two in 'becomes': %s" % rx)
+			push_error("Reaction needs two names in 'when' and two in 'becomes': %s" % rx)
 			continue
-		sim_reactions.append({
-			"a": ids.get(w[0], 0), "b": ids.get(w[1], 0),
-			"out_a": ids.get(b[0], 0), "out_b": ids.get(b[1], 0),
-			"chance": float(rx.get("chance", 1.0)),
-		})
+		var rank := 0
+		for nm in w:
+			if families.has(nm):
+				rank += 1
+			elif not ids.has(nm):
+				push_error("Reaction names unknown material or family %s" % nm)
+				rank = -1
+				break
+		if rank < 0:
+			continue
+		var extra := {}
+		for key in ["min_temp", "max_temp", "heat", "boost"]:
+			if rx.has(key):
+				extra[key] = float(rx[key])
+		if rx.has("catalyst"):
+			if not families.has(rx["catalyst"]):
+				push_error("Reaction catalyst %s is not a family" % rx["catalyst"])
+			else:
+				extra["catalyst"] = int(families[rx["catalyst"]])
+		for a in members(w[0]):
+			for bb in members(w[1]):
+				var r := {
+					"a": a, "b": bb,
+					"out_a": a if b[0] == "same" else ids.get(b[0], 0),
+					"out_b": bb if b[1] == "same" else ids.get(b[1], 0),
+					"chance": float(rx.get("chance", 1.0)),
+				}
+				r.merge(extra)
+				by_rank[rank].append(r)
+	return by_rank[0] + by_rank[1] + by_rank[2]
+
+
+## The family names a material carries.
+static func families_of(m: int) -> PackedStringArray:
+	ensure()
+	var out := PackedStringArray()
+	for nm in families:
+		if family_of[m] & int(families[nm]):
+			out.append(nm)
+	return out
 
 
 ## Id of the material `e[key]` names, or -1. `owner` names the entry in errors.

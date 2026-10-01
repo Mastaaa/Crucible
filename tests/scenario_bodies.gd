@@ -75,6 +75,18 @@ func arena(r: Rect2i) -> void:
 	fill(r, D.AIR)
 
 
+## A1: a pool this deep warms off the Magma band's walls and boils, and the steam
+## scalds a Conduit. Rows around `r` get the surface's ambient and the world starts
+## over at it. Call it once the arena is built: a placed cell keeps the temperature
+## of what it replaced, and seed 7 has lava here.
+func keep_cool(r: Rect2i) -> void:
+	var rows := D.ambient_rows()
+	for y in range(r.position.y - 24, r.end.y + 24):
+		rows[y] = D.AMBIENT_SURFACE
+	game.sim.set_ambient(rows)
+	game.sim.reset_temps()
+
+
 ## Fill `r` with `m` and make it a body; its id.
 func slab(r: Rect2i, m: int, v := Vector2.ZERO) -> int:
 	fill(r, m)
@@ -263,6 +275,7 @@ func scenario_f() -> void:
 
 	fresh()
 	arena(room)
+	keep_cool(room)
 	fill(Rect2i(200, 3850, 300, 150), D.WATER)
 	var wet = put_built(D.B_CONDUIT, Rect2i(240, 3620, 2 * S, 2 * S))
 	secs(6.0)
