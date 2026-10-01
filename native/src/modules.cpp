@@ -74,6 +74,16 @@ int CrucibleSim::body_set_pixel(int id, int lx, int ly, int m) {
 		unstamp(b);
 		b.mat[li] = (uint8_t)m;
 		b.aux[li] = 0;
+		if (m != 0) {
+			// A pixel put back takes a neighbour's temperature.
+			const int nx[4] = { lx - 1, lx + 1, lx, lx }, ny[4] = { ly, ly, ly - 1, ly + 1 };
+			for (int k = 0; k < 4; k++) {
+				if (nx[k] >= 0 && ny[k] >= 0 && nx[k] < b.w && ny[k] < b.h && b.mat[ny[k] * b.w + nx[k]]) {
+					b.temp[li] = b.temp[ny[k] * b.w + nx[k]];
+					break;
+				}
+			}
+		}
 		if (!body_shape(b)) {
 			return -1; // nothing left: the game removes the body
 		}

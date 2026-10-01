@@ -6,7 +6,9 @@
 // the random streams and the counters. Materials, reactions and the body and fall
 // settings are configuration: a loading sim gets those from the game first, the
 // same way a new one does. Caches (heat, light, corrosion counts, render tiles)
-// are rebuilt, so a loaded sim steps exactly as the saved one would have.
+// are rebuilt, so a loaded sim steps exactly as the saved one would have. Version
+// 2 adds the temperatures and which chunks the temperature pass looks at next; a
+// version 1 save starts them from the ambient.
 //
 // The format is raw little-endian values with a magic, a version and the grid's
 // size up front; the game compresses it.
@@ -23,7 +25,7 @@ using namespace godot;
 namespace {
 
 const uint32_t MAGIC = 0x56535243u; // "CRSV"
-const uint32_t VERSION = 1;
+const uint32_t VERSION = 2; // 2: per-cell temperatures (A1)
 
 // Writing goes twice over the state: once with no buffer to count the bytes, then
 // into one buffer of that size (a growing vector copied the ~47 MB several times).
@@ -114,6 +116,9 @@ void CrucibleSim::write_state(O &o) const {
 	o.vec(mem);
 	o.vec(stamp);
 	o.vec(owner);
+	o.vec(temp);
+	o.template put<int32_t>(temp_passes);
+	o.vec(tnext);
 	o.vec(shields);
 	o.vec(next.x0);
 	o.vec(next.y0);
@@ -136,6 +141,7 @@ void CrucibleSim::write_state(O &o) const {
 		o.template put<int32_t>(b.h);
 		o.vec(b.mat);
 		o.vec(b.aux);
+		o.vec(b.temp);
 		o.vec(b.edge);
 		for (float v : { b.cx, b.cy, b.x, b.y, b.a, b.vx, b.vy, b.spin, b.mass, b.inertia, b.radius, b.toughness,
 					 b.sx, b.sy, b.sa, b.ax, b.ay, b.aa }) {
@@ -155,7 +161,8 @@ bool CrucibleSim::load_state(const PackedByteArray &data) {
 	In in;
 	in.p = data.ptr();
 	in.n = (size_t)data.size();
-	if (in.get<uint32_t>() != MAGIC || in.get<uint32_t>() != VERSION) {
+	uint32_t version = 0;
+	if (in.get<uint32_t>() != MAGIC || (version = in.get<uint32_t>()) < 1 || version > VERSION) {
 		UtilityFunctions::push_error("CrucibleSim.load_state: not a save this engine can read");
 		return false;
 	}
@@ -169,6 +176,9 @@ bool CrucibleSim::load_state(const PackedByteArray &data) {
 	std::vector<uint8_t> c, a, hd, ve, me, st;
 	std::vector<int32_t> se, sh, nx0, ny0, nx1, ny1, imp;
 	std::vector<uint16_t> ow;
+	std::vector<int16_t> tp;
+	std::vector<uint8_t> tn;
+	int tpasses = 0;
 	uint32_t sd = in.get<uint32_t>();
 	uint32_t gr = in.get<uint32_t>();
 	int tk = in.get<int32_t>();
@@ -188,6 +198,11 @@ bool CrucibleSim::load_state(const PackedByteArray &data) {
 	in.vec(me, N);
 	in.vec(st, N);
 	in.vec(ow, N);
+	if (version >= 2) {
+		in.vec(tp, N);
+		tpasses = in.get<int32_t>();
+		in.vec(tn, (size_t)NCH);
+	}
 	in.vec(sh);
 	in.vec(nx0, (size_t)NCH);
 	in.vec(ny0, (size_t)NCH);
@@ -211,6 +226,11 @@ bool CrucibleSim::load_state(const PackedByteArray &data) {
 		b.h = in.get<int32_t>();
 		in.vec(b.mat);
 		in.vec(b.aux);
+		if (version >= 2) {
+			in.vec(b.temp);
+		} else {
+			b.temp.assign(b.mat.size(), (int16_t)(20 * T8));
+		}
 		in.vec(b.edge);
 		for (float *v : { &b.cx, &b.cy, &b.x, &b.y, &b.a, &b.vx, &b.vy, &b.spin, &b.mass, &b.inertia, &b.radius,
 					 &b.toughness, &b.sx, &b.sy, &b.sa, &b.ax, &b.ay, &b.aa }) {
@@ -259,6 +279,13 @@ bool CrucibleSim::load_state(const PackedByteArray &data) {
 	stamp.swap(st);
 	owner.swap(ow);
 	shields.swap(sh);
+	if (version >= 2) {
+		temp.swap(tp);
+		temp_passes = tpasses;
+		tnext.swap(tn);
+	} else {
+		reset_temps();
+	}
 	next.x0.swap(nx0);
 	next.y0.swap(ny0);
 	next.x1.swap(nx1);
@@ -270,7 +297,7 @@ bool CrucibleSim::load_state(const PackedByteArray &data) {
 	std::fill(tile_dirty.begin(), tile_dirty.end(), (uint8_t)1);
 	std::fill(mem_dirty.begin(), mem_dirty.end(), (uint8_t)1);
 	std::fill(corr_valid.begin(), corr_valid.end(), (uint8_t)0);
-	for (auto &f : lava_dirty) {
+	for (auto &f : heat_dirty) {
 		f.store(1);
 	}
 	light_lv.clear();

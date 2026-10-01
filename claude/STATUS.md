@@ -6,24 +6,26 @@ history (what shipped when, old numbers, test notes) is the root STATUS.md:
 Claude adds a section at its top each phase and doesn't need to read the rest.
 
 ## Handoff
-- Last done: phase 10, pacing (the pre-alpha's last phase), on branch
-  claude/charming-mayer-evn3ro, not merged yet: a run can be won or lost, saved and
-  continued; the autoplay bot plays a whole run; the curve is retuned for a first run of
-  about 2 hours (the bot, which knows the map, about 1). Phases 8b-8d are in `main`.
-- A3 machine framework core (branch claude/alpha-machine-core): modules as rigid bodies
-  with typed faces, casing integrity, breach and wreckage, in scripts/machines/. Test
-  modules only; the module groups build on it. Casing melting and corrosion are TODO
-  until A1 lands (casing.gd).
-- A3 goal layer v1 (branch claude/alpha-goal-layer*): `scripts/goals.gd` + `data/instructions.json`
+- Last done: A1, temperature and reactions (branch claude/alpha-a1-temperature-w6sw2x).
+  Every cell has a temperature; hot rock, boiling, quenching and coal catching fire run
+  on it; reactions can name families and carry a catalyst and a temperature window; the
+  Lab Bench (title screen) paints any material and shows the field (F6). Unseen ground
+  is black. Phase 10 and everything before it are in `main`.
+- A3 machine framework core (PR #5): modules as rigid bodies with typed faces, casing
+  integrity, breach and wreckage, in scripts/machines/ and native/src/modules.cpp. Test
+  modules only; the module groups build on it. Casing melting and corrosion are still
+  TODO (casing.gd), now that A1's temperature field exists.
+- A3 goal layer v1 (in `main`, PR #4): `scripts/goals.gd` + `data/instructions.json`
   (Hub orders, skippable tutorial, chapters, per-tier research goods), `scripts/goals_panel.gd`,
   Hub trickle 2 -> 0.2 power/s, `game.goals` in the save. Tutorial steps are written against
   today's buildings (each flagged "legacy" in the data). The descent probe and the bot baselines
   below predate the trickle cut: the probe now reaches depth 500 in ~1800 s (was 1.5 min) because
   nothing but instruction rewards feeds the Drill until the Windmills of the starter quarry land.
   The bot was not re-run (an hour a seed); re-baseline it once the quarry exists.
-- Next: the Alpha roadmap, A1 first (a per-cell temperature field and family-tag reaction
-  rules, with a lab bench mode). Plan and decisions: PROJECT_BRIEF's Alpha roadmap and
-  claude/ALPHA_PLAN.md. Nothing in it is implemented yet.
+- Next: A2 (wave 1 materials, spec in claude/WAVE1_MATERIALS.md; the spawn-region
+  system and the Spoil Heap) and A3 (the machine framework). Plan: claude/ALPHA_PLAN.md.
+  A1 left three engine extensions for A2, to arrive with the materials that need them:
+  impact triggers (per-cell fall speed), a one-cell-to-many swell, a timed setting stage.
 - Placeholder: A3 cuts the current buildings (Hub, Crucible, Conduits, Lab, Lamp, Strut and
   Bulkhead stay; the Warren becomes the Drone Cage). Phase 10's jacket rules (lava shield,
   quenching, drinking), the tuning numbers tied to Borers and research, and the bot's Borer
@@ -42,8 +44,15 @@ Claude adds a section at its top each phase and doesn't need to read the rest.
   through hot rock lose Conduits to it; the bot relays them).
 
 ## Test baseline (all must hold before committing)
-- `bash native/run_tests.sh` (about 7 minutes): every scenario (thirteen, with
-  scenario_run, scenario_goals and scenario_modules) and engine_compare end `FAILURES: 0`.
+- `bash native/run_tests.sh` (about 8 minutes): every scenario (thirteen, with
+  scenario_temperature, scenario_goals and scenario_modules) and engine_compare end `FAILURES: 0`. Suites
+  that build deep set-pieces fix their rows' ambient: scenario_depth's `keep_hot` (hot rock near the
+  surface), scenario_bodies' `keep_cool` (a pool in the Magma band).
+- Temperature pass (A1): every 8 ticks, 150 to 200 of the map's 3840 chunks awake in a
+  fresh game (hot rock, lava and water around the Stone-Magma boundary and the lava
+  pockets). It costs about 0.2 ms a tick: a fresh game's bare `sim.step` went from about
+  0.1 to 0.3 ms, measured against main on the same container. A loaded run steps exactly
+  as the saved one (the pass's awake chunks are saved too).
 - Descent probe (tests/descent.gd, seed 7): head at 500 at 1.5 min, 700 at 5.5, 1000 at
   13.5, 1400 at 19.5 (research is the clock early on).
 - Autoplay bot (tests/autoplay.gd): on every seed tried (5, 7, 11, 23) the Stone band
@@ -56,6 +65,7 @@ Claude adds a section at its top each phase and doesn't need to read the rest.
   60 s on the slower container, same as main there).
 - `tests/prof_scale.gd`: a fresh game ticks in about 0.7 ms (1.3 ms on a slower
   container, where main measured the same; compare against main on the same machine).
+  A1: 1.55 ms against main's 1.40 on the same container (the sim's share 0.11 to 0.39).
 - `tests/bench_bodies.gd`: 100 slabs falling at once, about 3.5 ms a tick (worst 14).
 - Saving (phase 10): a 45-minute run writes in about 80 ms (sim snapshot ~30 ms, 47 MB
   raw, ~480 KB on disk) and loads in about 50-100 ms.
@@ -85,8 +95,40 @@ reactions are data. Each cell has an aux byte (burn time or gas life) and a fall
 Powders, liquids (density sorting, free fall), gases (buoyancy, life), fire that needs
 air, free particles, blasts by rays, light per 4x4 block (sky down open shafts, glowing
 materials, lamps; rock shadows; only near what's watched or explored on screen), and slow
-passes: erosion, weathering (ceiling drip), wash (water wear), collapse (spans), tremors.
-A cell with a reaction partner beside it stays awake until it reacts.
+passes: erosion, weathering (ceiling drip), wash (water wear), collapse (spans), tremors,
+temperature (A1). A cell with a reaction partner beside it stays awake until it reacts.
+
+Temperature (A1): an int16 per cell in eighths of a degree. Every 8 ticks a pass over
+the chunks flagged for it (same checkerboard, threads) moves each cell toward each
+neighbour by the pair's lower `conduct` (rock 0.2, powder 0.12, liquid 0.4, gas and air
+0.04), sources toward what they `hold` (lava 1100, fire 450, a burning cell its burn
+`temp`), and every cell toward its row's ambient by its `sink` (rock 1, powder 0.25,
+else 0; rock feels no pull within 32 degrees of it). Then `heats`/`cools` turn a cell into its
+hot or cold form (water boils at 100 for 60 degrees; hot rock under 250 is stone, stone
+over 800 hot rock, over 1200 lava; lava under 600 obsidian) and `kindle` lights fuel with
+an open side (coal 700). A chunk sleeps once no cell in it moves more than an eighth of
+a degree a pass. Ambient by depth (`D.ambient_at`): 15 at the surface, 30 at Topsoil's bottom, 90
+at the Stone band's, climbing over 50 rows to 550 in the Magma band; the bench is a
+flat 20. A cell placed from outside (set_cell) keeps the temperature of what it replaced
+unless its data has `temp` (water 20, steam 110, hot rock 550); one made inside the sim
+(a reaction, a transition) keeps the cell's. Bodies carry their cells' temperatures.
+`refresh_heat` keeps the hottest cell per 4x4 block for the shader (hot rock's glow,
+the F6 view).
+
+Reactions (A1): a side can name a family (`family` tags in the data: Fuel for coal and
+sulfur, Corrosive for sulfur and its fumes, Molten for lava). `Mats.expand_reactions`
+writes every member pair out, material pairs first, and the engine keeps the first rule
+for a pair, so a rule written for two materials overrides the family's. Optional
+`min_temp`/`max_temp` (the first cell's), `heat` (degrees both outputs gain) and
+`catalyst` + `boost` (a member of that family among the 8 neighbours multiplies the
+chance). Today's rules: Molten + Water to obsidian and steam, Fire + Water to steam; hot
+rock's boiling moved to the temperature pass.
+
+Lab Bench (A1): Lab Bench on the title builds a flat open room over a bedrock floor
+(`WorldGen.bench`, ambient 20), the whole map known, the brush in hand with every
+material plus Heat, Cool and Blast (F9; [ ] material, Shift + [ ] size). F6 paints the
+temperature over the map anywhere; the cursor line reads the cell's degrees (and its
+families on the bench). It never touches the save.
 It also keeps the "as last seen" map and flags 256 x 256 render tiles that changed. The GDScript fallback sim
 (sim.gd) lacks chemistry, per-cell light, settling, collapse, holds and wash.
 
@@ -114,11 +156,15 @@ Settling holds freshly dug ground 20 s. Strut holds are permanent. Worldgen runs
 
 Ground (spans): gravel 40 (fast, water-proof), dirt 70 (weathers; water turns it to sand),
 coal and sulfur 90 (coal comes down twice as fast as dirt), clay 110 (water-proof), stone
-150 (cohesive; water turns it to dirt, slowly), hot rock 150 (as stone; water boils on it
-into steam, about 3 cells a second per floor cell it wets, and slowly quenches it to stone), packed dirt 240 (slow to dig, water softens
-it slowly), glimmer/obsidian/bedrock never. Sand is a powder that water carries off.
+150 (cohesive; water turns it to dirt, slowly), hot rock 150 (as stone; water on it heats
+past 100 and boils off, and enough of it cools the face under 250, to stone), packed dirt
+240 (slow to dig, water softens it slowly), glimmer/obsidian/bedrock never. Sand is a
+powder that water carries off.
 
-Heat (phase 9): hot rock stops the Drill and Borers until the Coolant Jacket; then each
+Heat (phase 9, on the temperature field since A1): hot rock is the Magma band's stone,
+held hot by its 550-degree ambient; dug up and carried shallow it cools to stone within
+half a minute. Water boils on it at about the old rate. The machines still read the
+material, not the degrees: hot rock stops the Drill and Borers until the Coolant Jacket; then each
 cuts it for 1 Water per 2000 cells from a 4-Water tank the network fills (a Borer
 charging up waits for it while there's water), and the water goes up as steam from the
 cut (a Borer steps past it, so it leaves by its tail). Mites dig it with Ember Brood;
@@ -180,7 +226,10 @@ Phase 10 costs: v2's power x3 at Tier 1 and x4 from Tier 2 (Borer 450, Coolant J
 and Obsidian Saw 1000 each), Glimmer x2; a Lab turns at most 2 power/s into research.
 
 Fog and light: underground is dark; a block is explored when it's lit and within sight
-of a building; explored ground shows live while lit, as last seen when not.
+of a building; explored ground shows live while lit, as last seen (dimmed) when not.
+Since A1, ground never seen is black, bedrock and the chamber shell included; the
+glimmer glints and lava glow that showed through the fog are gone. The Drill's sense
+outline still shows.
 
 Crucible: 32 Glimmer, 48 Obsidian, 64 Water delivered while charging (1.5 packets a
 second: about 1.6 min), and 4 power/s drawn from a 20-power reserve (filled ahead of
@@ -201,6 +250,9 @@ Title screen (Continue, Start Run with an optional seed, Quit; Esc), one save sl
 - Light is only worked out near what buildings watch and explored ground in the view:
   a test that reads light elsewhere explores the spot and points the camera there.
 - Cave-in alerts fire only on explored ground.
+- A cell set from outside keeps the temperature of what it replaced: a test room carved
+  over the Magma band's lava is full of 1100-degree air. Set the rows' ambient with
+  `sim.set_ambient(rows)` and call `sim.reset_temps()` once the room is built.
 - The autoplay bot (tests/autoplay.gd) plays a whole run on the map it knows, on the
   Hub's power alone (the aquifer it taps drains in a minute, so a Waterwheel there
   pays little). It measures the pace; it isn't a test and isn't in run_tests.sh.

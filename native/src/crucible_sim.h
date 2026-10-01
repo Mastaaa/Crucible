@@ -17,7 +17,11 @@
 //  - explosions cast rays that spend their energy on what they break, so hard rock
 //    shadows what's behind it;
 //  - light spreads from lamps, glowing materials and the sky, fading cell by cell
-//    and much faster through rock than air, so walls cast shadows.
+//    and much faster through rock than air, so walls cast shadows;
+//  - every cell has a temperature (A1): a slow pass leaks heat between neighbours
+//    by each material's conductivity, pulls rock back toward the depth's ambient,
+//    and turns materials into their hot or cold forms at the points in their data
+//    (water boils, hot rock cools to stone, stone near lava heats up).
 //
 // Material ids are shared with the game (scripts/defs.gd, data/materials.json).
 
@@ -58,6 +62,8 @@ public:
 	static constexpr int TSHIFT = 8; // render tiles are 256 x 256 cells
 	static constexpr int NHAZ = 8; // values hazards_at writes per building
 	static constexpr int BRIDGE_UP = 8; // a cohesive row bridges a notch its own kind roofs this near above
+	static constexpr int T8 = 8; // temperatures are kept in eighths of a degree
+	static constexpr int16_t T_NONE = INT16_MIN; // "no such point" for a material's temperature data
 
 	enum Kind : uint8_t {
 		K_EMPTY = 0,
@@ -131,11 +137,40 @@ public:
 		// away), with chance `wash` each time the wash pass checks it
 		int16_t wash_to = -1;
 		uint32_t wash = 0;
+		// temperature (A1), in eighths of a degree: how readily heat crosses into
+		// a neighbour (out of 1024, per pass, per neighbour: the pair takes the lower),
+		// how strongly the depth's ambient pulls the cell back (out of 256), what it
+		// holds itself at while it's a source (lava, a burning cell), and the points
+		// where it becomes something else: above heats_at, below cools_at (each
+		// costing or releasing `*_cost` of heat), and the heat at which it catches
+		// fire (kindle, with an open side).
+		uint16_t conduct = 100;
+		uint8_t sink = 0;
+		int16_t placed = T_NONE; // what a fresh cell of it arrives at from outside the sim (water: cold)
+		int16_t hold = T_NONE;
+		uint8_t hold_rate = 64;
+		int16_t burn_temp = T_NONE;
+		int16_t heats_at = T_NONE;
+		int16_t heats_to = -1;
+		int16_t heats_cost = 0;
+		int16_t cools_at = T_NONE;
+		int16_t cools_to = -1;
+		int16_t cools_cost = 0;
+		int16_t kindle = T_NONE;
+		uint16_t family = 0; // family tags, a bit each (materials.gd assigns them)
 	};
 
 	struct Reaction {
 		uint8_t a, b, out_a, out_b;
 		uint32_t chance; // out of ONE
+		// A1: only within [min_temp, max_temp] (eighths of a degree); `heat` goes
+		// into both outputs; with a cell of a `catalyst` family among the eight
+		// neighbours the chance is `boost` / 256 times as high.
+		int16_t min_temp = INT16_MIN;
+		int16_t max_temp = INT16_MAX;
+		int16_t heat = 0;
+		uint16_t catalyst = 0;
+		uint16_t boost = 256;
 	};
 
 	struct Particle {
@@ -150,6 +185,7 @@ public:
 		int id = 0;
 		int w = 0, h = 0; // its own bitmap
 		std::vector<uint8_t> mat, aux; // row-major, mat 0 is empty
+		std::vector<int16_t> temp; // ... and each pixel's temperature (A1): a hot slab stays hot
 		std::vector<int32_t> edge; // pixels with an empty side (what collides)
 		float cx = 0, cy = 0; // centre of mass, in its bitmap
 		float x = 0, y = 0, a = 0; // where the centre of mass is, and the angle
@@ -191,8 +227,10 @@ public:
 		int updates = 0;
 		int reactions = 0;
 		int ignitions = 0;
+		int tchunks = 0; // chunks the temperature pass found still changing
 		bool changed = false;
 		Rects next;
+		std::vector<uint8_t> tnext; // chunks the temperature pass must look at next time
 	};
 
 private:
@@ -218,8 +256,22 @@ private:
 	mutable std::vector<uint8_t> corr_valid;
 	std::vector<int32_t> shields; // circles (x, y, r) that tremors leave alone
 	std::vector<uint8_t> stamp;
-	std::vector<std::atomic<uint8_t>> lava_dirty;
+	std::vector<std::atomic<uint8_t>> heat_dirty; // chunks whose heat map blocks need working out again
 	std::vector<uint8_t> heat;
+	// Temperature (A1): eighths of a degree per cell; the ambient each row's rock
+	// settles back to; which chunks the next temperature pass looks at.
+	std::vector<int16_t> temp;
+	std::vector<int16_t> ambient;
+	std::vector<uint8_t> tcur;
+	std::vector<uint8_t> tnext;
+	uint16_t cond[256]; // each material's conduct, packed for the pass
+	int pass_mode = 0; // what a worker does with a chunk: 0 cells, 1 temperature
+	int temp_every = 8; // ticks between temperature passes
+	int sink_every = 1; // temperature passes between pulls toward the ambient...
+	int sink_rate = 8; // ... and how hard each pulls (out of 4096 of the gap, times the material's sink;
+		// rounded down, so a cell within 4096 / sink_rate eighths of it is left alone)
+	int temp_passes = 0;
+	int stat_tchunks = 0;
 	std::vector<uint16_t> light_lv; // light left at each 4x4 block, LSTEP per cell of air
 	std::vector<uint8_t> light_px; // brightness 0..255 per block, for the renderer
 	std::vector<uint16_t> light_cost; // what crossing each block costs (sum of its cells' opacities)
@@ -310,11 +362,26 @@ private:
 		const Mat &M = mats[cells[i]];
 		return M.flame || (M.hot && M.kind == K_GAS) || (M.burn_life && aux[i]);
 	}
-	inline void mark_lava(int x, int y) { lava_dirty[((y >> CSHIFT) * CW) + (x >> CSHIFT)].store(1, std::memory_order_relaxed); }
+	inline void mark_heat(int x, int y) { heat_dirty[((y >> CSHIFT) * CW) + (x >> CSHIFT)].store(1, std::memory_order_relaxed); }
+	// A cell that changed: its chunk gets a temperature pass next time.
+	inline void tmark(Ctx *cx, int x, int y) { (cx ? cx->tnext : tnext)[((y >> CSHIFT) * CW) + (x >> CSHIFT)] = 1; }
+	inline bool has_family(int i, uint16_t fam) const {
+		const int offs[8] = { -W - 1, -W, -W + 1, -1, 1, W - 1, W, W + 1 };
+		for (int k = 0; k < 8; k++) {
+			if (mats[cells[i + offs[k]]].family & fam) {
+				return true;
+			}
+		}
+		return false;
+	}
 	uint8_t init_aux(uint8_t m, uint32_t r) const;
+	int16_t init_temp(uint8_t m, int16_t at) const; // what a cell of m made inside the sim is at, where the cell was `at`
+	int16_t placed_temp(uint8_t m, int16_t at) const; // ... and one placed from outside (set_cell, worldgen)
 	void put(Ctx *cx, int i, int x, int y, uint8_t m, uint32_t r); // write a cell from inside the sim
 
 	void update_cell(Ctx &cx, int i, int x, int y, uint8_t m);
+	void step_temperature();
+	void temp_chunk(Ctx &cx, int c);
 	bool burn(Ctx &cx, int i, int x, int y, uint8_t m, uint32_t r);
 	void heat_neighbour(Ctx &cx, int i, int x, int y, uint32_t r);
 	void powder(Ctx &cx, int i, int x, int y, uint8_t m, int d);
@@ -397,6 +464,18 @@ public:
 	void add_particle(double x, double y, double vx, double vy, int m);
 	void refresh_heat(bool all);
 	PackedByteArray get_heat() const;
+	// Temperature (A1), in degrees from GDScript.
+	int get_temp(int x, int y) const;
+	void set_temp(int x, int y, int degrees);
+	void heat_rect(int x, int y, int w, int h, int degrees);
+	void heat_circle(int x, int y, int r, int degrees);
+	Vector3i rect_temp(int x, int y, int w, int h) const; // lowest, highest, mean
+	void set_ambient(const PackedInt32Array &rows);
+	void reset_temps();
+	void set_temp_params(const Dictionary &p);
+	int paint_circle(int x, int y, int r, int m, bool keep_fixed);
+	int get_stat_tchunks() const { return stat_tchunks; }
+	PackedInt32Array get_temp_chunks() const; // chunks the next temperature pass looks at
 	PackedByteArray light_update(const PackedInt32Array &lights, const PackedInt32Array &sights, int sun, const PackedByteArray &known);
 	PackedByteArray get_light() const;
 	void set_light_view(int x0, int y0, int x1, int y1);

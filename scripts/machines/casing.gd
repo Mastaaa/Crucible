@@ -8,8 +8,8 @@ extends RefCounted
 const D = preload("res://scripts/defs.gd")
 const F = preload("res://scripts/machines/faces.gd")
 
-## Stand-in casing until A1's temperature field and the casing list exist.
-## TODO(A1): melting point and corrosion apply to the walls (data, per material), and
+## Stand-in casing until the casing list exists.
+## TODO: melting point (A1's temperature field) and corrosion apply to the walls, and
 ## the casing material becomes a field of the module definition.
 const MATERIAL := D.OBSIDIAN
 const DEAD := 0.5          # integrity below this and the module drops as wreckage
