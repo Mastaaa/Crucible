@@ -10,6 +10,13 @@ Claude adds a section at its top each phase and doesn't need to read the rest.
   claude/charming-mayer-evn3ro, not merged yet: a run can be won or lost, saved and
   continued; the autoplay bot plays a whole run; the curve is retuned for a first run of
   about 2 hours (the bot, which knows the map, about 1). Phases 8b-8d are in `main`.
+- A3 goal layer v1 (branch claude/alpha-goal-layer*): `scripts/goals.gd` + `data/instructions.json`
+  (Hub orders, skippable tutorial, chapters, per-tier research goods), `scripts/goals_panel.gd`,
+  Hub trickle 2 -> 0.2 power/s, `game.goals` in the save. Tutorial steps are written against
+  today's buildings (each flagged "legacy" in the data). The descent probe and the bot baselines
+  below predate the trickle cut: the probe now reaches depth 500 in ~1800 s (was 1.5 min) because
+  nothing but instruction rewards feeds the Drill until the Windmills of the starter quarry land.
+  The bot was not re-run (an hour a seed); re-baseline it once the quarry exists.
 - Next: the Alpha roadmap, A1 first (a per-cell temperature field and family-tag reaction
   rules, with a lab bench mode). Plan and decisions: PROJECT_BRIEF's Alpha roadmap and
   claude/ALPHA_PLAN.md. Nothing in it is implemented yet.
