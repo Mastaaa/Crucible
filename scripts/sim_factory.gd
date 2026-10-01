@@ -28,6 +28,8 @@ static func create(threads := -1) -> RefCounted:
 		s.set_threads(threads)
 		s.set_fall(D.SIM_FALL_ACCEL, D.SIM_FALL_MAX)
 		s.set_body_params(D.body_params())
+		s.set_temp_params(D.temp_params())
+		s.set_ambient(D.ambient_rows())
 		if not warned:
 			warned = true
 			print("Crucible: C++ simulation, %d thread%s." % [threads, "" if threads == 1 else "s"])

@@ -158,14 +158,20 @@ void CrucibleSim::set_size(int w, int h) {
 	heat.assign((size_t)(W / 4) * (H / 4), 0);
 	std::vector<std::atomic<uint8_t>> flags(NCH);
 	for (auto &f : flags) {
-		f.store(0);
+		f.store(1);
 	}
-	lava_dirty.swap(flags);
+	heat_dirty.swap(flags);
+	temp.assign(N, (int16_t)(20 * T8));
+	ambient.assign(H, (int16_t)(20 * T8));
+	tcur.assign(NCH, 0);
+	tnext.assign(NCH, 1);
+	temp_passes = 0;
 	parts.clear();
 	cur.init(W, H);
 	next.init(W, H);
 	for (Ctx &cx : ctxs) {
 		cx.next.init(W, H);
+		cx.tnext.assign(NCH, 0);
 	}
 	collapse_cursor = H - 4;
 	changed = true;
@@ -219,6 +225,11 @@ void CrucibleSim::default_materials() {
 	l.glows = true;
 	l.hot = true;
 	l.light = 10;
+	l.hold = 1100 * T8;
+	w.conduct = 200;
+	for (uint8_t m : { BEDROCK, STONE, GLIMMER, OBSIDIAN, BUILDING, DIRT }) {
+		mats[m].sink = 255;
+	}
 	mats[BUILDING].structure = true;
 	for (int s = STEAM; s <= STEAM_LAST; s++) {
 		Mat &g = mats[s];
@@ -235,6 +246,9 @@ void CrucibleSim::default_materials() {
 	rebuild_reactions();
 	rebuild_light();
 	rebuild_spans();
+	for (int m = 0; m < 256; m++) {
+		cond[m] = mats[m].conduct;
+	}
 }
 
 void CrucibleSim::rebuild_spans() {
@@ -271,7 +285,10 @@ void CrucibleSim::rebuild_reactions() {
 	std::vector<Reaction> both;
 	for (const Reaction &r : reacts) {
 		both.push_back(r);
-		both.push_back({ r.b, r.a, r.out_b, r.out_a, r.chance });
+		Reaction f = r;
+		std::swap(f.a, f.b);
+		std::swap(f.out_a, f.out_b);
+		both.push_back(f);
 	}
 	reacts = both;
 	for (int k = 0; k < (int)reacts.size(); k++) {
@@ -286,6 +303,15 @@ void CrucibleSim::rebuild_reactions() {
 static uint32_t chance_of(const Dictionary &d, const char *key) {
 	double p = d.get(key, 0.0);
 	return (uint32_t)std::clamp(p * 65536.0, 0.0, 65536.0);
+}
+
+// A temperature in degrees from the data, kept in eighths; T_NONE when it's absent.
+static int16_t temp_of(const Dictionary &d, const char *key, int16_t none = CrucibleSim::T_NONE) {
+	if (!d.has(key)) {
+		return none;
+	}
+	double t = d.get(key, 0.0);
+	return (int16_t)std::clamp(t * CrucibleSim::T8, -32000.0, 32000.0);
 }
 
 // materials: Array of Dictionary (see materials.gd for the keys);
@@ -352,6 +378,20 @@ void CrucibleSim::configure(const Array &materials, const Array &reactions) {
 		m.kin = (int16_t)(int)d.get("kin", -1);
 		m.wash_to = (int16_t)(int)d.get("wash_to", -1);
 		m.wash = chance_of(d, "wash");
+		m.conduct = (uint16_t)std::clamp((int)std::lround((double)d.get("conduct", 0.1) * 1024.0), 0, 1024);
+		m.sink = (uint8_t)std::clamp((int)std::lround((double)d.get("sink", 0.0) * 255.0), 0, 255);
+		m.placed = temp_of(d, "placed");
+		m.hold = temp_of(d, "hold");
+		m.hold_rate = (uint8_t)std::clamp((int)std::lround((double)d.get("hold_rate", 0.25) * 256.0), 1, 255);
+		m.burn_temp = temp_of(d, "burn_temp");
+		m.heats_at = temp_of(d, "heats_at");
+		m.heats_to = (int16_t)(int)d.get("heats_to", -1);
+		m.heats_cost = temp_of(d, "heats_cost", 0);
+		m.cools_at = temp_of(d, "cools_at");
+		m.cools_to = (int16_t)(int)d.get("cools_to", -1);
+		m.cools_cost = temp_of(d, "cools_cost", 0);
+		m.kindle = temp_of(d, "kindle");
+		m.family = (uint16_t)(int)d.get("family", 0);
 		if (m.flame && fire_id < 0) {
 			fire_id = id;
 		}
@@ -359,12 +399,25 @@ void CrucibleSim::configure(const Array &materials, const Array &reactions) {
 	reacts.clear();
 	for (int k = 0; k < reactions.size(); k++) {
 		Dictionary d = reactions[k];
-		reacts.push_back({ (uint8_t)(int)d.get("a", 0), (uint8_t)(int)d.get("b", 0),
-				(uint8_t)(int)d.get("out_a", 0), (uint8_t)(int)d.get("out_b", 0), chance_of(d, "chance") });
+		Reaction r;
+		r.a = (uint8_t)(int)d.get("a", 0);
+		r.b = (uint8_t)(int)d.get("b", 0);
+		r.out_a = (uint8_t)(int)d.get("out_a", 0);
+		r.out_b = (uint8_t)(int)d.get("out_b", 0);
+		r.chance = chance_of(d, "chance");
+		r.min_temp = temp_of(d, "min_temp", INT16_MIN);
+		r.max_temp = temp_of(d, "max_temp", INT16_MAX);
+		r.heat = temp_of(d, "heat", 0);
+		r.catalyst = (uint16_t)(int)d.get("catalyst", 0);
+		r.boost = (uint16_t)std::clamp((int)std::lround((double)d.get("boost", 1.0) * 256.0), 0, 65535);
+		reacts.push_back(r);
 	}
 	rebuild_reactions();
 	rebuild_light();
 	rebuild_spans();
+	for (int m = 0; m < 256; m++) {
+		cond[m] = mats[m].conduct;
+	}
 }
 
 void CrucibleSim::set_seed(int s) {
@@ -382,6 +435,20 @@ uint8_t CrucibleSim::init_aux(uint8_t m, uint32_t r) const {
 	return (uint8_t)std::max(1, M.life_min + (int)(r % (uint32_t)span));
 }
 
+// A cell of m made inside the sim (a reaction, boiling) where the cell was `at`:
+// a source (lava) is at what it holds; anything else keeps the spot's
+// temperature. One placed from outside (set_cell: springs, the brush, worldgen)
+// arrives at its own `placed` first (water is cold wherever it's put).
+int16_t CrucibleSim::init_temp(uint8_t m, int16_t at) const {
+	const Mat &M = mats[m];
+	return M.hold != T_NONE ? M.hold : at;
+}
+
+int16_t CrucibleSim::placed_temp(uint8_t m, int16_t at) const {
+	const Mat &M = mats[m];
+	return M.placed != T_NONE ? M.placed : init_temp(m, at);
+}
+
 // Write a cell from inside a tick (or from game-side effects when cx is null).
 void CrucibleSim::put(Ctx *cx, int i, int x, int y, uint8_t m, uint32_t r) {
 	uint8_t old = cells[i];
@@ -390,6 +457,8 @@ void CrucibleSim::put(Ctx *cx, int i, int x, int y, uint8_t m, uint32_t r) {
 	settle[i] = 0;
 	vel[i] = 0;
 	stamp[i] = (uint8_t)mark;
+	temp[i] = init_temp(m, temp[i]);
+	tmark(cx, x, y);
 	if (cx) {
 		cx->next.touch(x, y);
 		cx->changed = true;
@@ -398,7 +467,7 @@ void CrucibleSim::put(Ctx *cx, int i, int x, int y, uint8_t m, uint32_t r) {
 		changed = true;
 	}
 	if (mats[old].glows || mats[m].glows) {
-		mark_lava(x, y);
+		mark_heat(x, y);
 	}
 }
 
@@ -415,6 +484,9 @@ void CrucibleSim::set_threads(int n) {
 	for (Ctx &cx : ctxs) {
 		if (cx.next.n != NCH) {
 			cx.next.init(W, H);
+		}
+		if ((int)cx.tnext.size() != NCH) {
+			cx.tnext.assign(NCH, 0);
 		}
 	}
 	if (n > 1) {
@@ -469,12 +541,17 @@ void CrucibleSim::worker_loop(int index) {
 			jobs = pool_jobs;
 		}
 		Ctx &cx = ctxs[index];
+		const int mode = pass_mode;
 		while (true) {
 			int k = pool_next.fetch_add(1);
 			if (k >= (int)jobs->size()) {
 				break;
 			}
-			process_chunk(cx, (*jobs)[k]);
+			if (mode == 1) {
+				temp_chunk(cx, (*jobs)[k]);
+			} else {
+				process_chunk(cx, (*jobs)[k]);
+			}
 		}
 		{
 			std::lock_guard<std::mutex> lock(pool_mutex);
@@ -490,9 +567,16 @@ void CrucibleSim::run_pass(const std::vector<int> &list) {
 	if (list.empty()) {
 		return;
 	}
+	auto work = [&](int c) {
+		if (pass_mode == 1) {
+			temp_chunk(ctxs[0], c);
+		} else {
+			process_chunk(ctxs[0], c);
+		}
+	};
 	if (workers.empty() || list.size() < 12) {
 		for (int c : list) {
-			process_chunk(ctxs[0], c);
+			work(c);
 		}
 		return;
 	}
@@ -509,7 +593,7 @@ void CrucibleSim::run_pass(const std::vector<int> &list) {
 		if (k >= (int)list.size()) {
 			break;
 		}
-		process_chunk(ctxs[0], list[k]);
+		work(list[k]);
 	}
 	std::unique_lock<std::mutex> lock(pool_mutex);
 	pool_done_cv.wait(lock, [&] { return pool_busy == 0; });
@@ -562,11 +646,186 @@ void CrucibleSim::step() {
 		if (cx.changed) {
 			changed = true;
 		}
+		for (int c = 0; c < NCH; c++) {
+			tnext[c] |= cx.tnext[c];
+		}
+		std::fill(cx.tnext.begin(), cx.tnext.end(), (uint8_t)0);
 	}
 	stat_chunks = chunks;
 	stat_updates = updates;
 	step_bodies();
 	step_particles();
+	if (tick % temp_every == 0) {
+		step_temperature();
+	}
+}
+
+// --- Temperature (A1) ------------------------------------------------------------------
+
+// One temperature pass over the chunks flagged since the last: the same four
+// checkerboard passes as the cells, so a chunk reads its neighbours' edge cells
+// while no other thread writes them. A chunk that changes nothing goes quiet.
+void CrucibleSim::step_temperature() {
+	temp_passes++;
+	tcur.swap(tnext);
+	std::fill(tnext.begin(), tnext.end(), (uint8_t)0);
+	for (Ctx &cx : ctxs) {
+		cx.tchunks = 0;
+		cx.ignitions = 0;
+		cx.changed = false;
+		cx.next.reset();
+	}
+	pass_mode = 1;
+	std::vector<int> pass;
+	int flip = temp_passes & 1;
+	for (int p = 0; p < 4; p++) {
+		int py = 1 - (p >> 1);
+		int px = (p & 1) ^ flip;
+		pass.clear();
+		for (int cy = CH - 1 - ((CH - 1 - py) & 1); cy >= 0; cy -= 2) {
+			for (int cxi = px; cxi < CW; cxi += 2) {
+				int c = cy * CW + cxi;
+				if (tcur[c]) {
+					pass.push_back(c);
+				}
+			}
+		}
+		run_pass(pass);
+	}
+	pass_mode = 0;
+	int active = 0;
+	for (Ctx &cx : ctxs) {
+		next.merge(cx.next);
+		active += cx.tchunks;
+		ignitions_total += cx.ignitions;
+		if (cx.changed) {
+			changed = true;
+		}
+		for (int c = 0; c < NCH; c++) {
+			tnext[c] |= cx.tnext[c];
+		}
+		std::fill(cx.tnext.begin(), cx.tnext.end(), (uint8_t)0);
+	}
+	stat_tchunks = active;
+}
+
+// The temperature of one chunk's cells, in place, row by row. Each cell moves
+// toward each neighbour by the pair's lower conductivity, toward what it holds
+// if it's a source (lava; a burning cell), and now and then toward its row's
+// ambient by its sink. Then it becomes its hot or cold form past the point in
+// its data, or catches fire. Differences too small to move an eighth of a degree
+// leave the cell alone, so a settled gradient costs nothing.
+void CrucibleSim::temp_chunk(Ctx &cx, int c) {
+	int cyi = c / CW;
+	int cxi = c % CW;
+	int gx = cxi << CSHIFT;
+	int gy = cyi << CSHIFT;
+	int x0 = std::max(gx, 2);
+	int x1 = std::min(gx + CS - 1, W - 3);
+	int y0 = std::max(gy, 2);
+	int y1 = std::min(gy + CS - 1, H - 3);
+	const bool sinking = (temp_passes % sink_every) == 0;
+	bool moved = false;
+	bool edge_l = false, edge_r = false, edge_u = false, edge_d = false;
+	cx.rng = hash3(seed ^ 0x5bd1e995u, (uint32_t)temp_passes, (uint32_t)c);
+	for (int y = y0; y <= y1; y++) {
+		const int16_t amb = ambient[y];
+		int row = y * W;
+		for (int x = x0; x <= x1; x++) {
+			int i = row + x;
+			uint8_t m = cells[i];
+			const int T = temp[i];
+			const Mat &M = mats[m];
+			// The pull toward the ambient: nothing within a few degrees of it (a
+			// settled gradient leaves the cell alone).
+			int sink = 0;
+			if (sinking && M.sink) {
+				sink = ((amb - T) * (sink_rate * M.sink / 255)) / 4096;
+			}
+			// Most cells sit level with their neighbours: nothing to do unless the
+			// ambient pulls or the material is a source.
+			const bool level = temp[i - W] == T && temp[i + W] == T && temp[i - 1] == T && temp[i + 1] == T;
+			if (level && sink == 0 && M.hold == T_NONE && !(M.burn_life && aux[i])) {
+				continue;
+			}
+			int delta = sink;
+			int k = cond[m];
+			if (k && !level) {
+				const int offs[4] = { -W, W, -1, 1 };
+				for (int n = 0; n < 4; n++) {
+					int j = i + offs[n];
+					int kn = std::min(k, (int)cond[cells[j]]);
+					// to the nearest eighth of a degree
+					delta += ((temp[j] - T) * kn + 2048) >> 12;
+				}
+			}
+			int hold = T_NONE;
+			if (M.burn_life && aux[i] && M.burn_temp != T_NONE) {
+				hold = M.burn_temp;
+			} else if (M.hold != T_NONE) {
+				hold = M.hold;
+			}
+			if (hold != T_NONE) {
+				delta += ((hold - T) * M.hold_rate + 128) >> 8;
+			}
+			int Tn = T;
+			if (delta) {
+				Tn = std::clamp(T + delta, -32000, 32000);
+				temp[i] = (int16_t)Tn;
+			}
+			// An eighth of a degree either way is a settled cell jittering, not heat
+			// on the move: it doesn't keep the chunk awake.
+			if (delta > 1 || delta < -1) {
+				moved = true;
+				// A reaction that waits on a temperature needs its cells awake to see it.
+				if (M.reactive) {
+					cx.next.touch(x, y);
+				}
+				edge_l = edge_l || x == gx;
+				edge_r = edge_r || x == gx + CS - 1;
+				edge_u = edge_u || y == gy;
+				edge_d = edge_d || y == gy + CS - 1;
+			}
+			// Past a point in its data it becomes something else; the change costs
+			// (or frees) heat. A body's cells wait until it has settled back to ground.
+			if (owner[i] == 0) {
+				if (M.heats_to >= 0 && M.heats_at != T_NONE && Tn >= M.heats_at) {
+					put(&cx, i, x, y, (uint8_t)M.heats_to, lcg(cx.rng));
+					temp[i] = (int16_t)std::clamp(Tn - M.heats_cost, -32000, 32000);
+					moved = true;
+				} else if (M.cools_to >= 0 && M.cools_at != T_NONE && Tn <= M.cools_at) {
+					put(&cx, i, x, y, (uint8_t)M.cools_to, lcg(cx.rng));
+					temp[i] = (int16_t)std::clamp(Tn + M.cools_cost, -32000, 32000);
+					moved = true;
+				} else if (M.burn_life && aux[i] == 0 && M.kindle != T_NONE && Tn >= M.kindle &&
+						(thin(cells[i - W]) || thin(cells[i + W]) || thin(cells[i - 1]) || thin(cells[i + 1]))) {
+					aux[i] = M.burn_life;
+					cx.next.touch(x, y);
+					cx.changed = true;
+					cx.ignitions++;
+					moved = true;
+				}
+			}
+		}
+	}
+	if (!moved) {
+		return;
+	}
+	cx.tchunks++;
+	cx.tnext[c] = 1;
+	if (edge_l && cxi > 0) {
+		cx.tnext[c - 1] = 1;
+	}
+	if (edge_r && cxi < CW - 1) {
+		cx.tnext[c + 1] = 1;
+	}
+	if (edge_u && cyi > 0) {
+		cx.tnext[c - CW] = 1;
+	}
+	if (edge_d && cyi < CH - 1) {
+		cx.tnext[c + CW] = 1;
+	}
+	heat_dirty[c].store(1, std::memory_order_relaxed);
 }
 
 void CrucibleSim::process_chunk(Ctx &cx, int c) {
@@ -630,18 +889,29 @@ void CrucibleSim::update_cell(Ctx &cx, int i, int x, int y, uint8_t m) {
 			if (ri < 0) {
 				continue;
 			}
-			partner = true;
 			const Reaction &R = reacts[ri];
-			if (!roll(cx.rng, R.chance)) {
+			if (temp[i] < R.min_temp || temp[i] > R.max_temp) {
+				continue;
+			}
+			partner = true;
+			uint32_t chance = R.chance;
+			if (R.catalyst && R.boost != 256 && has_family(i, R.catalyst)) {
+				chance = (uint32_t)std::min<uint64_t>(ONE, (uint64_t)chance * R.boost / 256);
+			}
+			if (!roll(cx.rng, chance)) {
 				continue;
 			}
 			int jx = x + ox[k];
 			int jy = y + oy[k];
 			put(&cx, i, x, y, R.out_a, lcg(cx.rng));
 			put(&cx, j, jx, jy, R.out_b, lcg(cx.rng));
+			if (R.heat) {
+				temp[i] = (int16_t)std::clamp(temp[i] + R.heat, -32000, 32000);
+				temp[j] = (int16_t)std::clamp(temp[j] + R.heat, -32000, 32000);
+			}
 			if (mats[m].glows || mats[n].glows) {
-				mark_lava(x, y);
-				mark_lava(jx, jy);
+				mark_heat(x, y);
+				mark_heat(jx, jy);
 			}
 			cx.reactions++;
 			return;
@@ -810,8 +1080,8 @@ void CrucibleSim::liquid(Ctx &cx, int i, int x, int y, uint8_t m, int d, uint32_
 	if (thin(cells[b])) {
 		int k = fall(cx, i, x, y);
 		if (M.glows) {
-			mark_lava(x, y);
-			mark_lava(x, y + k);
+			mark_heat(x, y);
+			mark_heat(x, y + k);
 		}
 		return;
 	}
@@ -899,8 +1169,8 @@ void CrucibleSim::spread(Ctx &cx, int i, int x, int y, uint8_t m, int d, uint32_
 
 void CrucibleSim::move_liquid(Ctx &cx, int i, int j, int x, int y, int x2, int y2, uint8_t m) {
 	if (mats[m].glows) {
-		mark_lava(x, y);
-		mark_lava(x2, y2);
+		mark_heat(x, y);
+		mark_heat(x2, y2);
 	}
 	swap_cells(cx, i, j, x, y, x2, y2);
 }
@@ -936,6 +1206,10 @@ void CrucibleSim::gas(Ctx &cx, int i, int x, int y, uint8_t m, int d, uint32_t r
 		cx.changed = true;
 		if (mats[to].kind != K_GAS) {
 			aux[i] = init_aux(to, r);
+			// It condensed because it cooled: the water starts at its own placed
+			// temperature, not the steam's (it would boil straight off again).
+			temp[i] = placed_temp(to, temp[i]);
+			tmark(&cx, x, y);
 			stamp[i] = (uint8_t)mark;
 			cx.next.touch(x, y);
 			return;
@@ -986,10 +1260,13 @@ void CrucibleSim::swap_cells(Ctx &cx, int i, int j, int x, int y, int x2, int y2
 	std::swap(aux[i], aux[j]);
 	std::swap(settle[i], settle[j]);
 	std::swap(vel[i], vel[j]);
+	std::swap(temp[i], temp[j]); // a moving cell carries its heat with it
 	stamp[i] = (uint8_t)mark;
 	stamp[j] = (uint8_t)mark;
 	cx.next.touch(x, y);
 	cx.next.touch(x2, y2);
+	tmark(&cx, x, y);
+	tmark(&cx, x2, y2);
 	cx.changed = true;
 	if (mats[b].kind == K_EMPTY && mats[cells[i - W]].loosens_to >= 0) {
 		loosen_check(&cx, i - W, x, y - 1);
@@ -1049,7 +1326,7 @@ void CrucibleSim::land(Particle &p, int px, int py) {
 			next.touch(px, yy);
 			changed = true;
 			if (mats[old].glows || mats[p.mat].glows) {
-				mark_lava(px, yy);
+				mark_heat(px, yy);
 			}
 			return;
 		}
@@ -1126,10 +1403,12 @@ void CrucibleSim::set_cell(int x, int y, int m) {
 	aux[i] = init_aux((uint8_t)m, lcg(grng));
 	settle[i] = 0;
 	vel[i] = 0;
+	temp[i] = placed_temp((uint8_t)m, temp[i]);
 	next.touch(x, y);
+	tmark(nullptr, x, y);
 	changed = true;
 	if (mats[old].glows || mats[m].glows) {
-		mark_lava(x, y);
+		mark_heat(x, y);
 	}
 	if (!solid((uint8_t)m)) {
 		if (y > 2) {
@@ -1203,9 +1482,7 @@ void CrucibleSim::set_cells(const PackedByteArray &data) {
 	std::fill(tile_dirty.begin(), tile_dirty.end(), (uint8_t)1);
 	std::fill(corr_valid.begin(), corr_valid.end(), (uint8_t)0);
 	parts.clear();
-	for (auto &f : lava_dirty) {
-		f.store(1);
-	}
+	reset_temps();
 	changed = true;
 }
 
@@ -1639,7 +1916,7 @@ int CrucibleSim::explode(int x, int y, double radius, int power) {
 				spawn(cx + 0.5f, cy + 0.5f, dx * speed, dy * speed - 0.6f, (uint8_t)debris, a);
 			}
 			if (M.glows) {
-				mark_lava(cx, cy);
+				mark_heat(cx, cy);
 			}
 			cells[i] = AIR;
 			aux[i] = 0;
@@ -1682,31 +1959,29 @@ int CrucibleSim::explode(int x, int y, double radius, int power) {
 
 // --- Heat map ------------------------------------------------------------------------
 
-// One byte per 4x4 block: 255 where something that glows (lava) is.
+// One byte per 4x4 block: the hottest cell in it, (degrees + 60) / 6, so 0 is
+// -60 and below, 255 is 1470 and above (lava's 1100 is 193).
 void CrucibleSim::refresh_heat(bool all) {
 	const int BW = W / 4;
 	for (int c = 0; c < NCH; c++) {
-		if (!all && lava_dirty[c].load(std::memory_order_relaxed) == 0) {
+		if (!all && heat_dirty[c].load(std::memory_order_relaxed) == 0) {
 			continue;
 		}
-		lava_dirty[c].store(0, std::memory_order_relaxed);
+		heat_dirty[c].store(0, std::memory_order_relaxed);
 		int gx = (c % CW) << CSHIFT;
 		int gy = (c / CW) << CSHIFT;
 		for (int by = 0; by < CS / 4; by++) {
 			for (int bx = 0; bx < CS / 4; bx++) {
-				uint8_t v = 0;
+				int hi = INT16_MIN;
 				int x0 = gx + bx * 4;
 				int y0 = gy + by * 4;
-				for (int yy = y0; yy < y0 + 4 && !v; yy++) {
-					const uint8_t *row = &cells[yy * W];
+				for (int yy = y0; yy < y0 + 4; yy++) {
+					const int16_t *row = &temp[yy * W];
 					for (int xx = x0; xx < x0 + 4; xx++) {
-						if (mats[row[xx]].glows) {
-							v = 255;
-							break;
-						}
+						hi = std::max(hi, (int)row[xx]);
 					}
 				}
-				heat[((gy >> 2) + by) * BW + (gx >> 2) + bx] = v;
+				heat[((gy >> 2) + by) * BW + (gx >> 2) + bx] = (uint8_t)std::clamp((hi / T8 + 60) / 6, 0, 255);
 			}
 		}
 		heat_changed = true;
@@ -1718,6 +1993,165 @@ PackedByteArray CrucibleSim::get_heat() const {
 	out.resize((int64_t)heat.size());
 	memcpy(out.ptrw(), heat.data(), heat.size());
 	return out;
+}
+
+int CrucibleSim::get_temp(int x, int y) const {
+	if (x < 0 || y < 0 || x >= W || y >= H) {
+		return 0;
+	}
+	int t = temp[y * W + x];
+	return (t >= 0 ? t + T8 / 2 : t - T8 / 2) / T8;
+}
+
+void CrucibleSim::set_temp(int x, int y, int degrees) {
+	if (x < 0 || y < 0 || x >= W || y >= H) {
+		return;
+	}
+	temp[y * W + x] = (int16_t)std::clamp(degrees * T8, -32000, 32000);
+	tmark(nullptr, x, y);
+	next.touch(x, y);
+	mark_heat(x, y);
+	heat_changed = true;
+}
+
+// Adds `degrees` to every cell of the rectangle (machines heating or cooling what
+// they touch; the bench's heat brush).
+void CrucibleSim::heat_rect(int x, int y, int w, int h, int degrees) {
+	int x0 = std::max(x, 0), y0 = std::max(y, 0);
+	int x1 = std::min(x + w, W), y1 = std::min(y + h, H);
+	int d = degrees * T8;
+	for (int yy = y0; yy < y1; yy++) {
+		for (int xx = x0; xx < x1; xx++) {
+			int i = yy * W + xx;
+			temp[i] = (int16_t)std::clamp(temp[i] + d, -32000, 32000);
+		}
+	}
+	for (int cy = y0 >> CSHIFT; cy < ((y1 - 1) >> CSHIFT) + 1 && y1 > y0; cy++) {
+		for (int cxi = x0 >> CSHIFT; cxi < ((x1 - 1) >> CSHIFT) + 1 && x1 > x0; cxi++) {
+			tnext[cy * CW + cxi] = 1;
+			heat_dirty[cy * CW + cxi].store(1, std::memory_order_relaxed);
+		}
+	}
+	if (x1 > x0 && y1 > y0) {
+		touch_rect(x0, y0, x1 - 1, y1 - 1);
+	}
+	heat_changed = true;
+}
+
+void CrucibleSim::heat_circle(int x, int y, int r, int degrees) {
+	int d = degrees * T8;
+	for (int yy = std::max(y - r, 0); yy <= std::min(y + r, H - 1); yy++) {
+		for (int xx = std::max(x - r, 0); xx <= std::min(x + r, W - 1); xx++) {
+			if ((xx - x) * (xx - x) + (yy - y) * (yy - y) > r * r) {
+				continue;
+			}
+			int i = yy * W + xx;
+			temp[i] = (int16_t)std::clamp(temp[i] + d, -32000, 32000);
+		}
+	}
+	for (int cy = std::max(y - r, 0) >> CSHIFT; cy <= (std::min(y + r, H - 1) >> CSHIFT); cy++) {
+		for (int cxi = std::max(x - r, 0) >> CSHIFT; cxi <= (std::min(x + r, W - 1) >> CSHIFT); cxi++) {
+			tnext[cy * CW + cxi] = 1;
+			heat_dirty[cy * CW + cxi].store(1, std::memory_order_relaxed);
+		}
+	}
+	touch_rect(x - r, y - r, x + r, y + r);
+	heat_changed = true;
+}
+
+// The lowest, highest and mean temperature over a rectangle, in degrees.
+Vector3i CrucibleSim::rect_temp(int x, int y, int w, int h) const {
+	int x0 = std::max(x, 0), y0 = std::max(y, 0);
+	int x1 = std::min(x + w, W), y1 = std::min(y + h, H);
+	if (x1 <= x0 || y1 <= y0) {
+		return Vector3i(0, 0, 0);
+	}
+	int lo = INT16_MAX, hi = INT16_MIN;
+	int64_t sum = 0;
+	for (int yy = y0; yy < y1; yy++) {
+		const int16_t *row = &temp[yy * W];
+		for (int xx = x0; xx < x1; xx++) {
+			lo = std::min(lo, (int)row[xx]);
+			hi = std::max(hi, (int)row[xx]);
+			sum += row[xx];
+		}
+	}
+	int n = (x1 - x0) * (y1 - y0);
+	return Vector3i(lo / T8, hi / T8, (int)(sum / n / T8));
+}
+
+// The ambient temperature each row's rock settles toward (degrees per row, H of
+// them; fewer, and the last given row's value runs to the bottom).
+void CrucibleSim::set_ambient(const PackedInt32Array &rows) {
+	int last = 20;
+	for (int y = 0; y < H; y++) {
+		if (y < rows.size()) {
+			last = rows[y];
+		}
+		ambient[y] = (int16_t)std::clamp(last * T8, -32000, 32000);
+	}
+	std::fill(tnext.begin(), tnext.end(), (uint8_t)1);
+}
+
+// Every cell to its row's ambient, sources to what they hold: a fresh world.
+void CrucibleSim::reset_temps() {
+	for (int y = 0; y < H; y++) {
+		int16_t amb = ambient[y];
+		int row = y * W;
+		for (int x = 0; x < W; x++) {
+			temp[row + x] = placed_temp(cells[row + x], amb);
+		}
+	}
+	std::fill(tnext.begin(), tnext.end(), (uint8_t)1);
+	for (auto &f : heat_dirty) {
+		f.store(1);
+	}
+	heat_changed = true;
+}
+
+PackedInt32Array CrucibleSim::get_temp_chunks() const {
+	PackedInt32Array out;
+	for (int c = 0; c < NCH; c++) {
+		if (tnext[c]) {
+			out.append(c);
+		}
+	}
+	return out;
+}
+
+// Tuning: {every: ticks between passes, sink_every: passes between pulls toward
+// the ambient, sink: the fraction of the gap each pull closes}.
+void CrucibleSim::set_temp_params(const Dictionary &p) {
+	temp_every = std::clamp((int)p.get("every", temp_every), 1, 60);
+	sink_every = std::clamp((int)p.get("sink_every", sink_every), 1, 256);
+	sink_rate = std::clamp((int)std::lround((double)p.get("sink", sink_rate / 4096.0) * 4096.0), 0, 4096);
+}
+
+// The bench's brush: a circle of m. With keep_fixed, buildings and what never
+// breaks (bedrock) stay. Returns cells written.
+int CrucibleSim::paint_circle(int x, int y, int r, int m, bool keep_fixed) {
+	if (m < 0 || m > 255) {
+		return 0;
+	}
+	int n = 0;
+	for (int yy = std::max(y - r, 2); yy <= std::min(y + r, H - 3); yy++) {
+		for (int xx = std::max(x - r, 2); xx <= std::min(x + r, W - 3); xx++) {
+			if ((xx - x) * (xx - x) + (yy - y) * (yy - y) > r * r) {
+				continue;
+			}
+			int i = yy * W + xx;
+			uint8_t old = cells[i];
+			if (old == m || owner[i]) {
+				continue;
+			}
+			if (keep_fixed && (mats[old].structure || mats[old].durability == 255)) {
+				continue;
+			}
+			set_cell(xx, yy, m);
+			n++;
+		}
+	}
+	return n;
 }
 
 // --- Light ----------------------------------------------------------------------------
@@ -2567,6 +3001,17 @@ void CrucibleSim::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("add_particle", "x", "y", "vx", "vy", "material"), &CrucibleSim::add_particle);
 	ClassDB::bind_method(D_METHOD("refresh_heat", "all"), &CrucibleSim::refresh_heat);
 	ClassDB::bind_method(D_METHOD("get_heat"), &CrucibleSim::get_heat);
+	ClassDB::bind_method(D_METHOD("get_temp", "x", "y"), &CrucibleSim::get_temp);
+	ClassDB::bind_method(D_METHOD("set_temp", "x", "y", "degrees"), &CrucibleSim::set_temp);
+	ClassDB::bind_method(D_METHOD("heat_rect", "x", "y", "w", "h", "degrees"), &CrucibleSim::heat_rect);
+	ClassDB::bind_method(D_METHOD("heat_circle", "x", "y", "r", "degrees"), &CrucibleSim::heat_circle);
+	ClassDB::bind_method(D_METHOD("rect_temp", "x", "y", "w", "h"), &CrucibleSim::rect_temp);
+	ClassDB::bind_method(D_METHOD("set_ambient", "rows"), &CrucibleSim::set_ambient);
+	ClassDB::bind_method(D_METHOD("reset_temps"), &CrucibleSim::reset_temps);
+	ClassDB::bind_method(D_METHOD("set_temp_params", "params"), &CrucibleSim::set_temp_params);
+	ClassDB::bind_method(D_METHOD("paint_circle", "x", "y", "r", "material", "keep_fixed"), &CrucibleSim::paint_circle);
+	ClassDB::bind_method(D_METHOD("get_stat_tchunks"), &CrucibleSim::get_stat_tchunks);
+	ClassDB::bind_method(D_METHOD("get_temp_chunks"), &CrucibleSim::get_temp_chunks);
 	ClassDB::bind_method(D_METHOD("light_update", "lights", "sights", "sun", "known"), &CrucibleSim::light_update);
 	ClassDB::bind_method(D_METHOD("get_light"), &CrucibleSim::get_light);
 	ClassDB::bind_method(D_METHOD("set_light_view", "x0", "y0", "x1", "y1"), &CrucibleSim::set_light_view);
@@ -2626,6 +3071,7 @@ void CrucibleSim::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::PACKED_BYTE_ARRAY, "cells"), "set_cells", "get_cells");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "stat_chunks"), "", "get_stat_chunks");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "stat_updates"), "", "get_stat_updates");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "stat_tchunks"), "", "get_stat_tchunks");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "reactions"), "", "get_reactions");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "ignitions"), "", "get_ignitions");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "eroded"), "", "get_eroded");

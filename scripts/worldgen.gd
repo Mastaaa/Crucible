@@ -207,6 +207,47 @@ func generate(sim: RefCounted, seed_value: int) -> Dictionary:
 	}
 
 
+## The lab bench (A1): an open room over a bedrock floor, the Hub on a bedrock
+## pad at the surface and the Crucible sealed in bedrock at the bottom, so the
+## game runs as usual while the player paints materials and heat into the room.
+const BENCH_FLOOR := D.GROUND_Y + 700
+
+
+func bench(sim: RefCounted) -> Dictionary:
+	features.clear()
+	_masks.clear()
+	g.resize(W * H)
+	g.fill(D.BEDROCK)
+	for y in range(0, BENCH_FLOOR):
+		var row := y * W
+		for x in range(2, W - 2):
+			g[row + x] = D.AIR
+	var pad := Rect2i(HUB_RECT.position.x - 3 * D.S, HUB_RECT.end.y, HUB_SIZE.x + 12 * D.S, 2 * D.S)
+	_fill(pad, D.BEDROCK)
+	_fill(HUB_RECT, D.BUILDING)
+	var crucible_rect := Rect2i(CHAMBER_CX - (CRUCIBLE_SIZE.x >> 1), CHAMBER_FLOOR - CRUCIBLE_SIZE.y, CRUCIBLE_SIZE.x, CRUCIBLE_SIZE.y)
+	_fill(crucible_rect, D.BUILDING)
+	sim.set_cells(g)
+	g = PackedByteArray()
+	return {
+		"seed": 0,
+		"arched": 0,
+		"hub": HUB_RECT,
+		"crucible": crucible_rect,
+		"plug_x": CHAMBER_CX - (PLUG_W >> 1),
+		"lake": Rect2i(),
+		"aquifers": [],
+		"lava_pockets": [],
+		"glimmer": [],
+		"ground": [],
+		"caves": [],
+		"springs": [],
+		"coal": [],
+		"sulfur": [],
+		"bench": true,
+	}
+
+
 func _fill(r: Rect2i, mat: int) -> void:
 	for y in range(r.position.y, r.end.y):
 		for x in range(r.position.x, r.end.x):

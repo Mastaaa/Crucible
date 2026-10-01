@@ -72,7 +72,7 @@ func _draw() -> void:
 		draw_arc(g.mouse_screen, 16.0, -PI * 0.5, -PI * 0.5 + TAU * p, 32, BAD_COL, 3.0)
 		_draw_rect_outline(_brect(g, g.demolish_target, z).grow(2.0), BAD_COL, 2.0)
 	if g.brush_mode and g.hover.x >= 0:
-		draw_arc(g.to_screen(Vector2(g.hover) + Vector2(0.5, 0.5)), 3.5 * D.S * z, 0.0, TAU, 32, Color(1, 1, 1, 0.8), 1.0)
+		draw_arc(g.to_screen(Vector2(g.hover) + Vector2(0.5, 0.5)), (g.brush_r + 0.5) * z, 0.0, TAU, 32, Color(1, 1, 1, 0.8), 1.0)
 		if g.brush_material() == g.BRUSH_BLAST:
 			draw_arc(g.to_screen(Vector2(g.hover) + Vector2(0.5, 0.5)), D.BLAST_RADIUS * z, 0.0, TAU, 48, Color(1.0, 0.6, 0.3, 0.8), 1.0)
 		_label(g.mouse_screen + Vector2(18, -8), "Brush: " + g.brush_name(), Color.WHITE, 13)

@@ -101,12 +101,13 @@ uncover elements, deposits and curios; exploit reactions or get blindsided by th
 
 ## Alpha roadmap (A1 to A7; design in claude/ALPHA_PLAN.md)
 
-Agreed with Alex; nothing is implemented yet. The player is an autonomous machine built to
+Agreed with Alex; A1 is done. The player is an autonomous machine built to
 reach and light the Crucibles; Hub orders are flat instructions. Three focus areas: more
 materials with real chemistry, modular machines (Create-like), and biomes.
 
 1. A1, temperature and reactions: a per-cell temperature field (slow pass), melting and
    boiling points as data, family-tag reaction rules, hot rock rebuilt on it, a lab bench mode.
+   Done; the impact, swell and setting extensions moved to A2.
 2. A2, materials wave 1 (about 12) and a spawn-region system, with a hand-placed Spoil Heap
    near the Hub.
 3. A3, machine framework and the hard cut: legacy buildings go (Hub, Crucible, Nodes, Lab,
@@ -137,7 +138,8 @@ wins: buildings, the Drill, the Warren and mites, the Hub's power, and heat as a
 - Coal = 1 Stone + 1 Power. Sulfur = 1 Stone + 1 Glimmer, corrodes nearby structures and links.
 - Links break and need a Stone delivery to mend.
 - Underground is dark: light (Hub, Lamps, pilot lights, glowing materials, sunlight down open shafts) plus a
-  building's sight explores; explored ground shows live only while lit (Terraria-style).
+  building's sight explores; explored ground shows live only while lit (Terraria-style). Fog (A1): ground
+  never seen is opaque black; seen but unlit shows as last seen, dimmed. Nothing hints through it.
 - Every building except Hub and Crucible must stay anchored (rock or a held-up building touching, corners
   count); dislodged ones fall straight down, are hurt by a long fall, and re-anchor.
 - The Drill is one fixed machine on the Hub's right: a 30-wide shaft straight down, never buildable.
@@ -158,9 +160,15 @@ wins: buildings, the Drill, the Warren and mites, the Hub's power, and heat as a
 - Collapse: a ceiling wider than its material's span caves from the middle into an arch (in pieces, 8c); Struts are
   instant, linkless beams rock to rock that hold rock near both ends. Stone hangs only from stone.
 - Ground is mundane data (physics and water only): packed dirt, dirt, sand, gravel, clay, stone.
-- Heat (9): hot rock is a material (stone's kin for hanging), not a temperature field. It stops
-  the Drill and Borers until the Coolant Jacket (both machines, water by packet, vented as steam)
-  and mites until Ember Brood. Steam for the Turbine comes only from what the player stages.
+- Temperature (A1): every cell has one, leaking slowly between neighbours and settling toward its
+  depth's ambient (550 in the Magma band). Melting, boiling, freezing and kindling points are
+  material data. Hot rock is still its own material (stone's kin for hanging), made and unmade by
+  temperature: the Magma band's stone held hot. Until A3 it stops the Drill and Borers without the
+  Coolant Jacket and mites without Ember Brood. Steam for the Turbine comes only from what the player
+  stages.
+- Reactions (A1): rules name materials or families (one or two tags a material); a material pair's
+  rule overrides its families'. A rule can carry a temperature window, heat, and a catalyst family
+  that multiplies its chance.
 - Settling: cells next to anything a building digs hold still for SETTLE_S (20 s) before weathering,
   erosion, loosening or powder falls can take them; liquids aren't held.
 - The Warren never moves (no Advance); mites never dig its footing. It has no zone picker: a chamber over it,

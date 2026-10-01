@@ -464,6 +464,47 @@ const COOLANT_CAP := 4.0            # water a Drill or Borer holds for its jacke
 const JACKET_LAVA_WATER := 0.05     # water a second a jacketed Borer boils off touching lava, instead of burning (phase 10)
 const QUENCH_WATER_PER_CELL := 1.0 / CELLS_PER_UNIT   # a jacket quenching lava it faces to obsidian: a cell of water a cell
 
+# --- Temperature (A1) --------------------------------------------------------------
+# Every cell has a temperature (degrees) that the engine leaks between neighbours
+# and pulls back toward the depth's ambient (data/materials.json has the material
+# side). The ambient climbs with depth and steps up to the Magma band's just above
+# HOT_TOP's wobble, so hot rock stays hot rock (it cools to stone under 250) and
+# stone stays stone (it heats to hot rock over 800: only next to lava).
+const AMBIENT_SURFACE := 15
+const AMBIENT_TOPSOIL_BOTTOM := 30
+const AMBIENT_STONE_BOTTOM := 90    # under water's boiling point: the Stone band's pockets keep
+const AMBIENT_MAGMA := 550
+const AMBIENT_RAMP := 50            # rows over which the Stone band's ambient climbs to the Magma band's
+const AMBIENT_RAMP_END := HOT_TOP - 30
+const TEMP_EVERY := 8               # ticks between temperature passes
+const TEMP_SINK_EVERY := 1          # passes between pulls toward the ambient
+const TEMP_SINK := 1.0 / 256        # the fraction of the gap each pull closes (none within 32 degrees)
+const BENCH_AMBIENT := 20           # the lab bench's flat ambient
+
+static func ambient_at(y: int) -> int:
+	if y < GROUND_Y:
+		return AMBIENT_SURFACE
+	var topsoil_end: int = LAYERS[1]["bottom"]
+	if y < topsoil_end:
+		return int(lerpf(AMBIENT_SURFACE, AMBIENT_TOPSOIL_BOTTOM, (y - GROUND_Y) / float(topsoil_end - GROUND_Y)))
+	var ramp_start := AMBIENT_RAMP_END - AMBIENT_RAMP
+	if y < ramp_start:
+		return int(lerpf(AMBIENT_TOPSOIL_BOTTOM, AMBIENT_STONE_BOTTOM, (y - topsoil_end) / float(ramp_start - topsoil_end)))
+	if y < AMBIENT_RAMP_END:
+		return int(lerpf(AMBIENT_STONE_BOTTOM, AMBIENT_MAGMA, smoothstep(0.0, 1.0, (y - ramp_start) / float(AMBIENT_RAMP))))
+	return AMBIENT_MAGMA
+
+## The ambient per row, for the engine (a flat one at `flat` degrees on the bench).
+static func ambient_rows(flat := -1) -> PackedInt32Array:
+	var out := PackedInt32Array()
+	out.resize(H)
+	for y in H:
+		out[y] = flat if flat >= 0 else ambient_at(y)
+	return out
+
+static func temp_params() -> Dictionary:
+	return {"every": TEMP_EVERY, "sink_every": TEMP_SINK_EVERY, "sink": TEMP_SINK}
+
 # --- Hazards -------------------------------------------------------------------
 # The random-sample passes check more cells on the bigger map (15x v2's area), so
 # each cell is checked as often as before.

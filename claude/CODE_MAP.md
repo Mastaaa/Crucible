@@ -1,4 +1,4 @@
-# Crucible: code map (as of phase 10)
+# Crucible: code map (as of A1)
 
 Where things are, so a new session can go straight to the right function instead of
 grepping. Line numbers drift; names don't. Coordinates are cells: x across (0..767),
@@ -15,11 +15,16 @@ index as [Stone, Glimmer, Obsidian, Water, Power].
 - `scripts/building.gd`: one placed structure (fields for every type; a Warren's mites,
   a Borer's trail, a Strut's anchors).
 - `scripts/materials.gd`: loads data/materials.json into what the sim, game and shader
-  use (kinds, dig rates, yields, palette image 256x4).
+  use (kinds, dig rates, yields, palette image 256x4). A1: temperature keys (kind
+  defaults for `conduct` and `sink`), `families` (name to bit) and `family_of` (bits per
+  id), `members(name)` (a material or a family's ids), `families_of(m)`, and
+  `expand_reactions(rules)` (family rules to material pairs, material rules first).
 - `scripts/worldgen.gd`: v2's layout scaled (SX 3, SY 5, features F 4): bands (whole
   rows copied), stone lumps, aquifers, glimmer veins, caves, pockets, lava lake,
   chamber, deposits (coal, sulfur), `_ground` (packed dirt, sand, gravel, clay), `_heat`
   (the Magma band's stone to hot rock, last), then `sim.stabilize()`. `_near` reads 4x4 block masks built with native finds.
+  `bench(sim)` (A1) builds the lab bench instead: open air over a bedrock floor at
+  `BENCH_FLOOR`, the Hub's pad.
 - `scripts/warren.gd`: static helpers for the Warren, on 4x4 bites (`tick`, `search`
   over bites with `block_counts`, mite `_step`, `_nibble` bursts). As bodies (8d):
   `_gripping`, `loosen` (a mite becomes a creature body), `_fly` (follow it; walk again
@@ -39,14 +44,15 @@ index as [Stone, Glimmer, Obsidian, Water, Power].
   with an optional seed, Quit; Esc goes back to a live run.
 - `scripts/overlay.gd`: world-space drawing: buildings, links, packets, ghosts,
   ranges, Warren zones, Strut beams and holds.
-- `scripts/sim_factory.gd`: C++ sim if the extension loaded (sized D.W x D.H, free fall
-  from defs), else `sim.gd` (GDScript fallback, no chemistry/light/collapse; slow
+- `scripts/sim_factory.gd`: C++ sim if the extension loaded (sized D.W x D.H, free fall,
+  temperature params and the ambient from defs), else `sim.gd` (GDScript fallback, no chemistry/light/collapse; slow
   versions of the rest).
 - `shaders/terrain.gdshader`: cells, aux and memory from Texture2DArrays (a 256 x 256
   tile a layer, `tile_at`), palette, and block textures (light, fog, heat, sense).
 - `native/src/crucible_sim.{h,cpp}`: the engine (CrucibleSim, a RefCounted).
 - `native/src/save.cpp`: `save_state`/`load_state` (everything a run needs to step on
-  exactly as before: cells, aux, holds, settle, bodies, RNG, tick). `write_state` runs
+  exactly as before: cells, aux, holds, settle, bodies, RNG, tick; version 2 adds the
+  temperatures, the temperature pass's awake chunks and body temperatures). `write_state` runs
   twice, counting the bytes and then writing them into one buffer.
 - `native/src/bodies.cpp`: rigid bodies and collapse into pieces (members of CrucibleSim);
   `native/src/rng.h`: the random helpers both share.
@@ -59,7 +65,8 @@ links crossed every 3rd tick), erode (every 2nd), weather, wash, collapse (+ `_c
 rebuild if dirty, springs, falling buildings, fliers (Thumpers), `_update_buildings`
 (each machine; Warrens via `WR.tick`), research, Hub trickles, dispatch and packets,
 `_damage_scan` + `_check_struts` (tick % 6 == 0), `_link_scan` (% 6 == 3), heat (20),
-sense (30), vision/light (15), Crucible.
+sense (30), vision/light (15), Crucible. The engine's temperature pass runs inside
+`step`, every 8th tick.
 
 ## Engine API (CrucibleSim; `sim` in GDScript)
 - Size and motion: `set_size(w, h)` (multiples of 32; clears everything), `get_width`,
@@ -73,7 +80,16 @@ sense (30), vision/light (15), Crucible.
 - Effects: `explode(x, y, radius, power)`, `ignite`, `add_particle`, `particle_count`.
 - Light and heat: `light_update(lights, sights, sun, known)` (per 4x4 block; copies
   live blocks into the remembered map), `set_light_view(x0, y0, x1, y1)`, `get_light`
-  (a byte per block), `refresh_heat`, `get_heat`, `block_circles(circles)`.
+  (a byte per block), `refresh_heat` (the hottest cell per 4x4 block, (deg + 60) / 6),
+  `get_heat`, `block_circles(circles)`.
+- Temperature (A1): `get_temp(x, y)`, `set_temp(x, y, deg)`, `heat_rect(x, y, w, h,
+  deg)` and `heat_circle(x, y, r, deg)` (add degrees), `rect_temp(x, y, w, h)` (min,
+  max, mean), `set_ambient(rows)` (`D.ambient_rows()`), `reset_temps()` (every cell to
+  its row's ambient), `set_temp_params(dict)` (`D.temp_params()`: every, sink_every,
+  sink), `get_stat_tchunks`, `get_temp_chunks`. `paint_circle(x, y, r, m, keep_fixed)`
+  is the bench brush. Inside: `step_temperature` swaps `tnext` into `tcur` and runs
+  `temp_chunk` over those chunks on the checkerboard (`pass_mode` 1); `placed_temp`
+  (set_cell) and `init_temp` (cells made inside) pick a new cell's degrees.
 - Rendering: `take_dirty_tiles`, `take_mem_tiles`, `get_tile(which, tile)` (0 cells, 1
   aux, 2 remembered), `reset_memory`, `get_tiles_across/down`.
 - Rectangles: `count_in_rect(x, y, w, h, mask)`, `rect_counts`, `block_counts(bx, by,
@@ -149,6 +165,10 @@ sense (30), vision/light (15), Crucible.
 - Alerts: `alert(kind, text, at)` (merges same kind nearby within 20 s), `show_banner`.
 - Blasts: `blast(at, radius, power, source)`.
 - Tests: `run_ticks(n)`, `new_game(seed)`, `paused = true`, `drill.enabled = false`.
+- Lab bench (A1): `start_bench(fresh)`, `_bench_mats` (every material, then Heat, Cool,
+  Blast), `brush_list`/`brush_material`, `_paint` (engine `paint_circle`, or
+  `heat_circle` for Heat and Cool); `bench`, `brush_r`, `temp_view` (F6; the shader's
+  `temp_view`). `_reset` turns the bench's reveal, brush and view off.
 
 ## The autoplay bot (tests/autoplay.gd, phase 10)
 Plays a run headless through the game's own calls and prints milestones with times
@@ -171,3 +191,7 @@ Phase 8b tests also define `P(x, y)` / `R(x, y, w, h)`: a v2 cell or rectangle n
 Hub, scaled by D.S about the pad's middle at ground level.
 scenario_bodies walls its rooms in bedrock (`arena`), which never caves, and counts bodies
 locally (`bodies_in`): the seed's own caves shed pieces all over the map.
+Deep or shallow set-pieces fix their rows' ambient: scenario_depth `keep_hot(r)`,
+scenario_bodies `keep_cool(r)`. scenario_temperature runs on bench sims of its own
+(`bench_sim(threads, rules)`), no game; tests/shot_temperature.gd screenshots the bench,
+its F6 view and the fog.

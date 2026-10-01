@@ -43,7 +43,7 @@ func _wrapped(text: String, fs: int, col: Color) -> Label:
 
 
 func refresh(g) -> void:
-	visible = not g.run_lost and not (g.won and not g.carry_on) and not hud.research_panel.visible
+	visible = not g.run_lost and not (g.won and not g.carry_on) and not hud.research_panel.visible and not g.bench
 	if not visible:
 		return
 	var gl: Dictionary = g.goals
