@@ -32,6 +32,10 @@ index as [Stone, Glimmer, Obsidian, Water, Power].
 - `scripts/hud.gd`: top bar (speed buttons, `speed_label` when the sim can't keep up),
   Build list, building panel (`_rebuild_info`), alerts, depth ruler/minimap, Crucible
   panel, Help (`_build_help`), Research tab, the end panel (`_build_end`, `show_end`).
+- `scripts/goals.gd` (A3): static helpers; state is `game.goals`. `tick` (hook in `_tick`),
+  `delivered` (hooks in `_bank` and `_deliver`), `skip_tutorial`, `research_mats` (used by
+  `tech_mats_needed`). Orders, chapters and research goods are in `data/instructions.json`.
+  `scripts/goals_panel.gd`: the HUD panel (built by hud.gd).
 - `scripts/save.gd` (phase 10): the one save slot. `write(game, path)` (the engine's
   `save_state` plus every name in GAME_VARS and every building's own variables,
   zstd), `read`, `restore`, `peek` (the header for the title), `erase`. Buildings are

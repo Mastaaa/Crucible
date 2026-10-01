@@ -6,8 +6,9 @@ Claude reads each session is claude/STATUS.md.
 
 ## A1 done: temperature and reactions
 
-Tests: twelve suites end `FAILURES: 0`, with the new scenario_temperature. The engine
-changed (temperature, reactions, saving): close Godot before pulling, restart after.
+Tests: thirteen suites end `FAILURES: 0` (with the goal layer's scenario_goals), including
+the new scenario_temperature. The engine changed (temperature, reactions, saving): close
+Godot before pulling, restart after.
 
 What's new:
 - Every cell has a temperature. A slow pass (every 8 ticks, only where something is
@@ -48,6 +49,16 @@ with temperatures from the ambient. The heat texture is now the hottest cell per
 block. The pass costs about 0.2 ms a tick in a fresh game, with 150 to 200 of the
 map's 3840 chunks awake: prof_scale's tick went from 1.40 to 1.55 ms against main on the
 same container (the sim's share from 0.11 to 0.39).
+
+## A3 (part): goal layer v1
+
+The Hub issues flat orders from data/instructions.json: a five-step tutorial (skippable
+from the first run), then a standing order every 150 s. Rewards are power paid into the
+Hub. Depth bands are chapters with one objective each, logged through the event tracker.
+A panel shows the run goal, depth, a tremor line, the chapter and the open order.
+Research now also eats goods by tier (Stone, plus Water at tier 3). The Hub trickle is
+0.2 power/s. scenario_goals is new; scenario_power and scenario_research were adjusted for
+the trickle. The descent probe now takes ~1800 s to depth 500; the bot was not re-run.
 
 ## Phase 10 done: pacing (the pre-alpha is complete)
 

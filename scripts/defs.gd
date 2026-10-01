@@ -190,7 +190,7 @@ const GEN_PACKETS_PER_S := 2.0
 const PACKET_SPEED := 60.0 * S
 
 # --- Power ------------------------------------------------------------------------
-const HUB_POWER_PER_S := 2.0        # the floor: the Hub always makes this much
+const HUB_POWER_PER_S := 0.2        # the floor: the Hub always makes this much
 const POWER_RESERVE := 10.0         # what each powered machine holds
 const HOPPER_POWER_PER_CELL := 0.02 / (S * S)
 const SPOUT_POWER_PER_PACKET := 1.0

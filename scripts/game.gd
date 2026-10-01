@@ -7,6 +7,7 @@ extends Node2D
 
 const D = preload("res://scripts/defs.gd")
 const WR = preload("res://scripts/warren.gd")
+const Goals = preload("res://scripts/goals.gd")
 const SimFactory = preload("res://scripts/sim_factory.gd")
 const Mats = preload("res://scripts/materials.gd")
 const WorldGen = preload("res://scripts/worldgen.gd")
@@ -121,6 +122,7 @@ var run_lost := false             # the Hub is gone: the run is over
 var lost_cause := ""
 var buildings_lost := 0
 var cells_drilled := 0
+var goals := Goals.fresh()        # the goal layer: instructions, chapters, delivered tallies
 var milestones: Array = []        # {t, text, major}, in the order they happened
 var firsts := {}                  # building type -> true once one has been built
 var deepest := 0                  # deepest row the diggers and the network have reached
@@ -410,6 +412,7 @@ func _reset(s: int) -> void:
 	buildings_lost = 0
 	cells_drilled = 0
 	milestones.clear()
+	goals = Goals.fresh()
 	firsts.clear()
 	deepest = 0
 	hub_fix_t = -D.HUB_FIX_S
@@ -712,6 +715,8 @@ func _tick() -> void:
 		_update_fliers()
 	_update_buildings()
 	_research_check()
+	if not bench:
+		Goals.tick(self)     # the bench has no orders or chapters
 	if stock[D.R_STONE] < D.HUB_TRICKLE_BELOW:
 		stock[D.R_STONE] += D.DT / D.HUB_TRICKLE_S
 	# The floor: the Hub always makes a little power, so no network is past saving.
@@ -3480,10 +3485,12 @@ func _deliver(p: Packet) -> void:
 		b.coolant += 1.0
 	elif b.type == D.B_CACHE:
 		b.store[p.res] += 1.0
+		Goals.delivered(self, p.res, 1.0)
 	elif b.type == D.B_LAB:
 		_research_delivery(p.res)
 	else:
 		stock[p.res] += 1.0
+		Goals.delivered(self, p.res, 1.0)
 
 
 ## A repair packet that won't arrive: let its building or link ask again.
@@ -3528,6 +3535,7 @@ func excavated(c: Vector2i) -> void:
 ## Where something dug or swallowed at `at` goes: the nearest Cache in reach
 ## with room, else the Hub.
 func _bank(at: Vector2, r: int, amount: float) -> void:
+	Goals.delivered(self, r, amount)
 	if r == D.R_GLIMMER and not tiers_open[2]:
 		discover(2, at)
 	var best: Building = null
@@ -3576,7 +3584,7 @@ func tech_step(id: String) -> Dictionary:
 ## Materials a tech wants delivered to the Labs, [stone, glimmer, obsidian, water, power].
 ## `t` is a tech, or a step from tech_step.
 static func tech_mats_needed(t: Dictionary) -> Array:
-	return t.get("mats", [0, 0, 0, 0, 0])
+	return Goals.research_mats(t)
 
 
 ## Levels an upgrade has (1 for a plain tech).

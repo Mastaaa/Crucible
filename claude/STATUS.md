@@ -11,6 +11,13 @@ Claude adds a section at its top each phase and doesn't need to read the rest.
   on it; reactions can name families and carry a catalyst and a temperature window; the
   Lab Bench (title screen) paints any material and shows the field (F6). Unseen ground
   is black. Phase 10 and everything before it are in `main`.
+- A3 goal layer v1 (in `main`, PR #4): `scripts/goals.gd` + `data/instructions.json`
+  (Hub orders, skippable tutorial, chapters, per-tier research goods), `scripts/goals_panel.gd`,
+  Hub trickle 2 -> 0.2 power/s, `game.goals` in the save. Tutorial steps are written against
+  today's buildings (each flagged "legacy" in the data). The descent probe and the bot baselines
+  below predate the trickle cut: the probe now reaches depth 500 in ~1800 s (was 1.5 min) because
+  nothing but instruction rewards feeds the Drill until the Windmills of the starter quarry land.
+  The bot was not re-run (an hour a seed); re-baseline it once the quarry exists.
 - Next: A2 (wave 1 materials, spec in claude/WAVE1_MATERIALS.md; the spawn-region
   system and the Spoil Heap) and A3 (the machine framework). Plan: claude/ALPHA_PLAN.md.
   A1 left three engine extensions for A2, to arrive with the materials that need them:
@@ -34,8 +41,8 @@ Claude adds a section at its top each phase and doesn't need to read the rest.
 
 ## Test baseline (all must hold before committing)
 - `bash native/run_tests.sh` (about 8 minutes): every scenario (twelve, with
-  scenario_temperature) and engine_compare end `FAILURES: 0`. Suites that build deep
-  set-pieces fix their rows' ambient: scenario_depth's `keep_hot` (hot rock near the
+  scenario_temperature and scenario_goals) and engine_compare end `FAILURES: 0`. Suites
+  that build deep set-pieces fix their rows' ambient: scenario_depth's `keep_hot` (hot rock near the
   surface), scenario_bodies' `keep_cool` (a pool in the Magma band).
 - Temperature pass (A1): every 8 ticks, 150 to 200 of the map's 3840 chunks awake in a
   fresh game (hot rock, lava and water around the Stone-Magma boundary and the lava
