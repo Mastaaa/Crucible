@@ -1,0 +1,38 @@
+{
+	"_about": [
+		"Where each material may spawn when the world is generated (A2). scripts/spawn_regions.gd reads this.",
+		"Materials are named, not numbered. A name the material table does not know yet is skipped, so a",
+		"row can be written ahead of the material it names.",
+		"Existing features (veins, seams, aquifers, caves, pockets) still come from worldgen.gd and keep each",
+		"seed's layout; this table places what is added on top of them.",
+		"",
+		"areas: named places, built before the spawns that use them.",
+		"  mound: a heap of `fill` standing on the ground beside the anchor. anchor 'hub' is the Hub's middle;",
+		"    dx = [min, max] cells off it, side picked per seed; width and height are [min, max] cells.",
+		"  patch: a ragged ellipse inside a home range. x = [min, max] as fractions of the world's width,",
+		"    depth = [min, max] rows (a depth band), size = [rx, ry] cells. Biomes (A6) are patches.",
+		"spawns: one row each.",
+		"  material: a material name.  area: a name from areas, or 'world' (the default).",
+		"  x, depth: the home range, as above (area 'world' only; an area brings its own).",
+		"  host: names it may replace; nothing else is touched.",
+		"  clumps: [min, max] how many; radius: [min, max] cells; shape: blob (a ragged ellipse) or",
+		"    speckle (a loose scatter of single cells, `density` 0-1 of the disc).",
+		"  enabled: false parks a row."
+	],
+	"areas": {
+		"spoil_heap": {
+			"shape": "mound",
+			"anchor": "hub",
+			"dx": [230, 290],
+			"width": [64, 84],
+			"height": [9, 13],
+			"fill": "Gravel"
+		}
+	},
+	"spawns": [
+		{"material": "Sulfur", "area": "spoil_heap", "host": ["Gravel"], "clumps": [2, 3], "radius": [3, 5], "shape": "blob"},
+		{"material": "Coal", "area": "spoil_heap", "host": ["Gravel"], "clumps": [1, 2], "radius": [3, 4], "shape": "blob"},
+		{"material": "Clay", "area": "spoil_heap", "host": ["Gravel"], "clumps": [1, 2], "radius": [3, 5], "shape": "blob"},
+		{"material": "Sand", "area": "spoil_heap", "host": ["Gravel"], "clumps": [2, 3], "radius": [4, 7], "shape": "speckle", "density": 0.5}
+	]
+}
