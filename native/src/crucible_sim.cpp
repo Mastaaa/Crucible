@@ -342,6 +342,7 @@ void CrucibleSim::configure(const Array &materials, const Array &reactions) {
 		m.life_min = (uint8_t)std::clamp((int)d.get("life_min", 0), 0, 255);
 		m.life_max = (uint8_t)std::clamp((int)d.get("life_max", 0), 0, 255);
 		m.life_decay = (uint16_t)std::clamp((int)d.get("life_decay", 256), 1, 256);
+		m.ages_exposed = (bool)d.get("ages_exposed", false);
 		m.expires_to = (int16_t)(int)d.get("expires_to", -1);
 		m.expires_alt = (int16_t)(int)d.get("expires_alt", -1);
 		m.alt_chance = chance_of(d, "alt_chance");
@@ -392,6 +393,37 @@ void CrucibleSim::configure(const Array &materials, const Array &reactions) {
 		m.cools_cost = temp_of(d, "cools_cost", 0);
 		m.kindle = temp_of(d, "kindle");
 		m.family = (uint16_t)(int)d.get("family", 0);
+		// A2: wave 1 (see materials.gd for the data keys)
+		m.heat_mass = (uint8_t)std::clamp((int)d.get("heat_mass", 1), 1, 255);
+		m.sets_to = (int16_t)(int)d.get("sets_to", -1);
+		m.set_speed = chance_of(d, "set_speed");
+		m.set_catalyst = (uint16_t)(int)d.get("set_catalyst", 0);
+		m.set_boost = (uint16_t)std::clamp((int)std::lround((double)d.get("set_boost", 1.0) * 256.0), 0, 65535);
+		m.burn_catalyst = (uint16_t)(int)d.get("burn_catalyst", 0);
+		m.burn_boost = (uint16_t)std::clamp((int)std::lround((double)d.get("burn_boost", 1.0) * 256.0), 0, 65535);
+		m.burn_wet = (bool)d.get("burn_wet", false);
+		m.blast_r = (uint8_t)std::clamp((int)d.get("blast_r", 0), 0, 64);
+		m.blast_power = (uint8_t)std::clamp((int)d.get("blast_power", 0), 0, 255);
+		m.blast_impact = (uint8_t)std::clamp((int)d.get("blast_impact", 0), 0, 255);
+		m.blast_temp = temp_of(d, "blast_temp");
+		m.blast_flame = (bool)d.get("blast_flame", false);
+		m.blast_inhibit = (uint16_t)(int)d.get("blast_inhibit", 0);
+		m.absorb_to = (int16_t)(int)d.get("absorb_to", -1);
+		m.absorb_chance = chance_of(d, "absorb_chance");
+		m.plume = (int16_t)(int)d.get("plume", -1);
+		m.bursts_at = temp_of(d, "bursts_at");
+		m.grow_chance = chance_of(d, "grow_chance");
+		m.grow_feed = (uint16_t)(int)d.get("grow_feed", 0);
+		m.grow_reach = (uint8_t)std::clamp((int)d.get("grow_reach", 1), 1, 8);
+		if (d.has("grow_over")) {
+			PackedByteArray over = d["grow_over"];
+			for (int k = 0; k < over.size() && k < 256; k++) {
+				m.grow_over[k] = over[k] != 0;
+			}
+		}
+		m.body_w = (uint8_t)std::clamp((int)d.get("body_w", 0), 0, 32);
+		m.body_h = (uint8_t)std::clamp((int)d.get("body_h", 0), 0, 32);
+		m.watch = m.blast_r > 0 || m.bursts_at != T_NONE;
 		if (m.flame && fire_id < 0) {
 			fire_id = id;
 		}
@@ -410,6 +442,8 @@ void CrucibleSim::configure(const Array &materials, const Array &reactions) {
 		r.heat = temp_of(d, "heat", 0);
 		r.catalyst = (uint16_t)(int)d.get("catalyst", 0);
 		r.boost = (uint16_t)std::clamp((int)std::lround((double)d.get("boost", 1.0) * 256.0), 0, 65535);
+		r.emit = (uint8_t)(int)d.get("emit", 0);
+		r.emit_chance = chance_of(d, "emit_chance");
 		reacts.push_back(r);
 	}
 	rebuild_reactions();
@@ -616,6 +650,8 @@ void CrucibleSim::step() {
 		cx.ignitions = 0;
 		cx.changed = false;
 		cx.next.reset();
+		cx.blasts.clear();
+		cx.emits.clear();
 	}
 	// Four passes over a checkerboard of chunks, the column order swapping every
 	// tick so nothing drifts one way.
@@ -653,6 +689,8 @@ void CrucibleSim::step() {
 	}
 	stat_chunks = chunks;
 	stat_updates = updates;
+	run_blasts();
+	run_emits();
 	step_bodies();
 	step_particles();
 	if (tick % temp_every == 0) {
@@ -768,6 +806,9 @@ void CrucibleSim::temp_chunk(Ctx &cx, int c) {
 			if (hold != T_NONE) {
 				delta += ((hold - T) * M.hold_rate + 128) >> 8;
 			}
+			if (M.heat_mass > 1) {
+				delta /= M.heat_mass;
+			}
 			int Tn = T;
 			if (delta) {
 				Tn = std::clamp(T + delta, -32000, 32000);
@@ -778,7 +819,7 @@ void CrucibleSim::temp_chunk(Ctx &cx, int c) {
 			if (delta > 1 || delta < -1) {
 				moved = true;
 				// A reaction that waits on a temperature needs its cells awake to see it.
-				if (M.reactive) {
+				if (M.reactive || M.watch) {
 					cx.next.touch(x, y);
 				}
 				edge_l = edge_l || x == gx;
@@ -851,7 +892,7 @@ void CrucibleSim::process_chunk(Ctx &cx, int c) {
 			}
 			uint8_t kind = mats[m].kind;
 			// Still things sleep, unless they're burning.
-			if (kind == K_EMPTY || (kind == K_STATIC && aux[i] == 0)) {
+			if (kind == K_EMPTY || (kind == K_STATIC && aux[i] == 0 && !mats[m].grow_chance)) {
 				continue;
 			}
 			update_cell(cx, i, x, y, m);
@@ -864,6 +905,45 @@ void CrucibleSim::update_cell(Ctx &cx, int i, int x, int y, uint8_t m) {
 	uint32_t r = lcg(cx.rng);
 	int d = (r & 0x10000) ? 1 : -1;
 	const Mat &M = mats[m];
+	// A2: a blast material goes off when it's hot or has fire beside it (a hard
+	// landing is checked where a powder lands).
+	if (M.blast_r) {
+		bool go = M.blast_temp != T_NONE && temp[i] >= M.blast_temp;
+		if (!go && M.blast_flame) {
+			go = is_fire_cell(i - W) || is_fire_cell(i + W) || is_fire_cell(i - 1) || is_fire_cell(i + 1);
+		}
+		if (go && detonate(cx, i, x, y)) {
+			return;
+		}
+	}
+	// A setting stage counts down in aux, faster beside its catalyst.
+	if (M.sets_to >= 0) {
+		cx.next.touch(x, y);
+		if (aux[i] == 0) {
+			aux[i] = 1;
+		}
+		uint32_t chance = M.set_speed;
+		if (M.set_catalyst && M.set_boost != 256 && has_family(i, M.set_catalyst)) {
+			chance = (uint32_t)std::min<uint64_t>(ONE, (uint64_t)chance * M.set_boost / 256);
+		}
+		if (roll(cx.rng, chance) && --aux[i] == 0) {
+			put(&cx, i, x, y, (uint8_t)M.sets_to, lcg(cx.rng));
+			return;
+		}
+	}
+	if (M.bursts_at != T_NONE && temp[i] >= M.bursts_at) {
+		burst(cx, i, x, y, m);
+		return;
+	}
+	if (M.absorb_to >= 0) {
+		absorb(cx, i, x, y, m);
+		if (cells[i] != m) {
+			return;
+		}
+	}
+	if (M.grow_chance) {
+		grow_cell(cx, i, x, y, m);
+	}
 	// Burning: spreads, throws flames and smoke, burns down, or gets put out.
 	if (M.burn_life && aux[i]) {
 		if (burn(cx, i, x, y, m, r)) {
@@ -890,7 +970,7 @@ void CrucibleSim::update_cell(Ctx &cx, int i, int x, int y, uint8_t m) {
 				continue;
 			}
 			const Reaction &R = reacts[ri];
-			if (temp[i] < R.min_temp || temp[i] > R.max_temp) {
+			if (R.chance == 0 || temp[i] < R.min_temp || temp[i] > R.max_temp) {
 				continue;
 			}
 			partner = true;
@@ -903,11 +983,19 @@ void CrucibleSim::update_cell(Ctx &cx, int i, int x, int y, uint8_t m) {
 			}
 			int jx = x + ox[k];
 			int jy = y + oy[k];
-			put(&cx, i, x, y, R.out_a, lcg(cx.rng));
-			put(&cx, j, jx, jy, R.out_b, lcg(cx.rng));
+			// A side that keeps its material is left as it is (a setting cell keeps its timer).
+			if (R.out_a != m) {
+				put(&cx, i, x, y, R.out_a, lcg(cx.rng));
+			}
+			if (R.out_b != n) {
+				put(&cx, j, jx, jy, R.out_b, lcg(cx.rng));
+			}
 			if (R.heat) {
 				temp[i] = (int16_t)std::clamp(temp[i] + R.heat, -32000, 32000);
 				temp[j] = (int16_t)std::clamp(temp[j] + R.heat, -32000, 32000);
+			}
+			if (R.emit && roll(cx.rng, R.emit_chance)) {
+				cx.emits.push_back({ x, y, R.emit });
 			}
 			if (mats[m].glows || mats[n].glows) {
 				mark_heat(x, y);
@@ -946,11 +1034,243 @@ void CrucibleSim::heat_neighbour(Ctx &cx, int i, int x, int y, uint32_t r) {
 	int ny = y + N8Y[k];
 	int j = ny * W + nx;
 	const Mat &N = mats[cells[j]];
+	if (N.blast_flame && N.blast_r) {
+		detonate(cx, j, nx, ny);
+		return;
+	}
 	if (N.burn_life && aux[j] == 0 && roll(cx.rng, N.ignite)) {
 		aux[j] = N.burn_life;
 		cx.next.touch(nx, ny);
 		cx.changed = true;
 		cx.ignitions++;
+	}
+}
+
+// A blast material goes off, unless something smothering touches it: the cell is
+// spent and a blast is queued (run after the passes, where it can reach further than
+// a chunk's margin).
+bool CrucibleSim::detonate(Ctx &cx, int i, int x, int y) {
+	const Mat &M = mats[cells[i]];
+	if (M.blast_inhibit && has_family(i, M.blast_inhibit)) {
+		return false;
+	}
+	Blast b;
+	b.x = x;
+	b.y = y;
+	b.r = M.blast_r;
+	b.power = M.blast_power;
+	cx.blasts.push_back(b);
+	put(&cx, i, x, y, AIR, 0);
+	return true;
+}
+
+// Beside a liquid, a swelling material turns itself and that liquid cell into its
+// swollen form, which remembers what it soaked in aux.
+void CrucibleSim::absorb(Ctx &cx, int i, int x, int y, uint8_t m) {
+	const Mat &M = mats[m];
+	const int offs[4] = { -W, W, -1, 1 };
+	const int ox[4] = { 0, 0, -1, 1 };
+	const int oy[4] = { -1, 1, 0, 0 };
+	int start = (int)(lcg(cx.rng) & 3);
+	for (int n = 0; n < 4; n++) {
+		int k = (start + n) & 3;
+		int j = i + offs[k];
+		const Mat &N = mats[cells[j]];
+		if (N.kind != K_LIQUID || N.hot || owner[j]) {
+			continue;
+		}
+		if (!roll(cx.rng, M.absorb_chance)) {
+			cx.next.touch(x, y); // stays awake beside a liquid until it has soaked some
+			return;
+		}
+		uint8_t soaked = cells[j];
+		put(&cx, j, x + ox[k], y + oy[k], (uint8_t)M.absorb_to, 0);
+		aux[j] = soaked;
+		put(&cx, i, x, y, (uint8_t)M.absorb_to, 0);
+		aux[i] = soaked;
+		// The swell: one open cell beside it fills too.
+		for (int q = 0; q < 4; q++) {
+			int kk = (start + q) & 3;
+			int o = i + offs[kk];
+			if (kk != k && mats[cells[o]].kind == K_EMPTY) {
+				put(&cx, o, x + ox[kk], y + oy[kk], (uint8_t)M.absorb_to, 0);
+				aux[o] = soaked;
+				break;
+			}
+		}
+		return;
+	}
+}
+
+// A swollen cell too hot to hold what it soaked: it bursts into that liquid's plume
+// (or its own, when the liquid names none), and one open neighbour fills too.
+void CrucibleSim::burst(Ctx &cx, int i, int x, int y, uint8_t m) {
+	const Mat &M = mats[m];
+	int plume = mats[aux[i]].plume;
+	if (plume < 0) {
+		plume = M.plume;
+	}
+	uint8_t p = plume >= 0 ? (uint8_t)plume : AIR;
+	put(&cx, i, x, y, p, lcg(cx.rng));
+	int start = (int)(lcg(cx.rng) & 7);
+	for (int n = 0; n < 8; n++) {
+		int k = (start + n) & 7;
+		int nx = x + N8X[k];
+		int ny = y + N8Y[k];
+		int j = ny * W + nx;
+		if (mats[cells[j]].kind == K_EMPTY) {
+			put(&cx, j, nx, ny, p, lcg(cx.rng));
+			break;
+		}
+	}
+}
+
+// A cell of a growing material takes over a neighbour it can eat, drinking a feed
+// cell within reach. It stays awake while it lives (statics sleep otherwise).
+void CrucibleSim::grow_cell(Ctx &cx, int i, int x, int y, uint8_t m) {
+	const Mat &M = mats[m];
+	cx.next.touch(x, y);
+	if (temp[i] < 5 * T8 || !roll(cx.rng, M.grow_chance)) {
+		return;
+	}
+	const int offs[4] = { -W, W, -1, 1 };
+	const int ox[4] = { 0, 0, -1, 1 };
+	const int oy[4] = { -1, 1, 0, 0 };
+	int k = (int)(lcg(cx.rng) & 3);
+	int j = i + offs[k];
+	if (owner[j] || !M.grow_over[cells[j]]) {
+		return;
+	}
+	int rr = M.grow_reach;
+	int start = (int)(lcg(cx.rng) % (uint32_t)((2 * rr + 1) * (2 * rr + 1)));
+	int span = 2 * rr + 1;
+	for (int n = 0; n < span * span; n++) {
+		int q = (start + n) % (span * span);
+		int fx = x + (q % span) - rr;
+		int fy = y + (q / span) - rr;
+		if (fx < 2 || fy < 2 || fx >= W - 2 || fy >= H - 2) {
+			continue;
+		}
+		int f = fy * W + fx;
+		if ((mats[cells[f]].family & M.grow_feed) && owner[f] == 0) {
+			put(&cx, f, fx, fy, AIR, 0);
+			put(&cx, j, x + ox[k], y + oy[k], m, lcg(cx.rng));
+			return;
+		}
+	}
+}
+
+// After the cell passes: blasts the cells asked for, one a tick later than they
+// went off, plus the like of them within each radius, set off a little after (a
+// pile of Rattle goes off in a wave). Blasts run in position order, so threads
+// don't matter.
+void CrucibleSim::run_blasts() {
+	std::vector<Blast> fresh;
+	for (Ctx &cx : ctxs) {
+		fresh.insert(fresh.end(), cx.blasts.begin(), cx.blasts.end());
+		cx.blasts.clear();
+	}
+	std::sort(fresh.begin(), fresh.end(), [](const Blast &a, const Blast &b) {
+		return a.y != b.y ? a.y < b.y : (a.x != b.x ? a.x < b.x : a.r < b.r);
+	});
+	for (Blast &b : fresh) {
+		b.due = tick + 1;
+		blast_queue.push_back(b);
+	}
+	if (blast_queue.empty()) {
+		return;
+	}
+	std::vector<Blast> now, later;
+	for (const Blast &b : blast_queue) {
+		(b.due <= tick ? now : later).push_back(b);
+	}
+	blast_queue.swap(later);
+	for (const Blast &b : now) {
+		// The like of what went off, close enough to catch: set off in a few ticks.
+		int r = b.r;
+		for (int yy = std::max(2, b.y - r); yy <= std::min(H - 3, b.y + r); yy++) {
+			for (int xx = std::max(2, b.x - r); xx <= std::min(W - 3, b.x + r); xx++) {
+				int i = yy * W + xx;
+				const Mat &M = mats[cells[i]];
+				if (!M.blast_r || owner[i]) {
+					continue;
+				}
+				int dx = xx - b.x, dy = yy - b.y;
+				if (dx * dx + dy * dy > r * r) {
+					continue;
+				}
+				if (M.blast_inhibit && has_family(i, M.blast_inhibit)) {
+					continue;
+				}
+				Blast c;
+				c.x = xx;
+				c.y = yy;
+				c.r = M.blast_r;
+				c.power = M.blast_power;
+				c.due = tick + 1 + (int)std::lround(std::sqrt((double)(dx * dx + dy * dy)) / 3.0);
+				blast_queue.push_back(c);
+				put(nullptr, i, xx, yy, AIR, 0);
+			}
+		}
+		explode(b.x, b.y, b.r, b.power);
+		blasts_made++;
+	}
+}
+
+// Rigid bodies the reactions asked for: the nearest open rectangle (no ground in it)
+// of the material's size beside the spot is filled with it and lifted off as a body.
+void CrucibleSim::run_emits() {
+	std::vector<Emit> list;
+	for (Ctx &cx : ctxs) {
+		list.insert(list.end(), cx.emits.begin(), cx.emits.end());
+		cx.emits.clear();
+	}
+	if (list.empty()) {
+		return;
+	}
+	std::sort(list.begin(), list.end(), [](const Emit &a, const Emit &b) { return a.y != b.y ? a.y < b.y : a.x < b.x; });
+	for (const Emit &e : list) {
+		const Mat &M = mats[e.mat];
+		int bw = std::max(1, (int)M.body_w), bh = std::max(1, (int)M.body_h);
+		bool done = false;
+		for (int ring = 0; ring <= 8 && !done; ring++) {
+			for (int dy = -ring; dy <= ring && !done; dy++) {
+				for (int dx = -ring; dx <= ring && !done; dx++) {
+					if (std::max(std::abs(dx), std::abs(dy)) != ring) {
+						continue;
+					}
+					int x0 = e.x + dx - bw / 2, y0 = e.y + dy - bh / 2;
+					if (x0 < 2 || y0 < 2 || x0 + bw > W - 2 || y0 + bh > H - 2) {
+						continue;
+					}
+					bool free = true;
+					for (int yy = y0; yy < y0 + bh && free; yy++) {
+						for (int xx = x0; xx < x0 + bw; xx++) {
+							int i = yy * W + xx;
+							const Mat &C = mats[cells[i]];
+							if (owner[i] || (C.kind != K_EMPTY && C.kind != K_GAS && C.kind != K_LIQUID)) {
+								free = false;
+								break;
+							}
+						}
+					}
+					if (!free) {
+						continue;
+					}
+					std::vector<int32_t> body;
+					for (int yy = y0; yy < y0 + bh; yy++) {
+						for (int xx = x0; xx < x0 + bw; xx++) {
+							put(nullptr, yy * W + xx, xx, yy, e.mat, 0);
+							body.push_back(yy * W + xx);
+						}
+					}
+					if (make_body_from(body, 0.0f, 0.0f, 0.0f) >= 0) {
+						bodies_forged++;
+					}
+					done = true;
+				}
+			}
+		}
 	}
 }
 
@@ -967,7 +1287,7 @@ bool CrucibleSim::burn(Ctx &cx, int i, int x, int y, uint8_t m, uint32_t r) {
 	for (int k = 0; k < 4; k++) {
 		int j = i + offs[k];
 		const Mat &N = mats[cells[j]];
-		if (N.quench) {
+		if (N.quench && !(M.burn_wet && N.quench_to >= 0)) {
 			aux[i] = 0;
 			if (N.quench_to >= 0) {
 				put(&cx, j, x + ox[k], y + oy[k], (uint8_t)N.quench_to, lcg(cx.rng));
@@ -1006,8 +1326,12 @@ bool CrucibleSim::burn(Ctx &cx, int i, int x, int y, uint8_t m, uint32_t r) {
 	if (M.burn_gas >= 0 && roll(cx.rng, M.gas_chance)) {
 		emit((uint8_t)M.burn_gas);
 	}
-	// Burn down.
-	if (roll(cx.rng, M.burn_speed)) {
+	// Burn down (faster beside a catalyst: Flux).
+	uint32_t speed = M.burn_speed;
+	if (M.burn_catalyst && M.burn_boost != 256 && has_family(i, M.burn_catalyst)) {
+		speed = (uint32_t)std::min<uint64_t>(ONE, (uint64_t)speed * M.burn_boost / 256);
+	}
+	if (roll(cx.rng, speed)) {
 		aux[i]--;
 		if (aux[i] == 0) {
 			uint8_t to = M.burns_to >= 0 ? (uint8_t)M.burns_to : AIR;
@@ -1031,6 +1355,10 @@ void CrucibleSim::powder(Ctx &cx, int i, int x, int y, uint8_t m, int d) {
 	int b = i + W;
 	if (thin(cells[b])) {
 		fall(cx, i, x, y);
+		return;
+	}
+	// A hard landing sets off what goes off on one (Rattle).
+	if (mats[m].blast_impact && vel[i] >= mats[m].blast_impact && detonate(cx, i, x, y)) {
 		return;
 	}
 	vel[i] = 0;
@@ -1180,6 +1508,22 @@ void CrucibleSim::move_liquid(Ctx &cx, int i, int j, int x, int y, int x2, int y
 // diagonally into open air, and drift sideways now and then.
 void CrucibleSim::gas(Ctx &cx, int i, int x, int y, uint8_t m, int d, uint32_t r) {
 	const Mat &M = mats[m];
+	// A2: a gas that only ages in the open (Hush, Wisp) sleeps while nothing but ground,
+	// liquid or its own kind touches it, so a sealed pocket keeps and costs nothing.
+	if (M.ages_exposed) {
+		const int offs[4] = { -W, W, -1, 1 };
+		bool calm = true;
+		for (int k = 0; k < 4; k++) {
+			uint8_t t = cells[i + offs[k]];
+			if (t != m && (mats[t].kind == K_EMPTY || mats[t].kind == K_GAS)) {
+				calm = false;
+				break;
+			}
+		}
+		if (calm) {
+			return;
+		}
+	}
 	if (M.life_max > 0) {
 		if (aux[i] == 0) {
 			aux[i] = init_aux(m, r);
@@ -3065,6 +3409,8 @@ void CrucibleSim::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_eroded"), &CrucibleSim::get_eroded);
 	ClassDB::bind_method(D_METHOD("get_crumbled"), &CrucibleSim::get_crumbled);
 	ClassDB::bind_method(D_METHOD("get_tick"), &CrucibleSim::get_tick);
+	ClassDB::bind_method(D_METHOD("get_blasts"), &CrucibleSim::get_blasts);
+	ClassDB::bind_method(D_METHOD("get_forged"), &CrucibleSim::get_forged);
 
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "changed"), "set_changed", "get_changed");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "heat_changed"), "set_heat_changed", "get_heat_changed");

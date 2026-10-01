@@ -4,6 +4,28 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A2 done: wave 1 materials
+
+Tests: fourteen suites end `FAILURES: 0` (scenario_wave1 and scenario_spawn are new). The engine
+changed (new material behaviours): close Godot before pulling, restart after.
+
+What's new:
+- Twelve materials: Slick (oil that floats and burns on water), Sourwater (acid), Hush (a
+  heavy gas that smothers fire), Quickmire (cement), Flux (a catalyst), Ferrite (ore that
+  smelts to bars), Rattle (goes off on a hard landing, heat or fire), Bloat (soaks liquid and
+  swells), Glass, Rime (far below freezing, quenches), Wisp (a glowing gas that flashes) and
+  Weft (a fungus that eats sand and dirt beside water). Seven more come out of reactions: Ice,
+  Slag, Slag crust, Mire stone, Setting mire, Swollen bloat and Ferrite bar.
+- Alien chemistry on a fixed table: sand beside lava goes to Glass; Flux triples burn rates
+  and setting; a Wisp cloud flashes at a spark and a Rattle pile goes off in a wave; Hush
+  holds both back; Rime rains Slick out of Wisp. Open the Lab Bench and paint them together.
+- Engine: a timed setting stage, blasts from impact, heat or fire, a swell that remembers the
+  liquid it soaked, growth, heat mass, and rigid bodies forged by a reaction (the bars).
+- Home ranges for all twelve in data/spawn_regions.json (pockets and seams by depth band; the
+  Spoil Heap gets a Slick puddle, Flux, a Rime chip and Weft). They do not yet sit against
+  aquifers or lava as the spec says: the table has no relational placement.
+- Wave 1 numbers that changed from the spec are listed in claude/WAVE1_MATERIALS.md ("Built as").
+
 ## A1 done: temperature and reactions
 
 Tests: thirteen suites end `FAILURES: 0` (with the goal layer's scenario_goals), including

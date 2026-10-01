@@ -73,7 +73,7 @@ static func place(g: PackedByteArray, w: int, h: int, table: Dictionary, seed_va
 				cy = rng.randi_range(box.position.y, box.end.y - 1)
 				if g[cy * w + cx] in hosts:
 					break
-			cells += _clump(g, w, h, mat, hosts, cx, cy, rad, row.get("shape", "blob"), float(row.get("density", 0.5)), rng)
+			cells += _clump(g, w, h, mat, hosts, cx, cy, rad, row.get("shape", "blob"), float(row.get("density", 0.5)), rng, float(row.get("aspect", 1.0)))
 		var key: String = str(row["material"])
 		out["placed"][key] = out["placed"].get(key, 0) + cells
 	return out
@@ -135,17 +135,19 @@ static func _area(g: PackedByteArray, w: int, h: int, a: Dictionary, rng: Random
 
 ## Paints one clump at (cx, cy) over the hosts only; returns the cells changed.
 static func _clump(g: PackedByteArray, w: int, h: int, mat: int, hosts: Array, cx: int, cy: int,
-		rad: int, shape: String, density: float, rng: RandomNumberGenerator) -> int:
+		rad: int, shape: String, density: float, rng: RandomNumberGenerator, aspect := 1.0) -> int:
 	var n := 0
 	var phase := rng.randf() * TAU
-	for oy in range(-rad, rad + 1):
+	# `aspect` squashes a blob into a seam: rad cells either way across, rad / aspect up and down.
+	var ry := maxi(int(rad / aspect), 1)
+	for oy in range(-ry, ry + 1):
 		for ox in range(-rad, rad + 1):
 			var x := cx + ox
 			var y := cy + oy
 			if x < EDGE or x >= w - EDGE or y < 0 or y >= h - EDGE:
 				continue
-			var edge := 1.0 + 0.2 * sin(atan2(oy, ox) * 3.0 + phase)
-			if (ox * ox + oy * oy) > rad * rad * edge:
+			var edge := 1.0 + 0.2 * sin(atan2(oy * aspect, ox) * 3.0 + phase)
+			if (ox * ox + oy * oy * aspect * aspect) > rad * rad * edge:
 				continue
 			if shape == "speckle" and rng.randf() > density:
 				continue

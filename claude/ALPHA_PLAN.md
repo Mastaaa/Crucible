@@ -84,6 +84,8 @@ The plan as written:
 - Budget: a fresh game ticks in about 0.7 ms today. Watch the tick time and the save size.
 
 ## Materials (A2, A5)
+A2 built the wave 1 materials from this table plus two (Wisp, Weft); see claude/WAVE1_MATERIALS.md
+("Built as" lists where the build differs). The table below is the original pitch list.
 Today's data has 28 entries and two reactions (Molten + Water, Fire + Water); hot rock's
 boiling moved to the temperature pass in A1. Placeholder names for the first ten pitches:
 

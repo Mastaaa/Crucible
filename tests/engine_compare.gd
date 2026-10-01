@@ -13,7 +13,10 @@ var fails := 0
 
 func make(native: bool, threads := 1):
 	var sim = SimFactory.create(threads) if native else SimGD.new()
-	WorldGen.new().generate(sim, 7)
+	# The GDScript sim only knows the old chemistry, so compare on a world without spawn regions.
+	var wg = WorldGen.new()
+	wg.spawn_table = {"areas": {}, "spawns": []}
+	wg.generate(sim, 7)
 	return sim
 
 

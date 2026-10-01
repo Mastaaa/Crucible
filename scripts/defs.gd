@@ -27,7 +27,7 @@ const CAMERA_CLOSER := 1.5
 # below (is_solid, is_liquid, is_thin), not with id ranges:
 #   0 air | 1-5 static | 6 settled dirt | 7-8 powders | 9-10 liquids
 #   11-18 steam (eight ageing stages, then it condenses) | 19-28 Phase 5 chemistry
-#   29-32 Phase 8 ground (packed dirt, gravel, sand, clay) | 33 mite | 34 hot rock
+#   29-32 Phase 8 ground (packed dirt, gravel, sand, clay) | 33 mite | 34 hot rock | 35-53 wave 1 (A2)
 const AIR := 0
 const BEDROCK := 1
 const STONE := 2
@@ -58,6 +58,26 @@ const SAND := 31
 const CLAY := 32
 const MITE := 33          # a mite that's a body (thrown, falling, tumbling): phase 8d
 const HOT_ROCK := 34      # the Magma band's rock: phase 9 (needs Coolant Jacket or Ember Brood)
+# A2, wave 1 (claude/WAVE1_MATERIALS.md): twelve authored, seven made by reactions.
+const SLICK := 35
+const SOURWATER := 36
+const HUSH := 37
+const QUICKMIRE := 38
+const FLUX := 39
+const FERRITE := 40
+const RATTLE := 41
+const BLOAT := 42
+const GLASS := 43
+const RIME := 44
+const WISP := 45
+const WEFT := 46
+const ICE := 47
+const SLAG := 48
+const SLAG_CRUST := 49
+const MIRE_STONE := 50
+const SETTING_MIRE := 51
+const SWOLLEN_BLOAT := 52
+const FERRITE_BAR := 53
 
 static func mat_name(m: int) -> String:
 	return M.name_of(m)

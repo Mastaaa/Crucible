@@ -16,7 +16,9 @@
 		"  x, depth: the home range, as above (area 'world' only; an area brings its own).",
 		"  host: names it may replace; nothing else is touched.",
 		"  clumps: [min, max] how many; radius: [min, max] cells; shape: blob (a ragged ellipse) or",
-		"    speckle (a loose scatter of single cells, `density` 0-1 of the disc).",
+		"    speckle (a loose scatter of single cells, `density` 0-1 of the disc). aspect: squashes a blob",
+		"    into a seam or vein, `radius` cells either way across and radius / aspect up and down.",
+		"  Wave 1 rows (the second half of the list) follow claude/WAVE1_MATERIALS.md's home table.",
 		"  enabled: false parks a row."
 	],
 	"areas": {
@@ -33,6 +35,23 @@
 		{"material": "Sulfur", "area": "spoil_heap", "host": ["Gravel"], "clumps": [2, 3], "radius": [3, 5], "shape": "blob"},
 		{"material": "Coal", "area": "spoil_heap", "host": ["Gravel"], "clumps": [1, 2], "radius": [3, 4], "shape": "blob"},
 		{"material": "Clay", "area": "spoil_heap", "host": ["Gravel"], "clumps": [1, 2], "radius": [3, 5], "shape": "blob"},
-		{"material": "Sand", "area": "spoil_heap", "host": ["Gravel"], "clumps": [2, 3], "radius": [4, 7], "shape": "speckle", "density": 0.5}
+		{"material": "Sand", "area": "spoil_heap", "host": ["Gravel"], "clumps": [2, 3], "radius": [4, 7], "shape": "speckle", "density": 0.5},
+		{"material": "Slick", "area": "spoil_heap", "host": ["Gravel"], "clumps": [1, 1], "radius": [4, 5], "shape": "blob"},
+		{"material": "Flux", "area": "spoil_heap", "host": ["Gravel"], "clumps": [1, 2], "radius": [3, 5], "shape": "blob"},
+		{"material": "Rime", "area": "spoil_heap", "host": ["Gravel"], "clumps": [1, 1], "radius": [1, 2], "shape": "blob"},
+		{"material": "Weft", "area": "spoil_heap", "host": ["Gravel"], "clumps": [1, 1], "radius": [2, 3], "shape": "blob"},
+
+		{"material": "Quickmire", "x": [0.05, 0.95], "depth": [400, 1500], "host": ["Dirt", "Packed dirt"], "clumps": [4, 4], "radius": [13, 17], "shape": "blob"},
+		{"material": "Slick", "x": [0.05, 0.95], "depth": [700, 1500], "host": ["Dirt", "Packed dirt"], "clumps": [3, 4], "radius": [24, 30], "shape": "blob"},
+		{"material": "Bloat", "x": [0.05, 0.95], "depth": [300, 900], "host": ["Dirt"], "clumps": [5, 5], "radius": [12, 16], "shape": "blob"},
+		{"material": "Weft", "x": [0.05, 0.95], "depth": [300, 1300], "host": ["Dirt"], "clumps": [2, 2], "radius": [6, 8], "shape": "blob"},
+		{"material": "Hush", "x": [0.0, 1.0], "depth": [1500, 3000], "host": ["Air"], "clumps": [6, 9], "radius": [7, 12], "shape": "blob"},
+		{"material": "Flux", "x": [0.0, 1.0], "depth": [1700, 2800], "host": ["Stone"], "clumps": [3, 4], "radius": [70, 95], "shape": "blob", "aspect": 8},
+		{"material": "Rattle", "x": [0.05, 0.95], "depth": [1800, 2900], "host": ["Stone"], "clumps": [6, 6], "radius": [10, 12], "shape": "blob"},
+		{"material": "Rime", "x": [0.05, 0.95], "depth": [1800, 2800], "host": ["Stone"], "clumps": [3, 3], "radius": [20, 24], "shape": "blob"},
+		{"material": "Sourwater", "x": [0.05, 0.95], "depth": [2000, 3000], "host": ["Stone"], "clumps": [2, 2], "radius": [26, 30], "shape": "blob"},
+		{"material": "Wisp", "x": [0.05, 0.95], "depth": [2000, 3200], "host": ["Stone"], "clumps": [4, 4], "radius": [18, 20], "shape": "blob"},
+		{"material": "Ferrite", "x": [0.0, 1.0], "depth": [2400, 3600], "host": ["Stone", "Hot rock"], "clumps": [3, 3], "radius": [90, 110], "shape": "blob", "aspect": 5},
+		{"material": "Glass", "x": [0.0, 1.0], "depth": [3000, 3800], "host": ["Hot rock"], "clumps": [6, 8], "radius": [6, 10], "shape": "speckle", "density": 0.5}
 	]
 }
