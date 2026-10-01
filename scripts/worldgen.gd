@@ -17,6 +17,7 @@ extends RefCounted
 ## times their v2 size.
 
 const D = preload("res://scripts/defs.gd")
+const SR = preload("res://scripts/spawn_regions.gd")
 const W := D.W
 const H := D.H
 const SX := 3        # layout across, against the v2 map
@@ -44,6 +45,7 @@ const PLUG_SPREAD := 0.6         # the plug stays within this fraction of the do
 var rng := RandomNumberGenerator.new()
 var g := PackedByteArray()
 var features: Array = []     # Rect2i of placed pockets, for spacing
+var spawn_table := {}        # data/spawn_regions.json unless a test sets its own
 var _masks := {}             # material -> blocks (KS x KS) holding any of it, built on demand
 
 
@@ -181,6 +183,9 @@ func generate(sim: RefCounted, seed_value: int) -> Dictionary:
 	var deposits := _deposits(seed_value, lava_pockets, lake)
 	_ground(seed_value, aquifers, topsoil_end)
 	_heat(wobble)
+	if spawn_table.is_empty():
+		spawn_table = SR.load_table()
+	var spawned := SR.place(g, W, H, spawn_table, seed_value, {"hub": HUB_RECT, "ground": ground})
 
 	sim.set_cells(g)
 	g = PackedByteArray()
@@ -204,6 +209,7 @@ func generate(sim: RefCounted, seed_value: int) -> Dictionary:
 		"springs": springs,
 		"coal": deposits["coal"],
 		"sulfur": deposits["sulfur"],
+		"spawned": spawned,
 	}
 
 
