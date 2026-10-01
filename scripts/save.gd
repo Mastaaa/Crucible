@@ -25,7 +25,7 @@ const GAME_VARS := [
 	"link_hp", "broken_links", "link_fixes", "link_ends", "damaged", "fallers", "fliers", "crushed",
 	"body_seen", "body_seen_tick", "scan_stale", "modules", "next_module",
 	"game_time", "ticks", "won", "carry_on", "run_lost", "lost_cause", "buildings_lost", "cells_drilled",
-	"milestones", "firsts", "deepest", "hub_fix_t", "hub_warned",
+	"milestones", "goals", "firsts", "deepest", "hub_fix_t", "hub_warned",
 	"researched", "levels", "tech_power", "tech_mats", "current_tech", "tiers_open", "research_rate", "research_acc",
 	"cstate", "c_delivered", "c_inflight", "c_tokens", "c_last_packet", "c_draining", "c_power", "c_powered_t",
 	"c_starved", "tremor_timer", "tremor_left", "cave_cells", "cave_t", "crucible_linked_once",

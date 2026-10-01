@@ -6,7 +6,7 @@ Claude reads each session is claude/STATUS.md.
 
 ## A3 part: machine framework core
 
-Tests: twelve suites end `FAILURES: 0`, with the new scenario_modules. The engine changed
+Tests: thirteen suites end `FAILURES: 0`, with the new scenario_modules (and goal layer's scenario_goals). The engine changed
 (module bodies; the save flags them): close Godot before pulling, restart after.
 
 - A module is a rigid body whose walls are real cells of a casing material (Obsidian
@@ -20,6 +20,16 @@ Tests: twelve suites end `FAILURES: 0`, with the new scenario_modules. The engin
 - Placement is at 90 degrees (R turns it); bodies turn freely afterwards.
 - Three throwaway test modules (Box, Plug, Cap) sit at the end of the Build list. No real
   catalogue yet, and the legacy buildings are untouched.
+
+## A3 (part): goal layer v1
+
+The Hub issues flat orders from data/instructions.json: a five-step tutorial (skippable
+from the first run), then a standing order every 150 s. Rewards are power paid into the
+Hub. Depth bands are chapters with one objective each, logged through the event tracker.
+A panel shows the run goal, depth, a tremor line, the chapter and the open order.
+Research now also eats goods by tier (Stone, plus Water at tier 3). The Hub trickle is
+0.2 power/s. scenario_goals is new; scenario_power and scenario_research were adjusted for
+the trickle. The descent probe now takes ~1800 s to depth 500; the bot was not re-run.
 
 ## Phase 10 done: pacing (the pre-alpha is complete)
 
