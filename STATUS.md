@@ -6,7 +6,7 @@ Claude reads each session is claude/STATUS.md.
 
 ## A3 part: machine framework core
 
-Tests: fourteen suites end `FAILURES: 0`, with the new scenario_modules. The engine changed
+Tests: every suite ends `FAILURES: 0` but scenario_digging's tick-time check, which main's A1 already misses on this container (2.1 to 2.4 ms against 2.0), with the new scenario_modules. The engine changed
 (module bodies; the save flags them): close Godot before pulling, restart after.
 
 - A module is a rigid body whose walls are real cells of a casing material (Obsidian
@@ -66,6 +66,20 @@ with temperatures from the ambient. The heat texture is now the hottest cell per
 block. The pass costs about 0.2 ms a tick in a fresh game, with 150 to 200 of the
 map's 3840 chunks awake: prof_scale's tick went from 1.40 to 1.55 ms against main on the
 same container (the sim's share from 0.11 to 0.39).
+
+## A2 spawn regions done: the Spoil Heap (branch claude/alpha-spawn-regions-cocmr1)
+
+`data/spawn_regions.json` names where a material may appear: areas (a mound beside the
+Hub, a patch inside a depth band) and spawn rows (material, area or x/depth home range,
+host materials, clumps, radius, shape). `scripts/spawn_regions.gd` paints them into the
+map before the sim takes it, from its own random stream. The first user is the Spoil
+Heap: a gravel mound 230-290 cells off the Hub (side by seed) with clumps of Sulfur,
+Coal, Clay and Sand standing in for the wave 1 oddities. Rows may name materials that
+don't exist yet (skipped until they do), so wave 1 is a data edit. Existing features
+still come from worldgen.gd; moving them into the table is left alone to keep each
+seed's layout. Seeds 5, 7, 11, 23 are identical outside the Heap (tests/scenario_spawn.gd).
+No engine change. scenario_power and scenario_chemistry clear the Heap in `fresh()`:
+they carve shafts open to the surface where seed 7's Heap stands.
 
 ## A3 (part): goal layer v1
 
