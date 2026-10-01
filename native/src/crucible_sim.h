@@ -161,6 +161,7 @@ public:
 		std::vector<int32_t> from; // ... and the pixel each came from
 		float ax = 0, ay = 0, aa = 0; // where it was when it last started being still
 		bool creature = false; // a mite: never turns back into ground (the game takes it back when it's still)
+		bool module = false; // a machine casing (modules.cpp): never turns back into ground, its own toughness
 		int age = 0, rest = 0, last_hit = -100;
 	};
 
@@ -436,6 +437,11 @@ public:
 	int get_owner(int x, int y) const;
 	bool set_creature(int id, bool on);
 	bool remove_body(int id);
+	// modules.cpp: machine casings are bodies the game edits pixel by pixel.
+	bool set_module(int id, bool on);
+	PackedFloat32Array body_info(int id) const;
+	PackedByteArray body_pixels(int id) const;
+	int body_set_pixel(int id, int lx, int ly, int m);
 
 	PackedByteArray save_state() const; // save.cpp
 	template <class O>

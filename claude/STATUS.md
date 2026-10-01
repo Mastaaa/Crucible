@@ -10,6 +10,10 @@ Claude adds a section at its top each phase and doesn't need to read the rest.
   claude/charming-mayer-evn3ro, not merged yet: a run can be won or lost, saved and
   continued; the autoplay bot plays a whole run; the curve is retuned for a first run of
   about 2 hours (the bot, which knows the map, about 1). Phases 8b-8d are in `main`.
+- A3 machine framework core (branch claude/alpha-machine-core): modules as rigid bodies
+  with typed faces, casing integrity, breach and wreckage, in scripts/machines/. Test
+  modules only; the module groups build on it. Casing melting and corrosion are TODO
+  until A1 lands (casing.gd).
 - Next: the Alpha roadmap, A1 first (a per-cell temperature field and family-tag reaction
   rules, with a lab bench mode). Plan and decisions: PROJECT_BRIEF's Alpha roadmap and
   claude/ALPHA_PLAN.md. Nothing in it is implemented yet.
@@ -31,8 +35,8 @@ Claude adds a section at its top each phase and doesn't need to read the rest.
   through hot rock lose Conduits to it; the bot relays them).
 
 ## Test baseline (all must hold before committing)
-- `bash native/run_tests.sh` (about 7 minutes): every scenario (eleven, with
-  scenario_run) and engine_compare end `FAILURES: 0`.
+- `bash native/run_tests.sh` (about 7 minutes): every scenario (twelve, with
+  scenario_run and scenario_modules) and engine_compare end `FAILURES: 0`.
 - Descent probe (tests/descent.gd, seed 7): head at 500 at 1.5 min, 700 at 5.5, 1000 at
   13.5, 1400 at 19.5 (research is the clock early on).
 - Autoplay bot (tests/autoplay.gd): on every seed tried (5, 7, 11, 23) the Stone band

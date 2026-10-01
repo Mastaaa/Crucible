@@ -46,6 +46,15 @@ index as [Stone, Glimmer, Obsidian, Water, Power].
   twice, counting the bytes and then writing them into one buffer.
 - `native/src/bodies.cpp`: rigid bodies and collapse into pieces (members of CrucibleSim);
   `native/src/rng.h`: the random helpers both share.
+- `native/src/modules.cpp` (A3): the engine side of machine modules: `set_module` (a
+  body that never settles; saved as a flag), `body_info` (size, centre of mass, pixels),
+  `body_pixels` (its bitmap), `body_set_pixel` (opens and closes ports, knocks out walls).
+- `scripts/machines/` (A3 framework): `faces.gd` (face types, `layout` turns a template
+  into pixels and faces in the body's frame), `casing.gd` (stand-in material, `integrity`,
+  `breach_at` floods from the cavity), `machines.gd` (the registry: `place`/`check_place`,
+  `tick` every 6 ticks: integrity, breach spill, wreckage, joining and leaving faces,
+  contents; `knock_out`; Build-list buttons, `click`, `key`), `test_modules.gd` (Box,
+  Plug, Cap). State is plain data in `game.modules` (saved via GAME_VARS).
 - Session tooling in `native/`: `cloud_setup.sh` (run by `.claude/hooks/session-start.sh`),
   `build.sh`, `run_tests.sh`, `lsp_check.py`, `cache/godot-cpp-built.tar.gz`.
 

@@ -23,7 +23,7 @@ const GAME_VARS := [
 	"info", "seed_value", "stock", "packets", "spring_tops", "dispatch_wait", "next_id", "next_order",
 	"send_log", "spout_rr", "spring_acc", "power_made", "power_used", "used_acc",
 	"link_hp", "broken_links", "link_fixes", "link_ends", "damaged", "fallers", "fliers", "crushed",
-	"body_seen", "body_seen_tick", "scan_stale",
+	"body_seen", "body_seen_tick", "scan_stale", "modules", "next_module",
 	"game_time", "ticks", "won", "carry_on", "run_lost", "lost_cause", "buildings_lost", "cells_drilled",
 	"milestones", "firsts", "deepest", "hub_fix_t", "hub_warned",
 	"researched", "levels", "tech_power", "tech_mats", "current_tech", "tiers_open", "research_rate", "research_acc",

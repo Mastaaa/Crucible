@@ -144,7 +144,7 @@ void CrucibleSim::write_state(O &o) const {
 		o.template put<int32_t>(b.count);
 		o.vec(b.at);
 		o.vec(b.from);
-		o.template put<uint8_t>(b.creature ? 1 : 0);
+		o.template put<uint8_t>((b.creature ? 1 : 0) | (b.module ? 2 : 0));
 		o.template put<int32_t>(b.age);
 		o.template put<int32_t>(b.rest);
 		o.template put<int32_t>(b.last_hit);
@@ -219,7 +219,9 @@ bool CrucibleSim::load_state(const PackedByteArray &data) {
 		b.count = in.get<int32_t>();
 		in.vec(b.at);
 		in.vec(b.from);
-		b.creature = in.get<uint8_t>() != 0;
+		uint8_t flags = in.get<uint8_t>();
+		b.creature = (flags & 1) != 0;
+		b.module = (flags & 2) != 0;
 		b.age = in.get<int32_t>();
 		b.rest = in.get<int32_t>();
 		b.last_hit = in.get<int32_t>();
