@@ -1,0 +1,433 @@
+extends RefCounted
+## The machine framework's registry (A3). A module is a rigid body whose walls are real
+## casing cells (casing.gd) with typed faces (faces.gd). The game keeps one Dictionary per
+## module in `game.modules` (plain data, so the save takes it as it is) and calls `tick`.
+##
+## What a module does here: it connects by contact (faces of one type and width touching
+## square on, a multiple of 90 degrees apart), opens its two faces while joined and closes
+## them when the contact ends; it has an integrity number; a breach spills its contents;
+## below Casing.DEAD it drops as wreckage, and so does one the engine broke up. Contents
+## are counted units of a material, not cells. What a module is for is each module group's
+## own business, hooked in through its definition (test_modules.gd is the shape).
+##
+## All of it is GDScript on the engine's body calls (set_module, body_info, body_pixels,
+## body_set_pixel); the GDScript fallback sim has no bodies, so `check_place` refuses.
+
+const D = preload("res://scripts/defs.gd")
+const F = preload("res://scripts/machines/faces.gd")
+const CS = preload("res://scripts/machines/casing.gd")
+const TM = preload("res://scripts/machines/test_modules.gd")
+
+const SCAN := 6                 # ticks between scans
+const CONNECT_DIST := 3.5       # faces this near (cells) and square on join
+const BREAK_DIST := 6.5         # ... and leave when they're this far apart
+const SQUARE := -0.99           # facing normals' dot product at most this
+const SPILL_SPEED := 30.0
+const WRECK_SPILL := 200        # particles a wreck throws at most
+
+static var defs := {}           # id -> definition
+
+
+static func register(def: Dictionary) -> void:
+	defs[def["id"]] = def
+
+
+## The throwaway test modules, registered once.
+static func ensure_defs() -> void:
+	if defs.is_empty():
+		for d: Dictionary in TM.defs():
+			register(d)
+
+
+static func reset(g) -> void:
+	g.modules.clear()
+	g.next_module = 1
+
+
+# --- Placing ---------------------------------------------------------------------
+
+## "" if module `def_id` can be placed with its top left at `at`, turned `turns` quarter
+## turns, else why not. The whole footprint has to be open air.
+static func check_place(g, def_id: String, at: Vector2i, turns: int) -> String:
+	ensure_defs()
+	if g.sim.get_script() != null:
+		return "Modules need the native engine."
+	if not defs.has(def_id):
+		return "No such module."
+	var lay := F.layout(defs[def_id], turns)
+	var size: Vector2i = lay["size"]
+	if at.x < 4 or at.y < 4 or at.x + size.x > g.sim.get_width() - 4 or at.y + size.y > g.sim.get_height() - 4:
+		return "Out of bounds."
+	for y in size.y:
+		for x in size.x:
+			if g.sim.get_cell(at.x + x, at.y + y) != 0:
+				return "Not enough room."
+	return ""
+
+
+## Places a module and returns its id, or 0 if it can't be (check_place says why).
+static func place(g, def_id: String, at: Vector2i, turns: int) -> int:
+	if check_place(g, def_id, at, turns) != "":
+		return 0
+	var def: Dictionary = defs[def_id]
+	var lay := F.layout(def, turns)
+	var size: Vector2i = lay["size"]
+	var cells: PackedByteArray = lay["cells"]
+	for y in size.y:
+		for x in size.x:
+			if cells[y * size.x + x] == F.CASING:
+				g.sim.set_cell(at.x + x, at.y + y, CS.MATERIAL)
+	var body: int = g.sim.make_body(at.x, at.y, size.x, size.y, 0.0, 0.0, 0.0)
+	if body <= 0:
+		_clear_footprint(g, at, size, cells)
+		return 0
+	g.sim.set_module(body, true)
+	var fl: Array = []
+	for _f in lay["faces"]:
+		fl.append({"open": false, "link_m": 0, "link_f": -1})
+	var id: int = g.next_module
+	g.next_module += 1
+	g.modules[id] = {
+		"id": id, "def": def_id, "turns": posmod(turns, 4), "body": body,
+		"designed": lay["designed"], "opened": 0, "count": lay["designed"], "dirty": true,
+		"integrity": 1.0, "breach": Vector2i(-1, -1), "faces": fl, "contents": {},
+		"at": Vector2(at) + Vector2(size) * 0.5,
+	}
+	return id
+
+
+static func _clear_footprint(g, at: Vector2i, size: Vector2i, cells: PackedByteArray) -> void:
+	for y in size.y:
+		for x in size.x:
+			if cells[y * size.x + x] == F.CASING and g.sim.get_cell(at.x + x, at.y + y) == CS.MATERIAL:
+				g.sim.set_cell(at.x + x, at.y + y, 0)
+
+
+## Takes a module down: its body goes, its contents are lost, its partners close up.
+static func remove(g, id: int) -> void:
+	var m: Dictionary = g.modules.get(id, {})
+	if m.is_empty():
+		return
+	_unlink_all(g, m, false)
+	g.sim.remove_body(m["body"])
+	g.modules.erase(id)
+
+
+# --- Contents --------------------------------------------------------------------
+
+static func capacity(m: Dictionary) -> int:
+	return F.layout(defs[m["def"]], m["turns"])["cavity"]
+
+
+static func stored(m: Dictionary) -> int:
+	var n := 0
+	for k in m["contents"]:
+		n += m["contents"][k]
+	return n
+
+
+## Puts up to n units of material `mat` in module `id`; returns how many fit.
+static func add_contents(g, id: int, mat: int, n: int) -> int:
+	var m: Dictionary = g.modules.get(id, {})
+	if m.is_empty():
+		return 0
+	var put := clampi(capacity(m) - stored(m), 0, n)
+	if put > 0:
+		m["contents"][mat] = m["contents"].get(mat, 0) + put
+	return put
+
+
+# --- The tick --------------------------------------------------------------------
+
+static func tick(g) -> void:
+	if g.modules.is_empty() or g.ticks % SCAN != 0:
+		return
+	var live := {}
+	var bl: PackedInt32Array = g.sim.get_bodies()
+	for k in range(0, bl.size(), 7):
+		live[bl[k]] = k
+	var frames := {}
+	for id: int in g.modules.keys():
+		var m: Dictionary = g.modules[id]
+		if not live.has(m["body"]):
+			_lost(g, m)
+			continue
+		var k: int = live[m["body"]]
+		m["at"] = Vector2(bl[k + 1] + bl[k + 3], bl[k + 2] + bl[k + 4]) * 0.5
+		if bl[k + 6] != m["count"] or m["dirty"]:
+			m["count"] = bl[k + 6]
+			m["dirty"] = false
+			_assess(g, m)
+			if m["integrity"] < CS.DEAD:
+				_wreck(g, m)
+				continue
+		frames[id] = _frame(g, m)
+		if m["breach"].x >= 0:
+			_spill(g, m, frames[id])
+	_connections(g, frames)
+	for id: int in g.modules.keys():
+		_pass(g, g.modules[id])
+
+
+# What the module's body looks like now: pose, centre of mass, layout.
+static func _frame(g, m: Dictionary) -> Dictionary:
+	return {"st": g.sim.body_state(m["body"]), "info": g.sim.body_info(m["body"]),
+			"lay": F.layout(defs[m["def"]], m["turns"])}
+
+
+# A local pixel's place in the world.
+static func _world(fr: Dictionary, local: Vector2) -> Vector2:
+	var st: PackedFloat32Array = fr["st"]
+	var info: PackedFloat32Array = fr["info"]
+	var c := local - Vector2(info[2], info[3])
+	var cs := cos(st[2])
+	var sn := sin(st[2])
+	return Vector2(st[0] + cs * c.x - sn * c.y, st[1] + sn * c.x + cs * c.y)
+
+
+static func _turn(fr: Dictionary, d: Vector2) -> Vector2:
+	var a: float = fr["st"][2]
+	return Vector2(cos(a) * d.x - sin(a) * d.y, sin(a) * d.x + cos(a) * d.y)
+
+
+# Integrity and breach from the body's bitmap.
+static func _assess(g, m: Dictionary) -> void:
+	m["integrity"] = CS.integrity(m, m["count"])
+	var pixels: PackedByteArray = g.sim.body_pixels(m["body"])
+	if pixels.is_empty():
+		return
+	m["breach"] = CS.breach_at(m, F.layout(defs[m["def"]], m["turns"]), pixels)
+
+
+static func _spill(g, m: Dictionary, fr: Dictionary) -> void:
+	var at := _world(fr, Vector2(m["breach"]) + Vector2(0.5, 0.5))
+	var out := (at - Vector2(fr["st"][0], fr["st"][1])).normalized()
+	for _i in CS.BREACH_LEAK:
+		var mat := _most(m)
+		if mat < 0:
+			return
+		m["contents"][mat] -= 1
+		if m["contents"][mat] <= 0:
+			m["contents"].erase(mat)
+		var v := out * SPILL_SPEED + Vector2(g.rng.randf_range(-10.0, 10.0), g.rng.randf_range(-10.0, 10.0))
+		g.sim.add_particle(at.x, at.y, v.x, v.y, mat)
+
+
+static func _most(m: Dictionary) -> int:
+	var best := -1
+	var n := 0
+	for k: int in m["contents"]:
+		if m["contents"][k] > n:
+			best = k
+			n = m["contents"][k]
+	return best
+
+
+# A dead module: everything inside goes, ports close, and the body carries on as
+# ordinary rigid wreckage (the engine settles it into ground or breaks it up).
+static func _wreck(g, m: Dictionary) -> void:
+	_dump(g, m)
+	_unlink_all(g, m, false)
+	g.sim.set_module(m["body"], false)
+	g.modules.erase(m["id"])
+	g.alert("module", "%s wrecked." % defs[m["def"]]["name"], m["at"])
+
+
+# The engine lost the body (it shattered, or settled into ground).
+static func _lost(g, m: Dictionary) -> void:
+	_dump(g, m)
+	_unlink_all(g, m, false)
+	g.modules.erase(m["id"])
+	g.alert("module", "%s lost." % defs[m["def"]]["name"], m["at"])
+
+
+static func _dump(g, m: Dictionary) -> void:
+	var at: Vector2 = m["at"]
+	var n := 0
+	for mat: int in m["contents"]:
+		for _i in m["contents"][mat]:
+			if n >= WRECK_SPILL:
+				break
+			n += 1
+			g.sim.add_particle(at.x + g.rng.randf_range(-4.0, 4.0), at.y + g.rng.randf_range(-4.0, 4.0),
+					g.rng.randf_range(-SPILL_SPEED, SPILL_SPEED), g.rng.randf_range(-SPILL_SPEED, 0.0), mat)
+	m["contents"].clear()
+
+
+# --- Connecting ------------------------------------------------------------------
+
+static func _face_world(fr: Dictionary, fi: int) -> Dictionary:
+	var f: Dictionary = fr["lay"]["faces"][fi]
+	return {"p": _world(fr, f["centre"]), "n": _turn(fr, Vector2(f["dir"]))}
+
+
+static func _connections(g, frames: Dictionary) -> void:
+	# Joined faces that have drifted apart or turned away close again.
+	for id: int in frames:
+		var m: Dictionary = g.modules[id]
+		for fi in m["faces"].size():
+			var fs: Dictionary = m["faces"][fi]
+			if fs["link_m"] == 0 or id > fs["link_m"]:
+				continue
+			var other: Dictionary = g.modules.get(fs["link_m"], {})
+			if other.is_empty() or not frames.has(fs["link_m"]):
+				_leave(g, m, fi)
+				continue
+			var a := _face_world(frames[id], fi)
+			var b := _face_world(frames[fs["link_m"]], fs["link_f"])
+			if a["p"].distance_to(b["p"]) > BREAK_DIST or a["n"].dot(b["n"]) > SQUARE:
+				_leave(g, m, fi)
+	# Free faces that touch join.
+	var ids: Array = frames.keys()
+	for i in ids.size():
+		for j in range(i + 1, ids.size()):
+			_try_pair(g, g.modules[ids[i]], frames[ids[i]], g.modules[ids[j]], frames[ids[j]])
+
+
+static func _try_pair(g, ma: Dictionary, fa: Dictionary, mb: Dictionary, fb: Dictionary) -> void:
+	if ma["at"].distance_to(mb["at"]) > 120.0:
+		return
+	var la: Array = fa["lay"]["faces"]
+	var lb: Array = fb["lay"]["faces"]
+	for i in la.size():
+		if ma["faces"][i]["link_m"] != 0:
+			continue
+		var wa := _face_world(fa, i)
+		for j in lb.size():
+			if mb["faces"][j]["link_m"] != 0:
+				continue
+			if not F.compatible(la[i]["type"], la[i]["w"], lb[j]["type"], lb[j]["w"]):
+				continue
+			var wb := _face_world(fb, j)
+			if wa["p"].distance_to(wb["p"]) <= CONNECT_DIST and wa["n"].dot(wb["n"]) <= SQUARE:
+				_join(g, ma, i, mb, j)
+				break
+
+
+static func _join(g, ma: Dictionary, i: int, mb: Dictionary, j: int) -> void:
+	ma["faces"][i]["link_m"] = mb["id"]
+	ma["faces"][i]["link_f"] = j
+	mb["faces"][j]["link_m"] = ma["id"]
+	mb["faces"][j]["link_f"] = i
+	_set_open(g, ma, i, true)
+	_set_open(g, mb, j, true)
+
+
+# Opens or closes a face: its wall pixels leave the body or come back.
+static func _set_open(g, m: Dictionary, fi: int, open: bool) -> void:
+	var fs: Dictionary = m["faces"][fi]
+	if fs["open"] == open:
+		return
+	fs["open"] = open
+	var cells: Array = F.layout(defs[m["def"]], m["turns"])["faces"][fi]["cells"]
+	for c: Vector2i in cells:
+		g.sim.body_set_pixel(m["body"], c.x, c.y, 0 if open else CS.MATERIAL)
+	m["opened"] += cells.size() if open else -cells.size()
+	m["dirty"] = true
+
+
+# Closes face `fi` of m and the face it was joined to.
+static func _leave(g, m: Dictionary, fi: int) -> void:
+	var fs: Dictionary = m["faces"][fi]
+	var other: Dictionary = g.modules.get(fs["link_m"], {})
+	if not other.is_empty():
+		other["faces"][fs["link_f"]]["link_m"] = 0
+		other["faces"][fs["link_f"]]["link_f"] = -1
+		_set_open(g, other, fs["link_f"], false)
+	fs["link_m"] = 0
+	fs["link_f"] = -1
+	_set_open(g, m, fi, false)
+
+
+# Every face of m closes (and its partners'). With `restore`, m's own pixels come back.
+static func _unlink_all(g, m: Dictionary, restore: bool) -> void:
+	for fi in m["faces"].size():
+		var fs: Dictionary = m["faces"][fi]
+		if fs["link_m"] == 0:
+			continue
+		var other: Dictionary = g.modules.get(fs["link_m"], {})
+		if not other.is_empty():
+			other["faces"][fs["link_f"]]["link_m"] = 0
+			other["faces"][fs["link_f"]]["link_f"] = -1
+			_set_open(g, other, fs["link_f"], false)
+		fs["link_m"] = 0
+		fs["link_f"] = -1
+		if restore:
+			_set_open(g, m, fi, false)
+		else:
+			fs["open"] = false
+
+
+# The test conduit: contents move out of its `pass` face into what's joined there.
+static func _pass(g, m: Dictionary) -> void:
+	var rule: Dictionary = defs[m["def"]].get("pass", {})
+	if rule.is_empty():
+		return
+	var fs: Dictionary = m["faces"][rule["face"]]
+	if fs["link_m"] == 0:
+		return
+	var left: int = rule["rate"]
+	for mat: int in m["contents"].keys():
+		var moved := add_contents(g, fs["link_m"], mat, mini(left, m["contents"][mat]))
+		m["contents"][mat] -= moved
+		if m["contents"][mat] <= 0:
+			m["contents"].erase(mat)
+		left -= moved
+		if left <= 0:
+			break
+
+
+# --- Damage (for tests, and later for heat and corrosion) -------------------------
+
+## Knocks the given local pixels out of module `id`'s casing.
+static func knock_out(g, id: int, pixels: Array) -> void:
+	var m: Dictionary = g.modules.get(id, {})
+	if m.is_empty():
+		return
+	for c: Vector2i in pixels:
+		g.sim.body_set_pixel(m["body"], c.x, c.y, 0)
+	m["dirty"] = true
+
+
+# --- Build list and input (test modules only, until the real catalogue) ------------
+
+## Adds a button per registered module under the HUD's Build list.
+static func add_build_buttons(hud, vb: VBoxContainer) -> void:
+	ensure_defs()
+	for id: String in defs:
+		var b: Button = hud._button("   %s (module)" % defs[id]["name"])
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.add_theme_font_size_override("font_size", 13)
+		b.tooltip_text = "A framework test module. R turns it before placing, Esc cancels."
+		b.pressed.connect(func() -> void:
+			hud.game.cancel_tool()
+			hud.game.module_pick = id
+			hud.game.show_banner("%s: click to place, R turns it, Esc cancels." % defs[id]["name"], 3.0))
+		vb.add_child(b)
+
+
+## A left click while a module is picked places it centred on `cell`. True if handled.
+static func click(g, cell: Vector2i) -> bool:
+	if g.module_pick == "":
+		return false
+	var size: Vector2i = F.layout(defs[g.module_pick], g.module_turns)["size"]
+	var at := cell - Vector2i(size.x >> 1, size.y >> 1)
+	var why := check_place(g, g.module_pick, at, g.module_turns)
+	if why != "":
+		g.show_banner(why, 2.0)
+	else:
+		place(g, g.module_pick, at, g.module_turns)
+	return true
+
+
+## R turns the picked module, Esc drops it. True if handled.
+static func key(g, k: int) -> bool:
+	if g.module_pick == "":
+		return false
+	if k == KEY_R:
+		g.module_turns = posmod(g.module_turns + 1, 4)
+		return true
+	if k == KEY_ESCAPE:
+		g.module_pick = ""
+		return true
+	return false

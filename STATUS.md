@@ -4,6 +4,23 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A3 part: machine framework core
+
+Tests: every suite ends `FAILURES: 0`, with the new scenario_modules. The engine changed
+(module bodies; the save flags them): close Godot before pulling, restart after.
+
+- A module is a rigid body whose walls are real cells of a casing material (Obsidian
+  stands in until A1's casing list). It never settles back into ground.
+- Faces are typed (pixel, power, mechanical, signal). Two faces of one type and width
+  that touch square on, at a multiple of 90 degrees, join: both open (their wall pixels
+  leave the casing) and close again when the contact ends.
+- Integrity is the share of the designed casing left. A hole through the wall's full
+  thickness is a breach and spills the contents out of it; under half, the module is
+  wreckage (an ordinary body) and drops everything.
+- Placement is at 90 degrees (R turns it); bodies turn freely afterwards.
+- Three throwaway test modules (Box, Plug, Cap) sit at the end of the Build list. No real
+  catalogue yet, and the legacy buildings are untouched.
+
 ## A1 done: temperature and reactions
 
 Tests: thirteen suites end `FAILURES: 0` (with the goal layer's scenario_goals), including
