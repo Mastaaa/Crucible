@@ -38,6 +38,7 @@
 #include <godot_cpp/variant/vector4i.hpp>
 
 #include <atomic>
+#include <bitset>
 #include <condition_variable>
 #include <cstdint>
 #include <mutex>
@@ -158,6 +159,49 @@ public:
 		int16_t cools_cost = 0;
 		int16_t kindle = T_NONE;
 		uint16_t family = 0; // family tags, a bit each (materials.gd assigns them)
+		// A2 (wave 1). Heat capacity: a pass's change in degrees is shared among this many
+		// cells' worth of mass (Rime takes 20 times the heat to move).
+		uint8_t heat_mass = 1;
+		// A setting stage: aux counts down (it starts at the material's life) and at
+		// zero the cell becomes sets_to; each update it counts a step with chance
+		// set_speed, times set_boost with a cell of the set_catalyst family beside it.
+		int16_t sets_to = -1;
+		uint32_t set_speed = 0;
+		uint16_t set_catalyst = 0;
+		uint16_t set_boost = 256;
+		// A burning cell with a burn_catalyst cell beside it burns down burn_boost / 256 times as fast.
+		uint16_t burn_catalyst = 0;
+		uint16_t burn_boost = 256;
+		bool burn_wet = false; // keeps burning beside water (oil on a pond); smothering gas still puts it out
+		// A blast of blast_r cells (power blast_power) when it takes a hard landing
+		// (blast_impact, sixteenths of a cell a tick), is hot (blast_temp) or has fire
+		// beside it (blast_flame), unless a cell of the blast_inhibit family touches it.
+		// It sets off the like of itself within its radius a few ticks later.
+		uint8_t blast_r = 0;
+		uint8_t blast_power = 0;
+		uint8_t blast_impact = 0;
+		int16_t blast_temp = T_NONE;
+		bool blast_flame = false;
+		uint16_t blast_inhibit = 0;
+		// A swell: beside a liquid (not a hot one) it turns itself and that cell into
+		// absorb_to, with the liquid's id in the aux byte, with chance absorb_chance.
+		int16_t absorb_to = -1;
+		uint32_t absorb_chance = 0;
+		// What a swollen cell of this liquid bursts into, and for the swollen cell itself:
+		// the heat it bursts at and the plume when the soaked liquid names none.
+		int16_t plume = -1;
+		int16_t bursts_at = T_NONE;
+		// Growth: with chance grow_chance an update (and at least 5 degrees), a cell of it
+		// takes over one of the four neighbours in grow_over if a grow_feed cell is within
+		// grow_reach; that cell is used up.
+		uint32_t grow_chance = 0;
+		uint16_t grow_feed = 0;
+		uint8_t grow_reach = 0;
+		std::bitset<256> grow_over;
+		// A material that comes out of a reaction as a rigid body of body_w x body_h cells.
+		uint8_t body_w = 0;
+		uint8_t body_h = 0;
+		bool watch = false; // wakes when its temperature moves (reactions that wait on one, blasts, bursts)
 	};
 
 	struct Reaction {
@@ -171,6 +215,21 @@ public:
 		int16_t heat = 0;
 		uint16_t catalyst = 0;
 		uint16_t boost = 256;
+		// A2: with chance emit_chance each time it fires, a rigid body of the `emit`
+		// material is forged beside the cells (Ferrite bars from smelting).
+		uint8_t emit = 0;
+		uint32_t emit_chance = 0;
+	};
+
+	// A detonation waiting for its tick (a cell's blast, or one set off by another's).
+	struct Blast {
+		int x = 0, y = 0;
+		int r = 0, power = 0;
+		int due = 0;
+	};
+	struct Emit {
+		int x = 0, y = 0;
+		uint8_t mat = 0;
 	};
 
 	struct Particle {
@@ -230,6 +289,8 @@ public:
 		bool changed = false;
 		Rects next;
 		std::vector<uint8_t> tnext; // chunks the temperature pass must look at next time
+		std::vector<Blast> blasts; // detonations this tick, run after the passes
+		std::vector<Emit> emits; // bodies to forge, likewise
 	};
 
 private:
@@ -307,6 +368,9 @@ private:
 	std::vector<Reaction> reacts;
 	std::vector<Ctx> ctxs;
 	int fire_id = -1;
+	std::vector<Blast> blast_queue; // detonations waiting for their tick
+	int blasts_made = 0;
+	int bodies_forged = 0;
 
 	uint32_t seed = 22695477u;
 	uint32_t grng = 22695477u; // game-side randomness (weathering, tremors, blasts)
@@ -379,6 +443,12 @@ private:
 	void put(Ctx *cx, int i, int x, int y, uint8_t m, uint32_t r); // write a cell from inside the sim
 
 	void update_cell(Ctx &cx, int i, int x, int y, uint8_t m);
+	bool detonate(Ctx &cx, int i, int x, int y); // a blast material goes off (unless smothered): the cell is spent
+	void grow_cell(Ctx &cx, int i, int x, int y, uint8_t m);
+	void absorb(Ctx &cx, int i, int x, int y, uint8_t m);
+	void burst(Ctx &cx, int i, int x, int y, uint8_t m);
+	void run_blasts(); // after the passes: gather, chain and fire the blasts due
+	void run_emits(); // forge the bodies the reactions asked for
 	void step_temperature();
 	void temp_chunk(Ctx &cx, int c);
 	bool burn(Ctx &cx, int i, int x, int y, uint8_t m, uint32_t r);
@@ -537,6 +607,8 @@ public:
 	int get_crumbled() const { return crumbled; }
 	int get_caved() const { return caved; }
 	int get_tick() const { return tick; }
+	int get_blasts() const { return blasts_made; }
+	int get_forged() const { return bodies_forged; }
 };
 
 } // namespace godot

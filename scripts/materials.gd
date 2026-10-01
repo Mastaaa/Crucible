@@ -189,6 +189,7 @@ static func ensure() -> void:
 				m["cools_cost"] = float(cools.get("cost", 0.0))
 			if e.has("kindle"):
 				m["kindle"] = float(e["kindle"])
+			_wave1(e, m)
 			if not burn.is_empty():
 				m["burn_life"] = int(burn.get("life", 60))
 				m["ignite"] = float(burn.get("ignite", 0.05))
@@ -199,12 +200,80 @@ static func ensure() -> void:
 				m["flame_chance"] = float(burn.get("flame_chance", 0.0))
 				if burn.has("temp"):
 					m["burn_temp"] = float(burn["temp"])
+				m["burn_wet"] = bool(burn.get("wet", false))
+				if burn.has("catalyst"):
+					m["burn_catalyst"] = _fam_bit(burn["catalyst"], e)
+					m["burn_boost"] = float(burn.get("boost", 1.0))
 			if e.has("age_chance"):
 				m["age_chance"] = int(e["age_chance"])
 				m["age_to"] = mid + 1 if s < stages - 1 else _ref(e, "condenses_to")
 			sim_materials.append(m)
 			_pal_rows[mid] = _pal_row(e, s, stages, int(life[1]), int(m.get("burn_life", 0)))
 	sim_reactions = expand_reactions(data.get("reactions", []))
+
+
+## The A2 keys of one entry, into the sim's dictionary `m`: heat_mass; sets {to, speed,
+## catalyst, boost} (a countdown in aux, started from `life`); blast {radius, power,
+## impact (cells/s of fall), temp, flame, inhibit}; absorbs {to, chance}; plume (what a
+## swollen cell of this liquid bursts into); bursts {at, into}; grows {over, feed,
+## reach, chance}; body {w, h} (a rigid body forged by a reaction's `emit`).
+static func _wave1(e: Dictionary, m: Dictionary) -> void:
+	if e.has("heat_mass"):
+		m["heat_mass"] = int(e["heat_mass"])
+	var sets: Dictionary = e.get("sets", {})
+	if not sets.is_empty():
+		m["sets_to"] = _ref(sets, "to", e)
+		m["set_speed"] = float(sets.get("speed", 0.1))
+		if sets.has("catalyst"):
+			m["set_catalyst"] = _fam_bit(sets["catalyst"], e)
+			m["set_boost"] = float(sets.get("boost", 1.0))
+	var blast: Dictionary = e.get("blast", {})
+	if not blast.is_empty():
+		m["blast_r"] = int(blast.get("radius", 4))
+		m["blast_power"] = int(blast.get("power", 4))
+		# Cells a second of fall speed, as the sim keeps it: sixteenths of a cell a tick.
+		if blast.has("impact"):
+			m["blast_impact"] = int(round(float(blast["impact"]) * 16.0 / 60.0))
+		if blast.has("temp"):
+			m["blast_temp"] = float(blast["temp"])
+		m["blast_flame"] = bool(blast.get("flame", false))
+		if blast.has("inhibit"):
+			m["blast_inhibit"] = _fam_bit(blast["inhibit"], e)
+	var absorbs: Dictionary = e.get("absorbs", {})
+	if not absorbs.is_empty():
+		m["absorb_to"] = _ref(absorbs, "to", e)
+		m["absorb_chance"] = float(absorbs.get("chance", 0.1))
+	if e.has("plume"):
+		m["plume"] = _ref(e, "plume")
+	var bursts: Dictionary = e.get("bursts", {})
+	if not bursts.is_empty():
+		m["bursts_at"] = float(bursts.get("at", 100.0))
+		m["plume"] = _ref(bursts, "into", e)
+	var grows: Dictionary = e.get("grows", {})
+	if not grows.is_empty():
+		var over := PackedByteArray()
+		over.resize(256)
+		for nm in _list(grows.get("over", [])):
+			if ids.has(nm):
+				over[ids[nm]] = 1
+			else:
+				push_error("%s: grows over unknown material %s" % [e.get("name", "?"), nm])
+		m["grow_over"] = over
+		m["grow_feed"] = _fam_bit(grows.get("feed", ""), e)
+		m["grow_reach"] = int(grows.get("reach", 1))
+		m["grow_chance"] = float(grows.get("chance", 0.003))
+	var body: Dictionary = e.get("body", {})
+	if not body.is_empty():
+		m["body_w"] = int(body.get("w", 4))
+		m["body_h"] = int(body.get("h", 2))
+
+
+## The bit of a family name (0, with an error, for one that no material carries).
+static func _fam_bit(nm: String, owner: Dictionary) -> int:
+	if not families.has(nm):
+		push_error("%s: %s is not a family" % [owner.get("name", "?"), nm])
+		return 0
+	return int(families[nm])
 
 
 ## One name or a list of them, as a list.
@@ -254,9 +323,14 @@ static func expand_reactions(rules: Array) -> Array:
 		if rank < 0:
 			continue
 		var extra := {}
-		for key in ["min_temp", "max_temp", "heat", "boost"]:
+		for key in ["min_temp", "max_temp", "heat", "boost", "emit_chance"]:
 			if rx.has(key):
 				extra[key] = float(rx[key])
+		if rx.has("emit"):
+			if not ids.has(rx["emit"]):
+				push_error("Reaction emits unknown material %s" % rx["emit"])
+			else:
+				extra["emit"] = int(ids[rx["emit"]])
 		if rx.has("catalyst"):
 			if not families.has(rx["catalyst"]):
 				push_error("Reaction catalyst %s is not a family" % rx["catalyst"])
