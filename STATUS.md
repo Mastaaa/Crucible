@@ -6,7 +6,7 @@ Claude reads each session is claude/STATUS.md.
 
 ## A3 part: machine framework core
 
-Tests: every suite ends `FAILURES: 0` but scenario_digging's tick-time check, which main's A1 already misses on this container (2.1 to 2.4 ms against 2.0), with the new scenario_modules. The engine changed
+Tests: every suite ends `FAILURES: 0`, with the new scenario_modules. The engine changed
 (module bodies; the save flags them): close Godot before pulling, restart after.
 
 - A module is a rigid body whose walls are real cells of a casing material (Obsidian
