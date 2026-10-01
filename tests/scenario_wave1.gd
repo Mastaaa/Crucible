@@ -78,6 +78,12 @@ func fill(sim, r: Rect2i, m: int) -> void:
 			sim.set_cell(x, y, m)
 
 
+## Bedrock walls round x .. x + w - 1 up to height h, so a liquid stays in a pool.
+func walls(sim, x: int, w: int, h: int) -> void:
+	fill(sim, Rect2i(x - 2, FL - h, 2, h), D.BEDROCK)
+	fill(sim, Rect2i(x + w, FL - h, 2, h), D.BEDROCK)
+
+
 ## A row of the basin's rectangle `r` from the bottom: height h of m.
 func pile(sim, x: int, w: int, h: int, m: int) -> Rect2i:
 	var r := Rect2i(x, FL - h, w, h)
@@ -118,24 +124,26 @@ func until(sim, limit: int, done: Callable) -> int:
 func scenario_1() -> void:
 	print("1. Slick fire on Water, snuffed by Hush")
 	var sim = bench_sim()
+	walls(sim, 100, 60, 60)
 	pile(sim, 100, 60, 10, D.WATER)
 	fill(sim, Rect2i(100, FL - 12, 60, 2), D.SLICK)
 	var before := count(sim, D.SLICK)
 	sim.ignite(101, FL - 12)
 	run(sim, 60)
 	check(sim.count_burning() > 0, "a lit film burns on the water (%d cells alight)" % sim.count_burning())
-	run(sim, 300)
+	run(sim, 2400)
 	var left := count(sim, D.SLICK)
-	check(left < before - 20, "the film burns off (%d of %d cells left)" % [left, before])
+	check(left * 2 < before, "the flame crawls over the film and burns it off (%d of %d cells left)" % [left, before])
 	sim = bench_sim()
+	walls(sim, 100, 60, 60)
 	pile(sim, 100, 60, 10, D.WATER)
 	fill(sim, Rect2i(100, FL - 12, 60, 2), D.SLICK)
 	sim.ignite(101, FL - 12)
 	run(sim, 30)
 	fill(sim, Rect2i(100, FL - 40, 60, 28), D.HUSH)
-	run(sim, 300)
+	run(sim, 2400)
 	var snuffed := count(sim, D.SLICK)
-	check(sim.count_burning() == 0 and snuffed > left + 10, "Hush above puts it out (%d cells saved, %d without)" % [snuffed, left])
+	check(sim.count_burning() == 0 and snuffed > left + 40, "Hush above puts it out (%d cells saved, %d without)" % [snuffed, left])
 
 
 func scenario_2() -> void:
@@ -290,7 +298,7 @@ func scenario_7() -> void:
 				"steam": seen = maxi(seen, steam(sim))
 				"fire": seen = maxi(seen, count(sim, D.FIRE) + sim.count_burning())
 				"fumes": seen = maxi(seen, count(sim, D.FUMES))
-		check(seen > 0 and count(sim, D.SWOLLEN_BLOAT) < swollen / 3, "heat bursts it into %s (%d seen, %d swollen left)" % [plumes[liquid], seen, count(sim, D.SWOLLEN_BLOAT)])
+		check(seen > 0 and count(sim, D.SWOLLEN_BLOAT) * 3 < swollen, "heat bursts it into %s (%d seen, %d swollen left)" % [plumes[liquid], seen, count(sim, D.SWOLLEN_BLOAT)])
 	var sim2 = bench_sim()
 	pile(sim2, 100, 20, 6, D.BLOAT)
 	sim2.heat_rect(100, FL - 6, 20, 6, 200)
@@ -305,19 +313,12 @@ func scenario_8() -> void:
 	pile(sim, 140, 40, 20, D.LAVA)
 	run(sim, 600)
 	check(count(sim, D.GLASS) > 20, "a clear seam forms where they meet (%d cells)" % count(sim, D.GLASS))
-	sim = bench_sim()
-	pile(sim, 100, 30, 4, D.GLASS)
-	fill(sim, Rect2i(100, FL - 4, 30, 4), D.GLASS)
-	var id: int = sim.make_body(100, FL - 4, 30, 4, 0.0, 0.0, 0.0)
-	check(id >= 0, "a slab of Glass becomes a body")
-	sim.set_cell(0, 0, 0)
-	run(sim, 10)
-	# Dropped from height, it breaks.
+	# A slab dropped from height breaks.
 	sim = bench_sim()
 	fill(sim, Rect2i(100, FL - 120, 24, 8), D.GLASS)
-	sim.make_body(100, FL - 120, 24, 8, 0.0, 0.0, 0.0)
+	check(sim.make_body(100, FL - 120, 24, 8, 0.0, 0.0, 0.0) >= 0, "a slab of Glass becomes a body")
 	run(sim, 240)
-	check(count(sim, D.GLASS) < 24 * 8 / 2 and count(sim, D.SAND) > 20, "a hard fall shatters it to Sand (%d Glass, %d Sand)" % [count(sim, D.GLASS), count(sim, D.SAND)])
+	check(count(sim, D.GLASS) < 96 and count(sim, D.SAND) > 20, "a hard fall shatters it to Sand (%d Glass, %d Sand)" % [count(sim, D.GLASS), count(sim, D.SAND)])
 
 
 func scenario_9() -> void:
@@ -354,7 +355,7 @@ func scenario_10() -> void:
 			sim.set_cell(x, y, D.WISP if (x + y) % 2 == 0 else D.HUSH)
 	var cloud := count(sim, D.WISP)
 	run(sim, 200)
-	check(count(sim, D.WISP) < cloud / 2 and sim.get_blasts() == 0, "Hush and Wisp cancel (%d cells left of %d)" % [count(sim, D.WISP), cloud])
+	check(count(sim, D.WISP) * 2 < cloud and sim.get_blasts() == 0, "Hush and Wisp cancel (%d cells left of %d)" % [count(sim, D.WISP), cloud])
 	sim = bench_sim()
 	fill(sim, Rect2i(100, FL - 20, 20, 20), D.WISP)
 	pile(sim, 100, 20, 2, D.RIME)

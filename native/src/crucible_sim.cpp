@@ -342,6 +342,7 @@ void CrucibleSim::configure(const Array &materials, const Array &reactions) {
 		m.life_min = (uint8_t)std::clamp((int)d.get("life_min", 0), 0, 255);
 		m.life_max = (uint8_t)std::clamp((int)d.get("life_max", 0), 0, 255);
 		m.life_decay = (uint16_t)std::clamp((int)d.get("life_decay", 256), 1, 256);
+		m.ages_exposed = (bool)d.get("ages_exposed", false);
 		m.expires_to = (int16_t)(int)d.get("expires_to", -1);
 		m.expires_alt = (int16_t)(int)d.get("expires_alt", -1);
 		m.alt_chance = chance_of(d, "alt_chance");
@@ -1507,6 +1508,22 @@ void CrucibleSim::move_liquid(Ctx &cx, int i, int j, int x, int y, int x2, int y
 // diagonally into open air, and drift sideways now and then.
 void CrucibleSim::gas(Ctx &cx, int i, int x, int y, uint8_t m, int d, uint32_t r) {
 	const Mat &M = mats[m];
+	// A2: a gas that only ages in the open (Hush, Wisp) sleeps while nothing but ground,
+	// liquid or its own kind touches it, so a sealed pocket keeps and costs nothing.
+	if (M.ages_exposed) {
+		const int offs[4] = { -W, W, -1, 1 };
+		bool calm = true;
+		for (int k = 0; k < 4; k++) {
+			uint8_t t = cells[i + offs[k]];
+			if (t != m && (mats[t].kind == K_EMPTY || mats[t].kind == K_GAS)) {
+				calm = false;
+				break;
+			}
+		}
+		if (calm) {
+			return;
+		}
+	}
 	if (M.life_max > 0) {
 		if (aux[i] == 0) {
 			aux[i] = init_aux(m, r);

@@ -3,7 +3,8 @@ extends SceneTree
 ##   A. the Spoil Heap stands beside the Hub on every seed, holds its stand-in materials
 ##      and nothing leaks out of it
 ##   B. the rest of each seed's layout is unchanged: with the table emptied, the map
-##      differs only inside the Heap's box (seeds 5, 7, 11, 23)
+##      differs only inside the Heap's box (seeds 5, 7, 11, 23); the wave 1 rows then add
+##      cells of their own with little arching fallout
 ##   C. the table takes a made-up material name without code changes (skipped, no error)
 ##      and a new name once the resolver knows it
 ##   D. world rows keep to their home range (x fractions, depth band) and their hosts
@@ -47,8 +48,11 @@ func build(seed_value: int, table: Dictionary) -> Array:
 func scenario_a_b_e() -> void:
 	print("A. Spoil Heap, B. layout kept, E. holds still")
 	var empty := {"areas": {}, "spawns": []}
+	var full := SR.load_table()
+	# The Heap's own rows (the first four), kept apart from the wave 1 rows after them.
+	var heap_rows := {"areas": full["areas"], "spawns": full["spawns"].filter(func(r): return r.get("area", "") == "spoil_heap" and r["material"] in ["Sulfur", "Coal", "Clay", "Sand"])}
 	for s in [5, 7, 11, 23]:
-		var a := build(s, SR.load_table())
+		var a := build(s, heap_rows)
 		var b := build(s, empty)
 		var info: Dictionary = a[1]
 		var heap: Rect2i = info["spawned"]["areas"].get("spoil_heap", Rect2i())
@@ -71,13 +75,25 @@ func scenario_a_b_e() -> void:
 					outside += 1
 		check(outside == 0, "seed %d: %d cells differ outside the Heap" % [s, outside])
 		# Only the Heap's box gets anything above the old ground; everything in it is Heap.
-		var hosts := [D.GRAVEL, D.SULFUR, D.COAL, D.CLAY, D.SAND, D.AIR]
+		var hosts := [D.GRAVEL, D.SULFUR, D.COAL, D.CLAY, D.SAND, D.AIR, D.SLICK, D.FLUX, D.RIME, D.WEFT]
 		var stray := 0
 		for y in range(heap.position.y, heap.end.y):
 			for x in range(heap.position.x, heap.end.x):
 				if not (ca[y * D.W + x] in hosts + [D.DIRT, D.STONE]):
 					stray += 1
 		check(stray == 0, "seed %d: %d odd cells in the Heap's box" % [s, stray])
+		# The full table adds wave 1 on top: its cells, plus what worldgen's arching clears under them.
+		var wave := build(s, full)
+		var cw: PackedByteArray = wave[0].get_cells()
+		var fallout := 0
+		var added := 0
+		for i in D.W * D.H:
+			if cw[i] != ca[i]:
+				if cw[i] >= D.SLICK:
+					added += 1
+				else:
+					fallout += 1
+		check(added > 20000 and fallout < 1000, "seed %d: wave 1 places %d cells and shifts %d others" % [s, added, fallout])
 		if s == 7:
 			for _t in 60:
 				a[0].step()
@@ -98,12 +114,12 @@ func scenario_c_d() -> void:
 	g.resize(w * h)
 	g.fill(D.STONE)
 	var table := {"areas": {}, "spawns": [
-		{"material": "Quickmire", "host": ["Stone"], "x": [0.25, 0.5], "depth": [400, 600], "clumps": [6, 6], "radius": [4, 4]},
+		{"material": "Moonglass", "host": ["Stone"], "x": [0.25, 0.5], "depth": [400, 600], "clumps": [6, 6], "radius": [4, 4]},
 		{"material": "Sand", "host": ["Stone"], "x": [0.25, 0.5], "depth": [400, 600], "clumps": [6, 6], "radius": [4, 4]},
 		{"material": "Coal", "host": ["Stone"], "enabled": false, "clumps": [5, 5]},
 	]}
 	var out := SR.place(g, w, h, table, 3, {})
-	check(out["skipped"] == ["Quickmire"], "an unknown name is skipped: %s" % [out["skipped"]])
+	check(out["skipped"] == ["Moonglass"], "an unknown name is skipped: %s" % [out["skipped"]])
 	check(out["placed"].get("Sand", 0) > 0, "known rows still place")
 	check(not out["placed"].has("Coal"), "a parked row places nothing")
 	var bad := 0
@@ -115,7 +131,7 @@ func scenario_c_d() -> void:
 	# A name the table learns later works with no code change.
 	g.fill(D.STONE)
 	var out2 := SR.place(g, w, h, table, 3, {}, func(nm: String) -> int:
-			return 77 if nm == "Quickmire" else (D.STONE if nm == "Stone" else (D.SAND if nm == "Sand" else (D.COAL if nm == "Coal" else -1))))
-	check(out2["skipped"].is_empty() and out2["placed"].get("Quickmire", 0) > 0 and g.has(77), "a new material places once the resolver knows it")
+			return 77 if nm == "Moonglass" else (D.STONE if nm == "Stone" else (D.SAND if nm == "Sand" else (D.COAL if nm == "Coal" else -1))))
+	check(out2["skipped"].is_empty() and out2["placed"].get("Moonglass", 0) > 0 and g.has(77), "a new material places once the resolver knows it")
 	var untouched := g.count(D.STONE)
 	check(untouched > 0 and g.count(D.COAL) == 0, "hosts only: nothing but Stone was replaced")

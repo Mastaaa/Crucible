@@ -96,6 +96,7 @@ public:
 		uint8_t life_min = 0;
 		uint8_t life_max = 0;
 		uint16_t life_decay = 256;
+		bool ages_exposed = false; // a gas cell ages (and wakes) only with open air beside it: sealed pockets keep (A2)
 		int16_t expires_to = -1;
 		int16_t expires_alt = -1;
 		uint32_t alt_chance = 0;

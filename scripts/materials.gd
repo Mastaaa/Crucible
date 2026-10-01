@@ -154,6 +154,7 @@ static func ensure() -> void:
 				"life_min": int(life[0]),
 				"life_max": int(life[1]),
 				"life_decay": int(round(float(e.get("life_decay", 1.0)) * 256.0)),
+				"ages_exposed": bool(e.get("ages_exposed", false)),
 				"expires_to": _ref(e, "expires_to"),
 				"expires_alt": _ref(e, "expires_alt"),
 				"alt_chance": float(e.get("alt_chance", 0.0)),

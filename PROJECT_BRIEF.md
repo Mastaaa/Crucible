@@ -101,7 +101,7 @@ uncover elements, deposits and curios; exploit reactions or get blindsided by th
 
 ## Alpha roadmap (A1 to A7; design in claude/ALPHA_PLAN.md)
 
-Agreed with Alex; A1 is done. The player is an autonomous machine built to
+Agreed with Alex; A1 and A2 are done. The player is an autonomous machine built to
 reach and light the Crucibles; Hub orders are flat instructions. Three focus areas: more
 materials with real chemistry, modular machines (Create-like), and biomes.
 
@@ -109,7 +109,8 @@ materials with real chemistry, modular machines (Create-like), and biomes.
    boiling points as data, family-tag reaction rules, hot rock rebuilt on it, a lab bench mode.
    Done; the impact, swell and setting extensions moved to A2.
 2. A2, materials wave 1 (about 12) and a spawn-region system, with a hand-placed Spoil Heap
-   near the Hub.
+   near the Hub. Done: 12 materials and 7 made by reactions (claude/WAVE1_MATERIALS.md), the
+   engine's setting, blast, swell, growth, heat-mass and body-forging extensions, spawn rows.
 3. A3, machine framework and the hard cut: legacy buildings go (Hub, Crucible, Nodes, Lab,
    Lamp, Strut and Bulkhead stay; the Warren is kept for the Drone Cage). The starter quarry
    (Cutter Excavator, Tank, Winch, Funnel, Windmill, Nodes), Chute, Conveyor, Bus Hopper, a
@@ -168,7 +169,9 @@ wins: buildings, the Drill, the Warren and mites, the Hub's power, and heat as a
   stages.
 - Reactions (A1): rules name materials or families (one or two tags a material); a material pair's
   rule overrides its families'. A rule can carry a temperature window, heat, and a catalyst family
-  that multiplies its chance.
+  that multiplies its chance (A2: it can also leave a body behind, `emit`). Wave 1 adds data keys for
+  a setting stage, blasts (impact, heat, fire), a swell, growth and heat mass; data/materials.json's
+  `_about` lists them. The family list is full at 16 tags (a bit each in a uint16).
 - Settling: cells next to anything a building digs hold still for SETTLE_S (20 s) before weathering,
   erosion, loosening or powder falls can take them; liquids aren't held.
 - The Warren never moves (no Advance); mites never dig its footing. It has no zone picker: a chamber over it,

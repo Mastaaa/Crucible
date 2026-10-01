@@ -1,13 +1,13 @@
-# Crucible: Wave 1 materials (A2 design table, draft v1)
+# Crucible: Wave 1 materials (A2 design table, built)
 
-Design table for the twelve wave 1 materials of phase A2 in `ALPHA_PLAN.md`. Docs only:
-nothing here is implemented, and implementation is a later thread that starts once A1 merges.
-The A1 branch (`claude/alpha-a1-temperature*`) had not been pushed when this was written, so
-the schema below is written against today's `data/materials.json` plus the A1 scope in the
-plan, and every guess about A1 is listed under "Assumptions". Where A1 lands differently, the
-numbers survive and the field names change.
+Design table for the twelve wave 1 materials of phase A2 in `ALPHA_PLAN.md`. Built in A2 on
+top of A1's temperature field: the data is in `data/materials.json` (ids 35 to 53), the
+engine extensions in `native/src/crucible_sim.cpp`, the home ranges in
+`data/spawn_regions.json`, the bench demonstrations in `tests/scenario_wave1.gd`. The tables
+below are the design as written; "Built as" at the end lists where the build differs, and
+the build wins where the two disagree.
 
-## Assumptions about A1
+## Assumptions about A1 (checked against A1's code: see "Built as")
 
 1. **Temperature units.** One signed number per cell, called degrees. Water freezes at 0 and
    boils at 100. Ambient is about 15 on the surface, about 30 through the Stone band and rises
@@ -318,3 +318,93 @@ row of the family table and each override, in this order:
 - **Weft near the Hub.** A fed spreader next to the base is a choice. Drop it from the Spoil Heap
   if Alex would rather it not be there.
 - **Home ranges** are first guesses. The spawn-region thread's schema decides final field names.
+
+## Built as
+
+A1's real schema, then the places the build differs from the tables above.
+
+**A1 checks.**
+- Temperature units hold: degrees, water 0 and 100, ambient by depth. Two numbers differ: lava
+  quenches to Obsidian under 600 (not 700) and holds itself at 1100, so a cold neighbour never
+  drags it down on its own. Stone turns to Hot rock at 800 and anything over 1200 melts.
+- A1 names the points `heats` and `cools` ({at, to, cost}) and `conduct`; it had no `heat_mass`.
+  A2 added `heat_mass` (Rime is 20): a cell's degrees move by its pass's change divided by it,
+  so Rime takes 20 times the heat to warm.
+- A1 had no rigid body emitted by a reaction. A2 adds it: a reaction can `emit` a material
+  that has a `body` size, and the engine forges that body beside the reacting cells.
+
+**Engine extensions** (all data driven, run by the cell pass; blasts and bodies run after it
+in position order so thread count never matters):
+- `sets` {to, speed, catalyst, boost}: the setting stage. aux counts down from `life`.
+- `blast` {radius, power, impact, temp, flame, inhibit}: impact triggers from per-cell fall
+  speed, heat, adjacent fire; the like of it within the radius goes off a few ticks later (a
+  wave); a cell of the `inhibit` family touching it holds it back.
+- `absorbs` {to, chance} and `bursts` {at, into}: the swell. The swollen cell keeps the
+  liquid's id in aux; a liquid's `plume` says what a swollen cell of it bursts into.
+- `grows` {over, feed, reach, chance}: Weft's spread.
+- `burn.catalyst`/`burn.boost` (Flux speeds a burn), `burn.wet` (Slick keeps burning on water;
+  Hush still puts it out), and a reaction with chance 0 (it blocks the family rule it would
+  match without doing anything, and doesn't keep cells awake).
+- A reaction that leaves a side as it was no longer rewrites that cell, so a setting cell
+  keeps its timer.
+
+**Numbers and rules that changed.**
+- Impact: Rattle goes off over 240 cells a second of fall speed (about a 32 cell drop; the
+  300 in the table is a 50 cell drop at today's gravity).
+- Slick: `burn.life` tops out at 255 in the engine, so 600 is out. It burns 120 steps at 0.15, at
+  170 degrees (flash point 150), which crawls over a film in about 15 seconds. Thickening at
+  -30 is dropped: nothing in the engine takes a viscosity change from temperature yet.
+- Corrosion: only Sourwater eats Mineral. Sulfur, Sulfur grit and fumes are Corrosive too, and
+  sulfur nodules sit inside Stone, so the family rule as written would dissolve the ground
+  round every deposit. Sourwater + Mineral is 0.004 and spends the acid cell every time (the
+  table's 0.01 with a 0.3 spend needs two rules for one pair); Flux triples it. Sourwater +
+  Water is 0.0003. The Metallic rule is written for Ferrite and Ferrite bars only (the family
+  includes liquid Slag). Sourwater + Weft leaves Water and Rubble. Sourwater + Rattle warms the
+  Rattle by 160 degrees, which sets it off.
+- Quickmire: a Setting mire stage (id 51, Binding) sits between the liquid and Mire stone. The
+  family rule Binding + Granular spreads it at 0.05; the timer is about ten seconds (about
+  three beside Flux). Quickmire and Setting mire leave Flux alone, so the catalyst stays loose.
+- Flux: Hot rock + Water boiling is a temperature rule in A1, so there is no reaction for the
+  catalyst to speed. Flux triples Coal, Coal chunks and Slick burn rates, the setting timer,
+  and the acid rules.
+- Smelting: Ferrite + Flux at 850 degrees or more, 0.02, written for the material pair (Slag is
+  Metallic too). One reaction in 40 forges a 6 x 2 Ferrite bar body (a random 1 in 40, not a
+  count). The bar falls as a body and lies as static Ferrite bar cells once it settles.
+- Glass: Sand's `heats` row (900 to Glass) stands, but a bench pass leaves Sand beside lava at
+  about 120 degrees, so Sand + Molten -> Glass at 0.01 does the work. Glass has no per-cell
+  impact rule: it breaks as a body, with a toughness from its durability of 3 (a 24 x 8 slab
+  dropped 120 cells shatters to Sand).
+- Rime: A1's lava holds 1100, so Rime + Lava -> Rime + Obsidian (0.2) is a reaction, as is
+  Rime + Slag -> crust. Water freezing is plain temperature: Water `cools` at 0 to Ice (id 47,
+  new), Ice melts at 3. Rime alone in open air at 20 degrees lasts well over half a minute.
+- Bloat: only dry Bloat absorbs, and a soaked cell fills one open neighbour too (two or three
+  swollen cells for each Bloat and liquid cell). Swollen Bloat keeps its liquid's id in
+  aux, so it cannot also burn (burning uses aux): a soaked Slick cell bursts into Fire at 100
+  degrees instead of burning for a long time. Dry Bloat kindles at 180.
+- Weft: 0.03 an update (0.003 gave a cell a minute). It needs 5 degrees or more, so Rime stops it,
+  and it withers to Ash at 80. Weft cells update every tick; a patch costs nothing measurable.
+- Hush: life 200 to 255 steps at 0.05 (about 80 seconds of open air). `ages_exposed` on Hush and
+  Wisp: a gas cell with only ground, liquid or its own kind beside it neither ages nor wakes, so
+  a sealed pocket keeps for ever and costs nothing; a layer thins from its exposed face.
+- Slag (id 48) holds no temperature; it freezes to Slag crust at 700 and the crust remelts at 800.
+  Slag + Water gives crust and Steam.
+- Hush + Rattle is the Rattle's `inhibit` field, not a reaction row.
+
+**Home ranges** are blobs and seams (a blob with an `aspect`) in `data/spawn_regions.json`.
+The spawn system has no relational placement, so these are not enforced: against an aquifer roof
+or lining, beside a Sulfur deposit, a vein within 40 cells of lava, a Glass rim round lava, a
+frost halo round a water pocket, a Bloat pocket 20 cells from water. Hush is a blob over cave air
+in the Stone band, Rime a cold blob in Stone (it freezes whatever water it meets), Glass a speckle
+in Hot rock. The Spoil Heap holds a Slick puddle, Flux, a Rime chip and Weft (kept: Alex has not
+asked for Weft to go). Worldgen's arching clears 11 to 382 Stone cells under the new pockets
+per seed (checked on 5, 7, 11, 23); all other cells outside the new regions are unchanged.
+
+**Bench.** `tests/scenario_wave1.gd` runs the twelve demonstrations from "Lab bench
+demonstrations" (the twelfth is a 120 x 60 basin of everything, left for a minute, run on one
+thread and on four, which agree cell for cell). Not yet scripted: the Spoil Heap's Slick puddle
+and Weft near the Hub; both only wake when something wets them.
+
+**Count.** Twelve authored, seven derived (Ice, Slag, Slag crust, Mire stone, Setting mire,
+Swollen bloat, Ferrite bar): 19 new materials, 47 in all. The 25 target for Alpha counts the
+authored twelve, so wave 2 still wants about thirteen.
+

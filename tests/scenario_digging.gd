@@ -199,6 +199,8 @@ func scenario_b() -> void:
 	for _i in 12:
 		t.power = D.POWER_RESERVE
 		secs(D.THUMP_INTERVALS[0])
+	t.power = 0.0   # no 14th blast: let the last throw land before judging where it ended up
+	secs(3.0)
 	print("  after 13 blasts: sank from %d to %d, power %.1f (paid %.1f a blast)" % [y0, t.y, t.power, D.THUMP_COSTS[0]])
 	check(t.y >= y0 + 2 * D.S and not t.flying, "it sinks into its crater and settles (slowly: most of the rubble falls back in without a Hopper)")
 	check(p0 - D.THUMP_COSTS[0] < D.POWER_RESERVE, "a blast costs power")
