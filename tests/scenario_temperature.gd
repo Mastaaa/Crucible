@@ -172,7 +172,7 @@ func scenario_c() -> void:
 	var st := steam_in(sim, box)
 	var w1 := count_in(sim, box, D.WATER)
 	print("  heated the top 4 rows to 120: water %d -> %d, steam %d" % [w0, w1, st])
-	check(st > 0 and w1 <= w0 - st / 2, "the heated water boils off")
+	check(st > 0 and w1 <= w0 - floori(st / 2.0), "the heated water boils off")
 	run(sim, 60 * 40)
 	var back := count_in(sim, box, D.WATER)
 	var hot := 0
@@ -195,7 +195,7 @@ func scenario_d() -> void:
 	run(sim, 60 * 60)
 	var left := count_in(sim, slab, D.HOT_ROCK)
 	print("  placed at %d; a minute in a 20-degree room: %d of %d still hot rock" % [t0, left, slab.get_area()])
-	check(t0 >= 540 and left < slab.get_area() / 4, "hot rock in a cold place cools to stone")
+	check(t0 >= 540 and left < slab.get_area() / 4.0, "hot rock in a cold place cools to stone")
 	# Stone with a lava pool against it.
 	var tub := Rect2i(400, 400, 60, 40)
 	fill(sim, tub.grow(12), D.BEDROCK)
@@ -205,7 +205,7 @@ func scenario_d() -> void:
 	var heated := count_in(sim, Rect2i(tub.position.x, tub.position.y, tub.size.x, 20), D.HOT_ROCK)
 	var near: int = sim.get_temp(tub.get_center().x, tub.position.y + 18)
 	print("  a minute over lava: %d stone cells turned hot rock, the one 2 above it at %d" % [heated, near])
-	check(heated >= tub.size.x / 2 and heated < tub.size.x * 10, "the stone nearest the lava heats into hot rock, the rest stays stone")
+	check(heated >= tub.size.x / 2.0 and heated < tub.size.x * 10, "the stone nearest the lava heats into hot rock, the rest stays stone")
 
 
 func scenario_e() -> void:
@@ -363,7 +363,7 @@ func scenario_k() -> void:
 		run(sim, 600)
 		times.append((Time.get_ticks_usec() - t0) / 600000.0)
 		if every == D.TEMP_EVERY:
-			print("  chunks the pass looks at: %d of %d" % [sim.stat_tchunks, (D.W / 32) * (D.H / 32)])
+			print("  chunks the pass looks at: %d of %d" % [sim.stat_tchunks, (D.W >> 5) * (D.H >> 5)])
 			check(sim.stat_tchunks < 400, "it only looks where heat is moving")
 	print("  %.3f ms a tick with it, %.3f without" % [times[0], times[1]])
 
