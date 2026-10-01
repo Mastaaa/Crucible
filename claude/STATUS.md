@@ -13,6 +13,8 @@ Claude adds a section at its top each phase and doesn't need to read the rest.
 - Next: the Alpha roadmap, A1 first (a per-cell temperature field and family-tag reaction
   rules, with a lab bench mode). Plan and decisions: PROJECT_BRIEF's Alpha roadmap and
   claude/ALPHA_PLAN.md. Nothing in it is implemented yet.
+- A2 spawn regions (branch claude/alpha-spawn-regions-cocmr1, not merged): the table and the Spoil
+  Heap exist; wave 1 materials only need rows in data/spawn_regions.json. See CODE_MAP.
 - Placeholder: A3 cuts the current buildings (Hub, Crucible, Conduits, Lab, Lamp, Strut and
   Bulkhead stay; the Warren becomes the Drone Cage). Phase 10's jacket rules (lava shield,
   quenching, drinking), the tuning numbers tied to Borers and research, and the bot's Borer

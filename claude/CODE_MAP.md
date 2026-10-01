@@ -20,6 +20,9 @@ index as [Stone, Glimmer, Obsidian, Water, Power].
   rows copied), stone lumps, aquifers, glimmer veins, caves, pockets, lava lake,
   chamber, deposits (coal, sulfur), `_ground` (packed dirt, sand, gravel, clay), `_heat`
   (the Magma band's stone to hot rock, last), then `sim.stabilize()`. `_near` reads 4x4 block masks built with native finds.
+- `scripts/spawn_regions.gd` (A2) + `data/spawn_regions.json`: `load_table`, `place(g, w, h, table,
+  seed, ctx, resolve)` paints areas (mound, patch) and spawn rows (home range, hosts, clumps) into
+  worldgen's grid; worldgen calls it once, after `_heat`, and returns its report as `spawned`.
 - `scripts/warren.gd`: static helpers for the Warren, on 4x4 bites (`tick`, `search`
   over bites with `block_counts`, mite `_step`, `_nibble` bursts). As bodies (8d):
   `_gripping`, `loosen` (a mite becomes a creature body), `_fly` (follow it; walk again

@@ -295,6 +295,11 @@ func R(x: int, y: int, w: int, h: int) -> Rect2i:
 
 func fresh() -> void:
 	game.new_game(7)
+	# The Spoil Heap stands on seed 7's surface where these shafts open: clear it.
+	var heap: Rect2i = game.info["spawned"]["areas"].get("spoil_heap", Rect2i())
+	for y in range(heap.position.y, mini(heap.end.y, D.GROUND_Y)):
+		for x in range(heap.position.x, heap.end.x):
+			game.sim.set_cell(x, y, D.AIR)
 	game.paused = true
 	game.reveal_all = true
 	game.drill.enabled = false    # the fixed Drill's banking would muddy the stock checks

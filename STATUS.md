@@ -4,6 +4,20 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A2 spawn regions done: the Spoil Heap (branch claude/alpha-spawn-regions-cocmr1)
+
+`data/spawn_regions.json` names where a material may appear: areas (a mound beside the
+Hub, a patch inside a depth band) and spawn rows (material, area or x/depth home range,
+host materials, clumps, radius, shape). `scripts/spawn_regions.gd` paints them into the
+map before the sim takes it, from its own random stream. The first user is the Spoil
+Heap: a gravel mound 230-290 cells off the Hub (side by seed) with clumps of Sulfur,
+Coal, Clay and Sand standing in for the wave 1 oddities. Rows may name materials that
+don't exist yet (skipped until they do), so wave 1 is a data edit. Existing features
+still come from worldgen.gd; moving them into the table is left alone to keep each
+seed's layout. Seeds 5, 7, 11, 23 are identical outside the Heap (tests/scenario_spawn.gd).
+No engine change. scenario_power and scenario_chemistry clear the Heap in `fresh()`:
+they carve shafts open to the surface where seed 7's Heap stands.
+
 ## Phase 10 done: pacing (the pre-alpha is complete)
 
 Tests: eleven suites end `FAILURES: 0`, with the new scenario_run. The engine changed
