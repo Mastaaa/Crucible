@@ -6,7 +6,7 @@
 cd "$(dirname "$0")/.."
 tests=("$@")
 [ ${#tests[@]} -eq 0 ] && tests=(scenario_power scenario_research scenario_chemistry scenario_light \
-	scenario_digging scenario_warren scenario_collapse scenario_bodies scenario_depth scenario_run engine_compare)
+	scenario_digging scenario_warren scenario_collapse scenario_bodies scenario_depth scenario_temperature scenario_run engine_compare)
 for t in "${tests[@]}"; do
 	out=$(timeout 1200 godot --headless --path . --script "tests/$t.gd" 2>&1)
 	res=$(echo "$out" | grep -E "^FAILURES" | tail -1)

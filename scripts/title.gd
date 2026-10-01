@@ -28,8 +28,8 @@ func _ready() -> void:
 	panel.set_anchors_preset(Control.PRESET_CENTER)
 	panel.offset_left = -190
 	panel.offset_right = 190
-	panel.offset_top = -170
-	panel.offset_bottom = 170
+	panel.offset_top = -190
+	panel.offset_bottom = 190
 	root.add_child(panel)
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 10)
@@ -45,6 +45,10 @@ func _ready() -> void:
 	var start := _button("Start Run")
 	start.pressed.connect(func() -> void: game.start_run(seed_edit.text))
 	vb.add_child(start)
+	var bench := _button("Lab Bench")
+	bench.tooltip_text = "An open room to paint any material into, heat it and cool it, and watch what it does. Never saved."
+	bench.pressed.connect(func() -> void: game.start_bench())
+	vb.add_child(bench)
 	seed_edit = LineEdit.new()
 	seed_edit.placeholder_text = "Seed (blank for a random one)"
 	seed_edit.alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -68,7 +72,7 @@ func apply_layout(vs: Vector2, ui_scale: float) -> void:
 func open() -> void:
 	visible = true
 	note.text = ""
-	if game.live_run and not game.run_lost:
+	if game.live_run and not game.run_lost and not game.bench:
 		continue_button.text = "Continue (seed %d, %s)" % [game.seed_value, _clock(game.game_time)]
 		continue_button.disabled = false
 	else:
@@ -92,7 +96,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE \
 			and game.live_run and not game.run_lost:
 		get_viewport().set_input_as_handled()
-		game.continue_game()
+		if game.bench:
+			game.start_bench()
+		else:
+			game.continue_game()
 
 
 func _button(text: String) -> Button:

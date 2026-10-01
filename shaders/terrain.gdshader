@@ -9,7 +9,7 @@ uniform sampler2DArray grid_tex : filter_nearest, repeat_disable;   // cells, a 
 uniform sampler2DArray aux_tex : filter_nearest, repeat_disable;    // each cell's extra byte, tiled the same
 uniform sampler2D pal_tex : filter_nearest, repeat_disable;    // 256 x 4, one column per material
 uniform sampler2D known_tex : filter_linear, repeat_disable;   // a byte per 4x4 block: explored areas
-uniform sampler2D heat_tex : filter_linear, repeat_disable;    // per block: holding lava
+uniform sampler2D heat_tex : filter_linear, repeat_disable;    // per block: the hottest cell, (degrees + 60) / 6 (A1)
 uniform sampler2D sense_tex : filter_linear, repeat_disable;   // per block: within sensing range of a Drill
 uniform sampler2D vis_tex : filter_linear, repeat_disable;     // per block: shows live (lit and explored)
 uniform sampler2D light_tex : filter_linear, repeat_disable;   // per block: brightness
@@ -26,6 +26,22 @@ ivec3 tile_at(ivec2 c) {
 	return ivec3(c.x & 255, c.y & 255, (c.y >> 8) * tiles_across + (c.x >> 8));
 }
 uniform float reveal_all = 0.0;
+uniform float temp_view = 0.0;                                  // 1: paint the temperature over the map (the lab bench, F6)
+
+// Degrees of a heat texel.
+float degrees_of(float t) {
+	return t * 255.0 * 6.0 - 60.0;
+}
+
+// Cold blue through red and yellow to white, for the temperature view.
+vec3 temp_ramp(float deg) {
+	vec3 c = mix(vec3(0.05, 0.08, 0.35), vec3(0.1, 0.45, 0.85), smoothstep(-40.0, 20.0, deg));
+	c = mix(c, vec3(0.45, 0.2, 0.55), smoothstep(20.0, 120.0, deg));
+	c = mix(c, vec3(0.85, 0.15, 0.1), smoothstep(120.0, 450.0, deg));
+	c = mix(c, vec3(1.0, 0.65, 0.15), smoothstep(450.0, 850.0, deg));
+	c = mix(c, vec3(1.0, 0.97, 0.8), smoothstep(850.0, 1300.0, deg));
+	return c;
+}
 
 // Depth colours were drawn for the 1024-row v2 map; rows scale to it.
 float v2_depth(float y) {
@@ -202,34 +218,23 @@ void fragment() {
 		}
 	}
 
-	// Fog: unexplored cells show as generic rock for their depth. Bedrock is
-	// always visible so the chamber shell (and the gap of its plug) reads from the surface.
+	// Fog (A1): what has never been seen is black. Seen ground shows live while it's
+	// lit, and as last seen, dimmed, while it isn't (above).
 	float k = max(texture(known_tex, UV).r, reveal_all);
-	if (id != 1 && y >= ground_y) {
-		// Unexplored rock: depth tint, per-cell grain and a slow blotchy variation.
-		vec2 q = cf * vec2(0.09, 0.07);
-		float blot = hash12(floor(q)) * 0.6 + hash12(floor(q * 2.3 + 7.0)) * 0.4;
-		vec3 u = unknown_col(y) * (0.86 + blot * 0.28) * (1.0 + j * 0.16);
-		col = mix(u, col, smoothstep(0.3, 0.7, k));
-		// Glimmer glints through the fog now and then, so veins can be planned for.
-		if (k < 0.5 && (flags_of(id) & F_GLINTS) != 0) {
-			float g = hash12(cf * 0.93 + floor(time_s * 1.3 + h * 9.0));
-			col = mix(col, accent_of(id), step(0.92, g) * 0.55);
+	float deg = degrees_of(texture(heat_tex, UV).r);
+	if (y >= ground_y) {
+		// Hot rock glows: faintly warm from about 300, red by lava's heat.
+		if (rock) {
+			float glow = smoothstep(300.0, 1100.0, deg);
+			float pulse = 0.75 + 0.25 * sin(time_s * 1.6 + cf.y * 0.05);
+			col += vec3(0.55, 0.12, 0.02) * glow * pulse * 0.6;
 		}
+		col *= smoothstep(0.3, 0.7, k);
 	}
 
-	// Warning: rock within about 8 cells of lava glows faintly red, even in fog.
-	if (rock || k < 0.5) {
-		vec2 o = vec2(60.0) / vec2(map_size);
-		float hsum = texture(heat_tex, UV).r * 2.0;
-		hsum += texture(heat_tex, UV + vec2(o.x, 0.0)).r;
-		hsum += texture(heat_tex, UV - vec2(o.x, 0.0)).r;
-		hsum += texture(heat_tex, UV + vec2(0.0, o.y)).r;
-		hsum += texture(heat_tex, UV - vec2(0.0, o.y)).r;
-		float glow = smoothstep(0.1, 1.2, hsum);
-		float pulse = 0.75 + 0.25 * sin(time_s * 1.6 + cf.y * 0.05);
-		// Faint in the fog (a hint, not a map); stronger on explored rock.
-		col += vec3(0.55, 0.12, 0.02) * glow * pulse * (k < 0.5 ? 0.22 : 0.45);
+	// The temperature view: the field painted over the map, per 4x4 block.
+	if (temp_view > 0.5 && (k > 0.5 || y < ground_y)) {
+		col = mix(col * 0.35, temp_ramp(deg), 0.75);
 	}
 
 	// Warning: hidden pockets within 16 cells of a Drill show as a faint outline.

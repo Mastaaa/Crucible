@@ -27,8 +27,12 @@ const TILE_SHIFT := 8
 const TILE := 1 << TILE_SHIFT  # the map's textures are cut into tiles this big (the engine's too)
 const DIRS4 := [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]
 const BRUSH_BLAST := -1           # not a material: the brush sets off a blast where you click
+const BRUSH_HEAT := -2            # ... heats what's under it (A1)
+const BRUSH_COOL := -3            # ... cools it
 const BRUSH_MATS := [D.WATER, D.LAVA, D.LOOSE_DIRT, D.RUBBLE, D.DIRT, D.PACKED_DIRT, D.GRAVEL, D.SAND,
-		D.CLAY, D.STONE, D.COAL, D.SULFUR, D.FIRE, D.STEAM, BRUSH_BLAST, D.AIR]
+		D.CLAY, D.STONE, D.COAL, D.SULFUR, D.FIRE, D.STEAM, BRUSH_HEAT, BRUSH_COOL, BRUSH_BLAST, D.AIR]
+const BRUSH_DEGREES := 30         # what the heat and cool brushes add a frame
+const BRUSH_R_MAX := 40
 const SPEEDS := [1, 2, 4]
 const TICK_BUDGET_US := 25000       # most of a frame the sim may take at a raised speed
 const LINE_MAX := 40                # most buildings one drag lays out
@@ -239,7 +243,11 @@ var pan_last := Vector2.ZERO
 var show_network := false
 var brush_mode := false
 var brush_idx := 0
+var brush_r := 3                  # the brush's radius, in cells (Shift + [ ])
 var painting := 0
+var bench := false                # the lab bench (A1): an open room to paint and heat, never saved
+var bench_mats: Array = []        # what the bench's brush offers: every material, then the tools
+var temp_view := false            # the temperature painted over the map (F6)
 var show_perf := false
 var perf_sim_ms := 0.0
 var perf_tick_ms := 0.0
@@ -431,6 +439,7 @@ func _reset(s: int) -> void:
 	plans.clear()
 	next_line = 1
 	drag_from = Vector2i(-1, -1)
+	bench = false
 
 
 ## A new run on the world just made: the Hub, the Crucible, the fixed Drill and
@@ -492,7 +501,7 @@ func make_packet() -> Packet:
 ## it's lost (losing erases it).
 func save_run() -> bool:
 	save_clock = 0.0
-	if headless or run_lost or not live_run:
+	if headless or run_lost or not live_run or bench:
 		return false
 	return Save.write(self)
 
@@ -530,12 +539,51 @@ func start_run(seed_text: String) -> void:
 	_close_title()
 
 
-## Continue: back to the run in hand, or the saved one.
+## Continue: back to the run in hand, or the saved one (from the bench too).
 func continue_game() -> bool:
-	if not live_run and not continue_run():
+	if (bench or not live_run) and not continue_run():
 		return false
 	_close_title()
 	return true
+
+
+## The lab bench (A1): back to the one in hand, or a fresh one. An open room over
+## a bedrock floor with the Hub on its pad, the whole map known, the brush in hand
+## with every material and the heat and cool brushes; it never touches the save.
+func start_bench(fresh := false) -> void:
+	if not bench or fresh:
+		sim = SimFactory.create()
+		sim.set_seed(1)
+		_label_sim()
+		sim.set_ambient(D.ambient_rows(D.BENCH_AMBIENT))
+		info = WorldGen.new().bench(sim)
+		_reset(0)
+		bench = true
+		_start()
+		drill.enabled = false
+		reveal_all = true
+		brush_mode = true
+		brush_r = 6
+		bench_mats = _bench_mats()
+		brush_idx = maxi(bench_mats.find(D.WATER), 0)
+		_center_on(D.GROUND_Y + 40.0, true, D.W * 0.5)
+		if hud:
+			hud.on_new_game()
+	if title != null and title.visible:
+		_close_title()
+
+
+## Every material the bench's brush offers, by id (not steam's later stages, a
+## building's cells or a mite), then the heat, cool and blast tools.
+func _bench_mats() -> Array:
+	var out: Array = []
+	for m in 256:
+		var nm := D.mat_name(m)
+		if nm == "Unknown" or m == D.BUILDING or m == D.MITE or (m > D.STEAM and m <= D.STEAM_LAST):
+			continue
+		out.append(m)
+	out.append_array([BRUSH_HEAT, BRUSH_COOL, BRUSH_BLAST])
+	return out
 
 
 func quit_game() -> void:
@@ -577,6 +625,10 @@ func _loaded() -> void:
 	stale_tiles.clear()
 	stale_mem.clear()
 	mem_due = true
+	if info.get("bench", false):
+		bench = true
+		sim.set_ambient(D.ambient_rows(D.BENCH_AMBIENT))
+		bench_mats = _bench_mats()
 	sim.refresh_heat(true)
 	sim.changed = true
 	_rebuild_network()
@@ -798,6 +850,7 @@ func _upload() -> void:
 		terrain_mat.set_shader_parameter("use_light", 1.0 if has_light else 0.0)
 		light_due = false
 	terrain_mat.set_shader_parameter("reveal_all", 1.0 if reveal_all else 0.0)
+	terrain_mat.set_shader_parameter("temp_view", 1.0 if temp_view else 0.0)
 
 
 # ================================================================================
@@ -4144,16 +4197,32 @@ func speed() -> int:
 	return SPEEDS[speed_idx]
 
 
+## What the brush cycles through: every material on the bench, the sandbox's short list otherwise.
+func brush_list() -> Array:
+	return bench_mats if bench and not bench_mats.is_empty() else BRUSH_MATS
+
+
 func brush_material() -> int:
-	return BRUSH_MATS[brush_idx]
+	var list := brush_list()
+	return list[brush_idx % list.size()]
 
 
 func brush_name() -> String:
 	var m := brush_material()
-	return "Blast (click)" if m == BRUSH_BLAST else D.mat_name(m)
+	match m:
+		BRUSH_BLAST:
+			return "Blast (click)"
+		BRUSH_HEAT:
+			return "Heat (+%d a frame)" % BRUSH_DEGREES
+		BRUSH_COOL:
+			return "Cool (-%d a frame)" % BRUSH_DEGREES
+	return D.mat_name(m)
 
 
 func restart(same_seed: bool) -> void:
+	if bench:
+		start_bench(true)
+		return
 	new_game(seed_value if same_seed else randi() % 100000)
 	_center_on(hub.center().y + view_rows() * 0.2, true, hub.center().x)
 
@@ -4381,17 +4450,22 @@ func _key(e: InputEventKey) -> void:
 		show_perf = not show_perf
 	elif k == KEY_F5:
 		restart(not e.shift_pressed)
+	elif k == KEY_F6:
+		temp_view = not temp_view
 	elif k == KEY_F9:
 		brush_mode = not brush_mode
 		tool_type = -1
 		if brush_mode:
-			show_banner("Sandbox brush: left paints, right erases, [ ] change material (Blast: click). F9 to exit.", 4.0)
+			show_banner("Sandbox brush: left paints, right erases, [ ] change material, Shift + [ ] its size (Blast: click). F9 to exit.", 4.0)
 	elif k == KEY_F10:
 		reveal_all = not reveal_all
-	elif k == KEY_BRACKETLEFT:
-		brush_idx = (brush_idx + BRUSH_MATS.size() - 1) % BRUSH_MATS.size()
-	elif k == KEY_BRACKETRIGHT:
-		brush_idx = (brush_idx + 1) % BRUSH_MATS.size()
+	elif k == KEY_BRACKETLEFT or k == KEY_BRACKETRIGHT:
+		var step := 1 if k == KEY_BRACKETRIGHT else -1
+		if e.shift_pressed:
+			brush_r = clampi(brush_r + step * maxi(1, floori(brush_r / 4.0)), 1, BRUSH_R_MAX)
+		else:
+			var n := brush_list().size()
+			brush_idx = (brush_idx + n + step) % n
 	elif k == KEY_EQUAL or k == KEY_KP_ADD:
 		set_zoom(zoom * ZOOM_STEP)
 	elif k == KEY_MINUS or k == KEY_KP_SUBTRACT:
@@ -4443,14 +4517,23 @@ func _update_demolish(delta: float) -> void:
 
 
 ## The sandbox brush. Fire lights what can burn and fills open space with
-## flames; everything else replaces what's there (not buildings or bedrock).
+## flames; heat and cool change the temperature under it; everything else
+## replaces what's there (not buildings or bedrock).
 func _paint(c: Vector2i, erase: bool) -> void:
-	var m: int = D.AIR if erase else BRUSH_MATS[brush_idx]
+	var m: int = D.AIR if erase else brush_material()
+	var r := brush_r
 	if m == BRUSH_BLAST:
 		return
-	for oy in range(-3, 4):
-		for ox in range(-3, 4):
-			if ox * ox + oy * oy > 9:
+	if m == BRUSH_HEAT or m == BRUSH_COOL:
+		sim.heat_circle(c.x, c.y, r, BRUSH_DEGREES if m == BRUSH_HEAT else -BRUSH_DEGREES)
+		return
+	if m != D.FIRE:
+		sim.paint_circle(c.x, c.y, r, m, true)
+		reveal(Vector2(c), 8.0 + r)
+		return
+	for oy in range(-r, r + 1):
+		for ox in range(-r, r + 1):
+			if ox * ox + oy * oy > r * r:
 				continue
 			var x := c.x + ox
 			var y := c.y + oy

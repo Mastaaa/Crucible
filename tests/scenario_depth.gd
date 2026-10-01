@@ -72,6 +72,15 @@ func fill(r: Rect2i, m: int) -> void:
 			game.sim.set_cell(x, y, m)
 
 
+## A1: hot rock this near the surface cools to stone within half a minute. Rows
+## holding a set-piece's hot rock get the Magma band's ambient, so it stays hot.
+func keep_hot(r: Rect2i) -> void:
+	var rows := D.ambient_rows()
+	for y in range(r.position.y - 4, r.end.y + 4):
+		rows[y] = D.AMBIENT_MAGMA
+	game.sim.set_ambient(rows)
+
+
 func count(r: Rect2i, m: int) -> int:
 	var n := 0
 	for y in range(r.position.y, r.end.y):
@@ -215,6 +224,7 @@ func scenario_c() -> void:
 	var hot_row := r0 - 60
 	var hot := Rect2i(d.x, D.GROUND_Y + hot_row, d.w, 2 * S)
 	fill(hot, D.HOT_ROCK)
+	keep_hot(hot)
 	secs(20.0)
 	print("  on hot rock: reach %d, stopped above row %d: '%s'" % [d.reach, hot_row, d.stuck])
 	check(d.reach == hot_row and count(hot, D.HOT_ROCK) == hot.get_area() and d.stuck.begins_with("Hot rock"),
@@ -245,6 +255,7 @@ func scenario_d() -> void:
 	research("borer")
 	fill(R(110, 40, 13, 60), D.DIRT)
 	fill(R(118, 50, 3, 2), D.HOT_ROCK)
+	keep_hot(R(118, 50, 3, 2))
 	var b = build(D.B_BORER, R(118, 37, 3, 3), 0)
 	if b == null:
 		return
@@ -259,6 +270,7 @@ func scenario_d() -> void:
 	fill(R(110, 40, 13, 60), D.DIRT)
 	var hot := R(118, 60, 3, 3)
 	fill(hot, D.HOT_ROCK)
+	keep_hot(hot)
 	b = build(D.B_BORER, R(118, 37, 3, 3), 0)
 	for _i in 20:
 		if b.mode != 2:
