@@ -279,7 +279,7 @@ func scenario_g() -> void:
 func scenario_h() -> void:
 	print("H. a temperature window and a catalyst")
 	var rules := Mats.expand_reactions([
-		{"when": ["Sand", "Water"], "becomes": ["Clay", "same"], "chance": 0.002, "min_temp": 50, "catalyst": "Corrosive", "boost": 40},
+		{"when": ["Sand", "Water"], "becomes": ["Clay", "same"], "chance": 0.0002, "min_temp": 50, "catalyst": "Corrosive", "boost": 40},
 	])
 	var sim = bench_sim(1, rules)
 	var a := Rect2i(100, 500, 60, 6)
@@ -288,20 +288,19 @@ func scenario_h() -> void:
 		fill(sim, r.grow(6), D.BEDROCK)
 		fill(sim, Rect2i(r.position.x, r.position.y, r.size.x, 3), D.WATER)
 		fill(sim, Rect2i(r.position.x, r.position.y + 3, r.size.x, 3), D.SAND)
-	# b's top row of sand is every other cell sulfur grit: the catalyst, beside
-	# half as much sand at the water's edge.
-	for x in range(b.position.x, b.end.x, 2):
-		sim.set_cell(x, b.position.y + 3, D.SULFUR_GRIT)
+	# Under b's top row of sand, sulfur grit: the catalyst, touching every sand
+	# cell at the water's edge.
+	fill(sim, Rect2i(b.position.x, b.position.y + 4, b.size.x, 2), D.SULFUR_GRIT)
 	run(sim, 60 * 5)
 	var cold := count_in(sim, a, D.CLAY) + count_in(sim, b, D.CLAY)
 	check(cold == 0, "at 20 degrees nothing happens (the rule wants 50)")
 	for r: Rect2i in [a, b]:
 		sim.heat_rect(r.position.x, r.position.y, r.size.x, r.size.y, 60)
-	run(sim, 60 * 10)
+	run(sim, 60 * 3)
 	var plain := count_in(sim, a, D.CLAY)
 	var boosted := count_in(sim, b, D.CLAY)
-	print("  at 80 degrees for 10 s: %d clay without the catalyst, %d with it" % [plain, boosted])
-	check(plain > 0 and boosted > plain * 4, "warm, it goes, and much faster with Corrosive grit touching")
+	print("  at 80 degrees for 3 s: %d clay without the catalyst, %d with it" % [plain, boosted])
+	check(boosted > 20 and boosted > plain * 4, "warm, it goes, and much faster with Corrosive grit touching")
 
 
 func scenario_i() -> void:

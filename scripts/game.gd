@@ -439,6 +439,10 @@ func _reset(s: int) -> void:
 	plans.clear()
 	next_line = 1
 	drag_from = Vector2i(-1, -1)
+	if bench:
+		reveal_all = false
+		brush_mode = false
+		temp_view = false
 	bench = false
 
 
