@@ -14,6 +14,10 @@ Claude adds a section at its top each phase and doesn't need to read the rest.
   Before it: A1, temperature and reactions (every cell has a temperature, reactions name
   families, the Lab Bench on the title screen paints any material and shows the field with F6,
   unseen ground is black); phase 10 and everything before it are in `main`.
+- A3 machine framework core (PR #5): modules as rigid bodies with typed faces, casing
+  integrity, breach and wreckage, in scripts/machines/ and native/src/modules.cpp. Test
+  modules only; the module groups build on it. Casing melting and corrosion are still
+  TODO (casing.gd), now that A1's temperature field exists.
 - A3 goal layer v1 (in `main`, PR #4): `scripts/goals.gd` + `data/instructions.json`
   (Hub orders, skippable tutorial, chapters, per-tier research goods), `scripts/goals_panel.gd`,
   Hub trickle 2 -> 0.2 power/s, `game.goals` in the save. Tutorial steps are written against
@@ -43,8 +47,8 @@ Claude adds a section at its top each phase and doesn't need to read the rest.
   through hot rock lose Conduits to it; the bot relays them).
 
 ## Test baseline (all must hold before committing)
-- `bash native/run_tests.sh` (about 8 minutes): every scenario (fourteen, with
-  scenario_temperature, scenario_goals, scenario_spawn and scenario_wave1) and engine_compare end `FAILURES: 0`. Suites
+- `bash native/run_tests.sh` (about 8 minutes): every scenario (fifteen, with
+  scenario_temperature, scenario_goals, scenario_spawn, scenario_wave1 and scenario_modules) and engine_compare end `FAILURES: 0`. Suites
   that build deep set-pieces fix their rows' ambient: scenario_depth's `keep_hot` (hot rock near the
   surface), scenario_bodies' `keep_cool` (a pool in the Magma band).
 - Temperature pass (A1): every 8 ticks, 150 to 200 of the map's 3840 chunks awake in a

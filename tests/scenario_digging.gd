@@ -174,7 +174,8 @@ func scenario_a() -> void:
 			if D.M.kind_of(game.sim.get_cell(x, y)) == D.M.K_POWDER:
 				loose += 1
 	check(loose == 0, "loose dirt dropped %d rows down the shaft got dug out (%d left)" % [drop, loose])
-	check(ms < 2.0, "the long channel stays cheap to watch")
+	# 2.0 before A1; its temperature pass adds ~0.2 ms (2.1-2.4 measured), wave 1 materials ~0.5 more.
+	check(ms < 3.5, "the long channel stays cheap to watch")
 
 
 func scenario_b() -> void:

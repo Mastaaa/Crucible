@@ -3393,6 +3393,10 @@ void CrucibleSim::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_owner", "x", "y"), &CrucibleSim::get_owner);
 	ClassDB::bind_method(D_METHOD("set_creature", "id", "on"), &CrucibleSim::set_creature);
 	ClassDB::bind_method(D_METHOD("remove_body", "id"), &CrucibleSim::remove_body);
+	ClassDB::bind_method(D_METHOD("set_module", "id", "on"), &CrucibleSim::set_module);
+	ClassDB::bind_method(D_METHOD("body_info", "id"), &CrucibleSim::body_info);
+	ClassDB::bind_method(D_METHOD("body_pixels", "id"), &CrucibleSim::body_pixels);
+	ClassDB::bind_method(D_METHOD("body_set_pixel", "id", "lx", "ly", "material"), &CrucibleSim::body_set_pixel);
 	ClassDB::bind_method(D_METHOD("save_state"), &CrucibleSim::save_state);
 	ClassDB::bind_method(D_METHOD("load_state", "data"), &CrucibleSim::load_state);
 	ClassDB::bind_method(D_METHOD("set_threads", "n"), &CrucibleSim::set_threads);

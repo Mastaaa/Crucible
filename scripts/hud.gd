@@ -4,6 +4,7 @@ extends CanvasLayer
 
 const D = preload("res://scripts/defs.gd")
 const Building = preload("res://scripts/building.gd")
+const MC = preload("res://scripts/machines/machines.gd")
 const Goals = preload("res://scripts/goals.gd")
 const GoalsPanel = preload("res://scripts/goals_panel.gd")
 
@@ -362,6 +363,7 @@ func _build_left() -> void:
 				game.select_tool(type))
 		vb.add_child(b)
 		build_buttons.append(b)
+	MC.add_build_buttons(self, vb)
 	info_panel = PanelContainer.new()
 	info_panel.visible = false
 	left_col.add_child(info_panel)

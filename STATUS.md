@@ -6,7 +6,7 @@ Claude reads each session is claude/STATUS.md.
 
 ## A2 done: wave 1 materials
 
-Tests: fourteen suites end `FAILURES: 0` (scenario_wave1 and scenario_spawn are new). The engine
+Tests: fifteen suites end `FAILURES: 0` (scenario_wave1 and scenario_spawn are new). The engine
 changed (new material behaviours): close Godot before pulling, restart after.
 
 What's new:
@@ -25,6 +25,23 @@ What's new:
   Spoil Heap gets a Slick puddle, Flux, a Rime chip and Weft). They do not yet sit against
   aquifers or lava as the spec says: the table has no relational placement.
 - Wave 1 numbers that changed from the spec are listed in claude/WAVE1_MATERIALS.md ("Built as").
+
+## A3 part: machine framework core
+
+Tests: every suite ends `FAILURES: 0`, with the new scenario_modules. The engine changed
+(module bodies; the save flags them): close Godot before pulling, restart after.
+
+- A module is a rigid body whose walls are real cells of a casing material (Obsidian
+  stands in until A1's casing list). It never settles back into ground.
+- Faces are typed (pixel, power, mechanical, signal). Two faces of one type and width
+  that touch square on, at a multiple of 90 degrees, join: both open (their wall pixels
+  leave the casing) and close again when the contact ends.
+- Integrity is the share of the designed casing left. A hole through the wall's full
+  thickness is a breach and spills the contents out of it; under half, the module is
+  wreckage (an ordinary body) and drops everything.
+- Placement is at 90 degrees (R turns it); bodies turn freely afterwards.
+- Three throwaway test modules (Box, Plug, Cap) sit at the end of the Build list. No real
+  catalogue yet, and the legacy buildings are untouched.
 
 ## A1 done: temperature and reactions
 

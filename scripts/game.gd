@@ -7,6 +7,7 @@ extends Node2D
 
 const D = preload("res://scripts/defs.gd")
 const WR = preload("res://scripts/warren.gd")
+const MC = preload("res://scripts/machines/machines.gd")
 const Goals = preload("res://scripts/goals.gd")
 const SimFactory = preload("res://scripts/sim_factory.gd")
 const Mats = preload("res://scripts/materials.gd")
@@ -102,6 +103,10 @@ var fallers: Array = []           # buildings falling right now
 var fliers: Array = []            # Thumpers in the air, or being dragged
 var crushed := {}                 # body id -> {link key: true} for the links it has already hit
 var mite_bodies := {}             # body id -> the mite (Dictionary) that is that body
+var modules := {}                 # module id -> its state (machines/machines.gd)
+var next_module := 1
+var module_pick := ""             # a module being placed (its id), or ""
+var module_turns := 0
 var body_seen := {}               # body id -> cells x speed, as of body_seen_tick
 var body_seen_tick := -1
 var scan_stale := false           # a mover changed its link: rebuild the scan lists soon
@@ -380,6 +385,7 @@ func _reset(s: int) -> void:
 	fliers.clear()
 	crushed.clear()
 	mite_bodies.clear()
+	MC.reset(self)
 	body_seen.clear()
 	body_seen_tick = -1
 	scan_stale = false
@@ -701,6 +707,7 @@ func _tick() -> void:
 	sim.step()
 	var t1 := Time.get_ticks_usec()
 	_bodies()
+	MC.tick(self)
 	if ticks % 2 == 0:
 		sim.erode(D.ERODE_SAMPLES, D.GROUND_Y + 6 * D.S, D.LAYERS[1]["bottom"] + 150)
 	sim.weather(D.WEATHER_SAMPLES)
@@ -4157,6 +4164,7 @@ func select_tool(type: int) -> void:
 		show_banner("%s isn't researched yet (T opens Research)." % D.B_NAMES[type], 2.5)
 		return
 	tool_type = type
+	module_pick = ""
 	sensor_mode = false
 	brush_mode = false
 	selected = null
@@ -4177,6 +4185,7 @@ func select_tool(type: int) -> void:
 
 func cancel_tool() -> void:
 	tool_type = -1
+	module_pick = ""
 	drag_from = Vector2i(-1, -1)
 	sensor_mode = false
 
@@ -4347,6 +4356,8 @@ func _mouse_button(e: InputEventMouseButton) -> void:
 
 
 func _left_press() -> void:
+	if MC.click(self, hover):
+		return
 	if brush_mode:
 		if brush_material() == BRUSH_BLAST:
 			if hover.x >= 2 and hover.x < D.W - 2 and hover.y >= 2 and hover.y < D.H - 2:
@@ -4420,6 +4431,8 @@ func _left_release() -> void:
 
 func _key(e: InputEventKey) -> void:
 	var k := e.keycode
+	if MC.key(self, k):
+		return
 	var idx := D.PALETTE_KEYS.find(OS.get_keycode_string(k))
 	if idx >= 0:
 		if is_unlocked(D.PALETTE[idx]):
