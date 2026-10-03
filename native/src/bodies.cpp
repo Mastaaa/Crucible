@@ -623,7 +623,7 @@ bool CrucibleSim::body_tick(Body &b) {
 		b.ay = b.y;
 		b.aa = b.a;
 	}
-	if (!b.creature && (b.rest >= REST_TICKS || b.age >= MAX_AGE)) {
+	if (!b.creature && !b.module && (b.rest >= REST_TICKS || b.age >= MAX_AGE)) {
 		settle_body(b);
 		return false;
 	}
