@@ -206,12 +206,13 @@ sense (30), vision/light (15), Crucible. The engine's temperature pass runs insi
   `heat_circle` for Heat and Cool); `bench`, `brush_r`, `temp_view` (F6; the shader's
   `temp_view`). `_reset` turns the bench's reveal, brush and view off.
 
-## The quarry bot (tests/autoplay.gd, A3 cut)
+## The quarry bot (tests/autoplay.gd, A3 cut, A4 flags)
 A pacing probe, not a run. Flattens a strip left of the Hub, then each second places Nodes down
 it (blueprints fill by packet), the rig (Cutter, Tank, Funnel, Winch), a Lab and a Windmill,
-and picks research from `ORDER`; prints the tutorial steps, research and the 500-row depth
-marks (`--seed`, `--max`, `--quiet`). The phase 10 bot (Borers, Conduit logistics, checkpoints)
-is gone; the full bot comes back at the end of A4.
+and picks research from `ORDER`; prints the tutorial steps, research, non-info alerts and the
+500-row depth marks (`--seed`, `--max`, `--quiet`). `--cheat` starts with Drill Bit 5, Drill Shaft 8
+and Tank Size 3 and holds the Hub's power at 100, so it tests the machines, not the economy.
+`--dump` prints the rig's modules and a look at the shaft above the Tank (`_look_above`).
 
 ## Tests: the usual harness
 `extends SceneTree`; `_initialize` instantiates `scenes/main.tscn`; `_process` runs the

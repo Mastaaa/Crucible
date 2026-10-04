@@ -6,7 +6,7 @@ history (what shipped when, old numbers, test notes) is the root STATUS.md:
 Claude adds a section at its top each phase and doesn't need to read the rest.
 
 ## Handoff
-- Last done: A4 part 7, the Drone Cage (`haulers/drone_cage.gd`; four drones fetch loose powder from a square round the cage, a click changes the square; scenario_haulers). Before it: A4 part 6, Chute and Conveyor (`logistics/chute.gd` a `pass` pipe; `logistics/conveyor.gd` a belt: powder queue with travel time, bodies driven with `drive_body`, click reverses; scenario_logistics; Bus Hopper to A5). Before it: A4 part 5, Macerator and Press (`processing/macerator.gd` grinds loose bodies at its mouth to what they shatter to and passes it on; `processing/press.gd` squeezes powder into a 96 cell block body; `M.ground_of`, `M.pressed_of`; scenario_processing). Before it: A4 part 4, the tethered Thumper (engine `explode_cone`, `bin/` rebuilt; `excavation/thumper.gd`; the Winch runs a lower / lift / drop cycle for a Thumper load in `winch._thump`, plowing rubble under it as it lowers; scenario_excavators E). Before it: A4 part 3, the full Cutter and the Laser Excavator (Hot rock at Drill Bit 4, a mount face on the
+- Last done: A4 end, the bot (`--cheat`, alerts, shaft look; tests/autoplay.gd) and what it found: a cheated bot stalls at depth 803 (oil stops the Cutter, then a flooded, caved-in shaft plugs the climb); the fair-pace bot loses its Cutter to cave-ins at 67 min. The Magma-band goal is open, see "Known issues" below. Before it: A4 part 7, the Drone Cage (`haulers/drone_cage.gd`; four drones fetch loose powder from a square round the cage, a click changes the square; scenario_haulers). Before it: A4 part 6, Chute and Conveyor (`logistics/chute.gd` a `pass` pipe; `logistics/conveyor.gd` a belt: powder queue with travel time, bodies driven with `drive_body`, click reverses; scenario_logistics; Bus Hopper to A5). Before it: A4 part 5, Macerator and Press (`processing/macerator.gd` grinds loose bodies at its mouth to what they shatter to and passes it on; `processing/press.gd` squeezes powder into a 96 cell block body; `M.ground_of`, `M.pressed_of`; scenario_processing). Before it: A4 part 4, the tethered Thumper (engine `explode_cone`, `bin/` rebuilt; `excavation/thumper.gd`; the Winch runs a lower / lift / drop cycle for a Thumper load in `winch._thump`, plowing rubble under it as it lowers; scenario_excavators E). Before it: A4 part 3, the full Cutter and the Laser Excavator (Hot rock at Drill Bit 4, a mount face on the
   Cutter, `rig_of` and `powered` set by every mover, `excavation/laser.gd` with Filler; scenario_excavators).
   Before it: A4 part 2, Turntable (`movers/turntable.gd`; the engine's `drive_body` gained a spin, `bin/`
   rebuilt; `MU.drive` takes a spin; the hub holds each joined module on its pose in the hub's frame and stops
@@ -57,7 +57,7 @@ Claude adds a section at its top each phase and doesn't need to read the rest.
     across a load); scenario_run allows 1.5.
   - The Node-as-module question (A3's plan) is settled the cheap way: Node stays a structure
     because the packet network, repairs and fog sight hang off it.
-- Next: A4, last piece: the test and bot rewrite (the bot digs from the surface to the Magma band).
+- Next: Alex decides what answers the shaft hazards (see the bot findings in STATUS.md, "A4 end"), then A5 (needs Alex's separate go).
   Plan: claude/ALPHA_PLAN.md. The spawn-region system and the Spoil Heap are in `main` (PR #6).
   The wave 1 rows only place pockets and seams by depth band, with no placement relative to
   aquifers, lava or Sulfur (the table has none); A6's biomes can do better.
@@ -103,10 +103,10 @@ Claude adds a section at its top each phase and doesn't need to read the rest.
   pockets). It costs about 0.2 ms a tick: a fresh game's bare `sim.step` went from about
   0.1 to 0.3 ms, measured against main on the same container. A loaded run steps exactly
   as the saved one (the pass's awake chunks are saved too).
-- Quarry bot (tests/autoplay.gd, seed 7, rig left of the Hub): Drill Bit at 4:26, depth 210 at 5:00,
-  306 at 10:00, 452 at 14:00, then the rig stalls on the way up with a full Tank and stays there
-  (the same stall on main 0a6bcb8 with the same rig); 11 techs by 1:03. About 7 minutes of real time
-  for 90 of game time. Built right of the Hub the rig reaches about 265 and crawls.
+- Quarry bot (tests/autoplay.gd, seed 7, rig left of the Hub, A4): fair pace, Drill Bit at 4:26, depth 500 at
+  23:20, about 640 at 55:00, Weft at 61:00, cave-ins from depth 600 up the shaft, Cutter lost at 67:00. `--cheat`:
+  depth 803 at about 20 minutes, then halted by Slick (oil) and jammed on the climb by a plug of static rock
+  and water. About 7 minutes of real time for 90 of game time; a 6 hour cheated run takes about 25.
 - Network bench (tests/bench_net.gd, Nodes and Bulkheads only since the cut): 368 buildings, a rebuild in
   about 22 ms and 3.5 to 6.5 ms a tick over the first minute on this container.
 - `tests/prof_scale.gd`: a fresh game ticks in about 0.7 ms (1.3 ms on a slower
