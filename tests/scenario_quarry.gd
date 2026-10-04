@@ -10,12 +10,15 @@ extends SceneTree
 ##  D. the Windmill makes power in open sky (and not under a roof or out of network reach)
 ##  E. placement: the Build list's click snaps onto a free face and charges the cost
 ##  F. a save keeps the rig, and it goes on after loading
+##  G. loose sand slumped into the shaft behind the rig (the seed 7 jam): the Tank's hook stays
+##     shut, and the rig ploughs up through the sand to the Funnel instead of jamming
 ## Run: godot --headless --path . --script tests/scenario_quarry.gd
 
 const D = preload("res://scripts/defs.gd")
 const F = preload("res://scripts/machines/faces.gd")
 const MC = preload("res://scripts/machines/machines.gd")
 const Save = preload("res://scripts/save.gd")
+const M = preload("res://scripts/materials.gd")
 var game: Node
 var f := 0
 var fails := 0
@@ -43,6 +46,7 @@ func _process(_d: float) -> bool:
 		scenario_d()
 		scenario_e()
 		scenario_f()
+		scenario_g()
 		print("FAILURES: %d" % fails)
 		return true
 	return false
@@ -262,3 +266,31 @@ func scenario_f() -> void:
 	secs(15.0)
 	check(w2["cable"] > c0 + 5.0 or w2["state"] != "down", "and carries on (cable %.0f to %.0f, %s)" % [c0, w2["cable"], w2["state"]])
 	check(game.modules.size() == 4, "all four modules are still modules")
+
+
+func scenario_g() -> void:
+	print("G. sand behind the rig")
+	fresh()
+	var r := build_rig()
+	var w := winch_of(r)
+	var tank: Dictionary = game.modules[r["tank"]]
+	check(not tank["faces"][1]["open"] and tank["faces"][1]["link_m"] == r["winch"], "the Tank's hook is joined to the Winch and its casing stays shut")
+	game.levels["tank_size"] = 1        # a longer trip, so the roof is well down the shaft by the time it fills
+	check(until(func() -> bool: return w["cable"] > 60.0, 150.0), "the rig goes down the shaft (%.0f cells)" % w["cable"])
+	# A slump: the shaft above the Tank fills with sand, over the rig's clearance too.
+	var top := int(MC.bounds(tank).position.y)
+	var sand := 31
+	var laid := 0
+	for y in range(SURFACE + 1, top):
+		for x in range(X0 - 4, X0 + 30):
+			if game.sim.get_cell(x, y) == D.AIR and game.sim.get_owner(x, y) == 0:
+				game.sim.set_cell(x, y, sand)
+				laid += 1
+	check(laid > 200, "(%d cells of sand laid in the shaft)" % laid)
+	check(until(func() -> bool: return w["state"] == "up", 90.0), "the Tank fills and the Winch hauls up")
+	check(until(func() -> bool: return w["state"] == "docked", 120.0), "the rig gets through the sand and docks (cable %.0f, %s)" % [w["cable"], w["why"]])
+	check(w.get("plowed", 0) > 0, "by clearing loose powder off its path (%d cells)" % w.get("plowed", 0))
+	var tb := MC.bounds(tank)
+	var inside: int = game.sim.count_in_rect(tb.position.x + 2, tb.position.y + 2, tb.size.x - 4, tb.size.y - 4, M.mask("powder"))
+	check(inside == 0, "and no sand got into the Tank's hollow (%d cells)" % inside)
+	game.levels["tank_size"] = 0

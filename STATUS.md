@@ -4,6 +4,22 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A3 part: quarry rig jam fix
+
+Tests: fourteen scenarios and engine_compare end `FAILURES: 0`; scenario_quarry gains G (sand behind the
+rig). The engine did not change, so `bin/` is as it was and Godot need not be closed before pulling.
+
+- The seed 7 rig no longer stalls "jammed on the way up" at about row 450 (it did on main before the
+  cut too). Loose sand slumped into the shaft behind the rig, lodged in the Tank through its open hook
+  hole and piled on its roof, and bodies can't push powder, so the rig could not lift it.
+- A cable's hook now stays shut (the Winch's join no longer opens the Tank's casing), and the Winch
+  ploughs loose powder (never rock) out of the rig's path on the way up. The spoil is lost. A rig
+  under a rubble of loose powder gets through the same way; a static plug or a rigid body above it
+  would still jam it.
+- With the jam gone the quarry bot on seed 7 reaches depth 500 at 23:20 and goes on to 600. It still
+  has not delivered 30 Stone after 90 game-minutes (25 Stone): that is pacing (a trip banks a few Stone
+  and the rig waits on power shared with the Lab), tuning for the end of Alpha.
+
 ## A3 part: the legacy cut
 
 Tests: fourteen scenarios and engine_compare end `FAILURES: 0` (scenario_digging and scenario_warren are

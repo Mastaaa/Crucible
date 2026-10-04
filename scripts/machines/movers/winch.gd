@@ -8,8 +8,10 @@ extends RefCounted
 
 const MU = preload("res://scripts/machines/mu.gd")
 const D = preload("res://scripts/defs.gd")
+const M = preload("res://scripts/materials.gd")
 
 const EMPTY := 0.02             # a Tank this full or less counts as empty
+const PLOW_AHEAD := 2           # rows above the rig's modules cleared of loose powder on the way up
 
 
 # --- The rig ---------------------------------------------------------------------
@@ -142,6 +144,8 @@ static func step(g, m: Dictionary, def: Dictionary) -> void:
 			else:
 				why = "Waiting for power."
 	m["why"] = why
+	if v < 0.0:
+		_plow(g, m)
 	for id: int in m["rig"]:
 		var mm: Dictionary = g.modules.get(id, {})
 		if not mm.is_empty():
@@ -160,6 +164,23 @@ static func step(g, m: Dictionary, def: Dictionary) -> void:
 			else:
 				m["why"] = "The rig is jammed on the way up."
 	m["last_cable"] = m["cable"]
+
+
+## A rig hauled up shoves loose powder out of its way. Bodies can't push powder, and sand that
+## has slumped onto the Tank's roof or lodged in its casing would hold the rig for good (the seed 7
+## jam). Only powder goes: the tunnel's own walls stay, and the spoil is lost.
+static func _plow(g, m: Dictionary) -> void:
+	var loose := M.mask("powder")
+	var dug := 0
+	for id: int in m["rig"]:
+		var mm: Dictionary = g.modules.get(id, {})
+		if mm.is_empty():
+			continue
+		var r := MU.bounds(mm, MU.defs[mm["def"]])
+		var got: PackedInt32Array = g.sim.dig_rect(r.position.x, r.position.y - PLOW_AHEAD, r.size.x, r.size.y + PLOW_AHEAD, loose, 0, 0)
+		for mat in 256:
+			dug += got[mat]
+	m["plowed"] = m.get("plowed", 0) + dug
 
 
 ## What would change the reason a halt holds: Drill Bit (hardness) and Drill Shaft (length).

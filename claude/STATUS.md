@@ -22,13 +22,16 @@ Claude adds a section at its top each phase and doesn't need to read the rest.
   were cut down or rewritten to what is left. tests/autoplay.gd is a small quarry bot now. No engine
   change: `bin/` is untouched.
 - Gaps the cut exposes (written down, none fixed here):
-  - Pacing. The Hub trickles 0.2 power/s and a Lab eats 2/s, so research starves until Windmills
+  - Pacing. The quarry bot on seed 7 has banked 25 Stone after 90 game-minutes, so Instruction 2 (30
+    Stone) is still slow: a trip banks a few Stone and the rig waits on power. The Hub trickles 0.2 power/s and a Lab eats 2/s, so research starves until Windmills
     land; the quarry's first Tank is a few Stone; a rig hits Stone at about row 200 on seed 7 and
     waits on Drill Bit (see the bot baseline below). Tuning belongs to the end of Alpha.
-  - A rig stalls "jammed on the way up" with a full Tank (seed 7, left of the Hub, at about row 450; it
-    does on main too) with no way to recover it, so the bot never finishes Instruction 2 (30 Stone).
-    A rig behind a cave-in stops "jammed" the same way. This wants fixing before the tutorial is
-    trusted.
+  - (Fixed after the cut.) The rig no longer stalls "jammed on the way up" on seed 7 at about row 450.
+    Cause: loose sand slumps into the shaft behind the rig, lodges in the Tank's open hook hole and
+    piles on its roof, and bodies can't push powder. Fix: a cable's hook stays shut (`_join` skips
+    tether faces) and the Winch ploughs loose powder (not rock) off the rig's path on the way up
+    (`winch.gd` `_plow`; the spoil is lost; `plowed` counts it). A rig under a rubble of loose powder
+    gets through the same way; a static plug or a rigid body above it still jams it. scenario_quarry G.
   - Tiers 2 and 3 have no techs of their own (only upgrade levels), so discovering Glimmer and
     lava opens nothing new until A5.
   - The Crucible draws 4 power/s from a 100-power Hub store: the Caches that used to bank it are

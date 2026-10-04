@@ -82,8 +82,8 @@ index as [Stone, Glimmer, Obsidian, Water, Power].
   (capacity from the hollow, `pack` and Tank Size; draws its fill), `logistics/funnel.gd` (banks what it
   holds through `_bank`), `excavation/cutter.gd` (`front_of`, `slice`, hardness masks from the Drill Bit
   level, wobbling 30-wide window, `room` rows clear ahead), `movers/winch.gd` (the rig, states docked /
-  down / up, `drive_body` on every rig module each tick, halt reasons keyed on Drill Bit and Drill
-  Shaft), `power/windmill.gd` (gusts, open sky, network reach), `support/lab.gd` (A3 cut: power and goods
+  down / up, `drive_body` on every rig module each tick, `_plow` clears loose powder off the rig's path
+  on the way up, halt reasons keyed on Drill Bit and Drill Shaft), `power/windmill.gd` (gusts, open sky, network reach), `support/lab.gd` (A3 cut: power and goods
   from the Hub's stock into `game.current_tech`) and `support/lamp.gd` (`lit` while the stock pays).
   A module's `tech` (a definition key) gates its Build button (`unlocked`); `count_named` counts
   built modules by name (goals); `lights` and `sensing` give the game's light and sight passes the

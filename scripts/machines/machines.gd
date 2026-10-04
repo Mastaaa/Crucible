@@ -341,6 +341,8 @@ static func _join(g, ma: Dictionary, i: int, mb: Dictionary, j: int) -> void:
 	ma["faces"][i]["link_f"] = j
 	mb["faces"][j]["link_m"] = ma["id"]
 	mb["faces"][j]["link_f"] = i
+	if defs[ma["def"]].get("tether", false) or defs[mb["def"]].get("tether", false):
+		return              # a cable's hook stays shut: nothing passes through it, and sand would
 	_set_open(g, ma, i, true)
 	_set_open(g, mb, j, true)
 
