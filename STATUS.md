@@ -4,6 +4,26 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A4 part: Chute and Conveyor
+
+Tests: eighteen scenarios and engine_compare end `FAILURES: 0`; scenario_logistics is new (Chutes, the
+Conveyor, their research gates). The engine did not change, so `bin/` is as it was. These were A3 scope that
+the cut left unbuilt; Bus Hopper moves to A5 with Vault cells.
+
+- Chute (`logistics/chute.gd`, Tier 1 research, 3 Stone): a bolted 14 x 24 pipe with a pixel face at each end.
+  The `pass` rule moves what is passed in at the bottom out of the top, 60 cells a scan, so a line of Chutes
+  joined end to end (R turns them) carries a Tank's, Macerator's or Excavator's powder across a gap. It holds
+  60 cells, so a blocked line backs up to its source. No filters yet (the eyedropper filters stay in the plan
+  for Funnels and Chutes).
+- Conveyor (`logistics/conveyor.gd`, Tier 1 research after Chute, 10 Stone): a bolted 50 x 10 belt, its top
+  `front` up, a pixel face at each end (`end_a`, `end_b`). Loose powder lying in the 4 rows over the belt, and
+  whatever a joined module passes in at an end, is lifted onto a queue and arrives at the far end after the
+  length over 12 cells a second; there it goes into the module joined at that end (Tank, Funnel, Chute) or,
+  with nothing joined, is set down off the end a cell at a time where there is open air (a taken spot makes
+  it wait, so a pile backs the belt up). Loose rigid bodies lying on the belt are driven along at belt speed
+  (`drive_body`) and let go when they pass the end. It draws 0.05 power/s while it has anything to carry and
+  does nothing without power or a Node or the Hub in reach. Click it to reverse. Four directions, by turns.
+
 ## A4 part: Macerator and Press
 
 Tests: seventeen scenarios and engine_compare end `FAILURES: 0`; scenario_processing is new (the Macerator, the

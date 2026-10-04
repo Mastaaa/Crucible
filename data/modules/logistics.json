@@ -20,6 +20,27 @@
 			"params": {"pack": 4, "fill": [0.5, 1.0, 2.0, 4.0]}
 		},
 		{
+			"id": "chute", "name": "Chute", "kind": "chute", "size": [14, 24], "wall": 2, "anchored": true,
+			"tech": "chute", "cost": [3, 0, 0, 0, 0],
+			"blurb": "A bolted pipe. Powder passed into its bottom end comes out of its top end, so a line of Chutes joined end to end (turn them with R) carries what an Excavator or a Macerator gives up across a gap to a Tank or a Funnel. It holds only a little, so a blocked line backs up.",
+			"faces": [
+				{"type": "pixel", "dir": "up", "at": 7, "w": 6, "name": "out"},
+				{"type": "pixel", "dir": "down", "at": 7, "w": 6, "name": "in"}
+			],
+			"pass": {"face": 0, "rate": 60},
+			"params": {"cap": 60}
+		},
+		{
+			"id": "conveyor", "name": "Conveyor", "kind": "conveyor", "size": [50, 10], "wall": 2, "front": "up", "anchored": true,
+			"tech": "conveyor", "cost": [10, 0, 0, 0, 0],
+			"blurb": "A bolted belt. Loose powder lying on top of it, and what a joined module passes in at either end, rides to the far end; loose rigid bodies lying on it are carried along too. At the end it goes into a Tank, Funnel or Chute joined there, or falls off. Click it to reverse. Draws a little power while it carries a load; needs a Node or the Hub in reach.",
+			"faces": [
+				{"type": "pixel", "dir": "left", "at": 5, "w": 6, "name": "end_a"},
+				{"type": "pixel", "dir": "right", "at": 5, "w": 6, "name": "end_b"}
+			],
+			"params": {"speed": 12.0, "rate": 40, "cap": 200, "power": 0.05}
+		},
+		{
 			"id": "funnel", "name": "Funnel", "kind": "funnel", "size": [14, 14], "wall": 2,
 			"cost": [4, 0, 0, 0, 0], "anchored": true,
 			"blurb": "Bolted in place. A Tank docked under it empties into it, and what it takes goes into the Hub's stockpile.",
