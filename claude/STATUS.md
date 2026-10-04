@@ -6,7 +6,7 @@ history (what shipped when, old numbers, test notes) is the root STATUS.md:
 Claude adds a section at its top each phase and doesn't need to read the rest.
 
 ## Handoff
-- Last done: A4 part 5, Macerator and Press (`processing/macerator.gd` grinds loose bodies at its mouth to what they shatter to and passes it on; `processing/press.gd` squeezes powder into a 96 cell block body; `M.ground_of`, `M.pressed_of`; scenario_processing). Before it: A4 part 4, the tethered Thumper (engine `explode_cone`, `bin/` rebuilt; `excavation/thumper.gd`; the Winch runs a lower / lift / drop cycle for a Thumper load in `winch._thump`, plowing rubble under it as it lowers; scenario_excavators E). Before it: A4 part 3, the full Cutter and the Laser Excavator (Hot rock at Drill Bit 4, a mount face on the
+- Last done: A4 part 6, Chute and Conveyor (`logistics/chute.gd` a `pass` pipe; `logistics/conveyor.gd` a belt: powder queue with travel time, bodies driven with `drive_body`, click reverses; scenario_logistics; Bus Hopper to A5). Before it: A4 part 5, Macerator and Press (`processing/macerator.gd` grinds loose bodies at its mouth to what they shatter to and passes it on; `processing/press.gd` squeezes powder into a 96 cell block body; `M.ground_of`, `M.pressed_of`; scenario_processing). Before it: A4 part 4, the tethered Thumper (engine `explode_cone`, `bin/` rebuilt; `excavation/thumper.gd`; the Winch runs a lower / lift / drop cycle for a Thumper load in `winch._thump`, plowing rubble under it as it lowers; scenario_excavators E). Before it: A4 part 3, the full Cutter and the Laser Excavator (Hot rock at Drill Bit 4, a mount face on the
   Cutter, `rig_of` and `powered` set by every mover, `excavation/laser.gd` with Filler; scenario_excavators).
   Before it: A4 part 2, Turntable (`movers/turntable.gd`; the engine's `drive_body` gained a spin, `bin/`
   rebuilt; `MU.drive` takes a spin; the hub holds each joined module on its pose in the hub's frame and stops
@@ -57,7 +57,7 @@ Claude adds a section at its top each phase and doesn't need to read the rest.
     across a load); scenario_run allows 1.5.
   - The Node-as-module question (A3's plan) is settled the cheap way: Node stays a structure
     because the packet network, repairs and fog sight hang off it.
-- Next: A4, in order: the Drone Cage with Chute and Conveyor, then the test and bot rewrite.
+- Next: A4, in order: the Drone Cage, then the test and bot rewrite.
   Plan: claude/ALPHA_PLAN.md. The spawn-region system and the Spoil Heap are in `main` (PR #6).
   The wave 1 rows only place pockets and seams by depth band, with no placement relative to
   aquifers, lava or Sulfur (the table has none); A6's biomes can do better.
@@ -94,8 +94,8 @@ Claude adds a section at its top each phase and doesn't need to read the rest.
   rubble stops refilling it.
 
 ## Test baseline (all must hold before committing)
-- `bash native/run_tests.sh` (about 10 minutes): every scenario (seventeen: power, goals, research, chemistry,
-  light, collapse, bodies, modules, quarry, movers, excavators, processing, depth, temperature, wave1, run, spawn) and engine_compare end `FAILURES: 0`. Suites
+- `bash native/run_tests.sh` (about 10 minutes): every scenario (eighteen: power, goals, research, chemistry,
+  light, collapse, bodies, modules, quarry, movers, excavators, processing, logistics, depth, temperature, wave1, run, spawn) and engine_compare end `FAILURES: 0`. Suites
   that build deep set-pieces fix their rows' ambient: scenario_depth's `keep_hot` (hot rock near the
   surface), scenario_bodies' `keep_cool` (a pool in the Magma band).
 - Temperature pass (A1): every 8 ticks, 150 to 200 of the map's 3840 chunks awake in a
