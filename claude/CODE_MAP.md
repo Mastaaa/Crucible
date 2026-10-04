@@ -80,7 +80,7 @@ index as [Stone, Glimmer, Obsidian, Water, Power].
   `defs`, `frame`/`world`/`turn`, `front`, `partner`, `bounds`, `capacity`/`stored`/`add`, `networked`
   (a Node or the Hub in reach, via `find_link`), `take_power` (the Hub's stock). `logistics/tank.gd`
   (capacity from the hollow, `pack` and Tank Size; draws its fill), `logistics/funnel.gd` (banks what it
-  holds through `_bank`), `excavation/cutter.gd` (`front_of`, `slice`, hardness masks from the Drill Bit
+  holds through `_bank`), `excavation/laser.gd` (a one-pixel beam: `aim` finds the first solid cell, `ore_mask` is what it takes, Filler swaps the cell for Stone), `excavation/cutter.gd` (`front_of`, `slice`, hardness masks from the Drill Bit
   level, wobbling 30-wide window, `room` rows clear ahead), `movers/slide.gd` (Piston and Gantry: a load at a mech face slid along the face's normal or along the rail, modes run / out / back by `use`, `MU.drive` for the velocity), `movers/turntable.gd` (a pinned hub that swings its faces' rig round: modes hold / step / spin, poses kept in the hub's frame, `lag` blocks it), `movers/winch.gd` (the rig, states docked /
   down / up, `drive_body` on every rig module each tick, `_plow` clears loose powder off the rig's path
   on the way up, halt reasons keyed on Drill Bit and Drill Shaft), `power/windmill.gd` (gusts, open sky, network reach), `support/lab.gd` (A3 cut: power and goods
