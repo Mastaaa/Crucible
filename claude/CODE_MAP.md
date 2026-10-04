@@ -1,4 +1,4 @@
-# Crucible: code map (as of A1)
+# Crucible: code map (as of A2 wave 1)
 
 Where things are, so a new session can go straight to the right function instead of
 grepping. Line numbers drift; names don't. Coordinates are cells: x across (0..767),
@@ -19,6 +19,9 @@ index as [Stone, Glimmer, Obsidian, Water, Power].
   defaults for `conduct` and `sink`), `families` (name to bit) and `family_of` (bits per
   id), `members(name)` (a material or a family's ids), `families_of(m)`, and
   `expand_reactions(rules)` (family rules to material pairs, material rules first).
+  A2: `_wave1(e, m)` reads the wave 1 keys (`heat_mass`, `sets`, `blast`, `absorbs`, `plume`,
+  `bursts`, `grows`, `body`, `burn.wet`, `burn.catalyst`) into the sim's dictionary; a
+  reaction can carry `emit` and `emit_chance`. The data file's `_about` documents each key.
 - `scripts/worldgen.gd`: v2's layout scaled (SX 3, SY 5, features F 4): bands (whole
   rows copied), stone lumps, aquifers, glimmer veins, caves, pockets, lava lake,
   chamber, deposits (coal, sulfur), `_ground` (packed dirt, sand, gravel, clay), `_heat`
@@ -28,6 +31,8 @@ index as [Stone, Glimmer, Obsidian, Water, Power].
 - `scripts/spawn_regions.gd` (A2) + `data/spawn_regions.json`: `load_table`, `place(g, w, h, table,
   seed, ctx, resolve)` paints areas (mound, patch) and spawn rows (home range, hosts, clumps) into
   worldgen's grid; worldgen calls it once, after `_heat`, and returns its report as `spawned`.
+  Rows are blobs, speckles, or seams (`aspect`); the second half of the table is wave 1's home
+  ranges. Cells come out of `set_cells` at their `placed` temperature (Rime is cold).
 - `scripts/warren.gd`: static helpers for the Warren, on 4x4 bites (`tick`, `search`
   over bites with `block_counts`, mite `_step`, `_nibble` bursts). As bodies (8d):
   `_gripping`, `loosen` (a mite becomes a creature body), `_fly` (follow it; walk again
@@ -118,6 +123,7 @@ sense (30), vision/light (15), Crucible. The engine's temperature pass runs insi
   grips on contact), `remove_body(id)`, `get_bodies_made/shattered/settled`.
 - Stats: `stat_chunks`, `stat_updates`, `reactions`, `ignitions`, `eroded`, `crumbled`,
   `get_caved`, `get_washed`, `get_last_cave`, `get_tick`; `changed`/`heat_changed` flags.
+  A2: `get_blasts` (detonations run), `get_forged` (bodies forged by a reaction's `emit`).
 - Setup: `configure(materials, reactions)`, `set_seed`, `set_threads`.
 - Saving (phase 10): `save_state()` (PackedByteArray), `load_state(bytes)`.
 - Inside: 32x32 chunks with dirty rects, four checkerboard passes (threads), per-chunk
@@ -128,6 +134,14 @@ sense (30), vision/light (15), Crucible. The engine's temperature pass runs insi
   ones crumble a cell at a time, others `break_off` a piece as a body.
   `hazards_at` caches corrosive counts per chunk. `update_cell` keeps a cell with a
   reaction partner beside it awake (water resting on hot rock keeps boiling).
+  Wave 1 (A2), all in `update_cell` and friends: `sets_to` counts a cell's aux down (`set_speed`,
+  `set_catalyst`); `blast_*` goes off through `detonate` (a hard landing is checked in `powder`,
+  fire in `heat_neighbour`) and queues a `Blast` in the worker's `Ctx`; `absorb`/`burst` are the
+  swell (aux holds the soaked liquid's id); `grow_cell` is Weft; `heat_mass` divides a cell's
+  change in `temp_chunk`; a reaction's `emit` queues an `Emit`. After the cell passes `step` runs
+  `run_blasts` (sorted by position; a blast sets off the like of itself within its radius a
+  few ticks later) and `run_emits` (fills a free rectangle with the `body_w` x `body_h` material
+  and calls `make_body_from`), then bodies. A reaction side that keeps its material isn't rewritten.
 - Bodies (bodies.cpp): a `Body` keeps a bitmap and a pose; its pixels sit in the grid as
   ordinary cells tagged in `owner` (the slow passes skip tagged cells). `body_tick`: drop
   lost pixels, gravity and liquid drag, move in half-cell substeps (`overlap` on edge

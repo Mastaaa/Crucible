@@ -6,11 +6,14 @@ history (what shipped when, old numbers, test notes) is the root STATUS.md:
 Claude adds a section at its top each phase and doesn't need to read the rest.
 
 ## Handoff
-- Last done: A1, temperature and reactions (branch claude/alpha-a1-temperature-w6sw2x).
-  Every cell has a temperature; hot rock, boiling, quenching and coal catching fire run
-  on it; reactions can name families and carry a catalyst and a temperature window; the
-  Lab Bench (title screen) paints any material and shows the field (F6). Unseen ground
-  is black. Phase 10 and everything before it are in `main`.
+- Last done: A2 wave 1 materials (branch claude/alpha-wave1-materials-uszm2d): twelve new
+  materials and seven made by reactions (ids 35 to 53; claude/WAVE1_MATERIALS.md says what each
+  does, and "Built as" there lists where the build differs from the table), the engine's
+  setting, blast, swell, growth, heat-mass and body-forging extensions, spawn rows for all of
+  them, and scenario_wave1 (the twelve bench demonstrations). The engine changed (`bin/`).
+  Before it: A1, temperature and reactions (every cell has a temperature, reactions name
+  families, the Lab Bench on the title screen paints any material and shows the field with F6,
+  unseen ground is black); phase 10 and everything before it are in `main`.
 - A3 machine framework core (PR #5): modules as rigid bodies with typed faces, casing
   integrity, breach and wreckage, in scripts/machines/ and native/src/modules.cpp. Test
   modules only; the module groups build on it. Casing melting and corrosion are still
@@ -22,12 +25,10 @@ Claude adds a section at its top each phase and doesn't need to read the rest.
   below predate the trickle cut: the probe now reaches depth 500 in ~1800 s (was 1.5 min) because
   nothing but instruction rewards feeds the Drill until the Windmills of the starter quarry land.
   The bot was not re-run (an hour a seed); re-baseline it once the quarry exists.
-- Next: A2 (wave 1 materials, spec in claude/WAVE1_MATERIALS.md; the spawn-region
-  system and the Spoil Heap) and A3 (the machine framework). Plan: claude/ALPHA_PLAN.md.
-  A1 left three engine extensions for A2, to arrive with the materials that need them:
-  impact triggers (per-cell fall speed), a one-cell-to-many swell, a timed setting stage.
-- A2 spawn regions (branch claude/alpha-spawn-regions-cocmr1, not merged): the table and the Spoil
-  Heap exist; wave 1 materials only need rows in data/spawn_regions.json. See CODE_MAP.
+- Next: A3 (the machine framework, then the starter kit and the legacy cut). Plan:
+  claude/ALPHA_PLAN.md. The spawn-region system and the Spoil Heap are in `main` (PR #6).
+  The wave 1 rows only place pockets and seams by depth band, with no placement relative to
+  aquifers, lava or Sulfur (the table has none); A6's biomes can do better.
 - Placeholder: A3 cuts the current buildings (Hub, Crucible, Conduits, Lab, Lamp, Strut and
   Bulkhead stay; the Warren becomes the Drone Cage). Phase 10's jacket rules (lava shield,
   quenching, drinking), the tuning numbers tied to Borers and research, and the bot's Borer
@@ -46,8 +47,8 @@ Claude adds a section at its top each phase and doesn't need to read the rest.
   through hot rock lose Conduits to it; the bot relays them).
 
 ## Test baseline (all must hold before committing)
-- `bash native/run_tests.sh` (about 8 minutes): every scenario (fourteen, with
-  scenario_temperature, scenario_goals, scenario_spawn and scenario_modules) and engine_compare end `FAILURES: 0`. Suites
+- `bash native/run_tests.sh` (about 8 minutes): every scenario (fifteen, with
+  scenario_temperature, scenario_goals, scenario_spawn, scenario_wave1 and scenario_modules) and engine_compare end `FAILURES: 0`. Suites
   that build deep set-pieces fix their rows' ambient: scenario_depth's `keep_hot` (hot rock near the
   surface), scenario_bodies' `keep_cool` (a pool in the Magma band).
 - Temperature pass (A1): every 8 ticks, 150 to 200 of the map's 3840 chunks awake in a
@@ -68,6 +69,11 @@ Claude adds a section at its top each phase and doesn't need to read the rest.
 - `tests/prof_scale.gd`: a fresh game ticks in about 0.7 ms (1.3 ms on a slower
   container, where main measured the same; compare against main on the same machine).
   A1: 1.55 ms against main's 1.40 on the same container (the sim's share 0.11 to 0.39).
+  A2 (wave 1 spawn rows in the world): 2.92 ms against main's 2.47 on this container, the
+  sim's share 1.29 against 0.58 right after worldgen. Bisected: no single material owns it;
+  Sourwater, Quickmire, Weft and Wisp pockets keep the most chunks awake. It settles to
+  about 1.0 ms of sim (37 chunks awake against 13) after 3000 ticks. `scenario_digging`'s
+  "long channel stays cheap" (< 2.0 ms) already fails on main on this container (2.3 ms).
 - `tests/bench_bodies.gd`: 100 slabs falling at once, about 3.5 ms a tick (worst 14).
 - Saving (phase 10): a 45-minute run writes in about 80 ms (sim snapshot ~30 ms, 47 MB
   raw, ~480 KB on disk) and loads in about 50-100 ms.
