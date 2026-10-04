@@ -534,6 +534,7 @@ public:
 	Vector2i get_last_cave() const { return Vector2i(last_cave_x, last_cave_y); }
 	int tremor(int wanted, int y_min, int y_max);
 	int explode(int x, int y, double radius, int power);
+	int explode_cone(int x, int y, double radius, int power, double dir, double half);
 	void add_particle(double x, double y, double vx, double vy, int m);
 	void refresh_heat(bool all);
 	PackedByteArray get_heat() const;

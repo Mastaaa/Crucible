@@ -4,6 +4,28 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A4 part: the tethered Thumper
+
+Tests: sixteen scenarios and engine_compare end `FAILURES: 0`; scenario_excavators gains E (the Thumper).
+**The engine changed** (`explode_cone`), so `bin/` is rebuilt: close Godot before pulling and restart it after.
+
+- Engine: `explode_cone(x, y, radius, power, dir, half)` is `explode` limited to rays within `half` radians of
+  `dir`. A cone is rock and debris only (no flash, bodies aren't pushed). `explode` itself calls it with a full
+  circle and takes the same path as before.
+- Thumper (`scripts/machines/excavation/thumper.gd`, Tier 1 research, 14 Stone and 4 Glimmer): a 24 x 18 block
+  with a mechanical `hook` on top. It hangs from a Winch cable. Any hard landing (a drop at 14 cells a second
+  or faster, then a sudden stop) sets off a 90 degree cone out of its front; power is the landing speed over 12,
+  at most 14, so a drop of ten cells or more beats Obsidian's durability of 10. The cone's tip sits half the
+  Thumper's width behind its front, so the hole is as wide as the Thumper by the time the rig gets there.
+- Winch with a Thumper (`winch.gd`, `_thump`): docked, down until the Thumper has made under half a cell of
+  headway for 12 ticks, lift 18 cells, drop (the cable goes slack and the rig falls free), down again. While it
+  lowers, loose powder under the Thumper is shoved aside and lost, the way a rig hauled up plows, so the
+  rubble from a blast doesn't hold the rig up. The lift costs 0.6 power/s. Three blasts in a row that break
+  fewer than 3 cells halt the rig ("The Thumper has nothing left below it to break."); a click on the Winch
+  starts it again. The cable limit (Drill Shaft) and no Node or Hub in reach stop it as they stop a Cutter rig.
+- The rubble is lost, so a Thumper rig opens a shaft without a yield: it is how a rig gets through rock the
+  Cutter can't cut. A Cutter that rides down the same shaft afterwards has only soft ground left to clear.
+
 ## A4 part: the full Cutter and the Laser Excavator
 
 Tests: sixteen scenarios and engine_compare end `FAILURES: 0`; scenario_excavators is new (Hot rock, a Cutter

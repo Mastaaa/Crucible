@@ -2200,6 +2200,14 @@ int CrucibleSim::tremor(int wanted, int y_min, int y_max) {
 // what they shatter to), the middle flashes into fire, and what can burn nearby
 // catches. Returns how many cells broke.
 int CrucibleSim::explode(int x, int y, double radius, int power) {
+	return explode_cone(x, y, radius, power, 0.0, 3.2);
+}
+
+// A blast of rays within `half` radians of the direction `dir` (a thumper's 90 degree cone is
+// half = pi / 4); half of pi or more is the full circle, the ordinary blast, flash and push
+// included. A cone is rock and debris only: no flash, and bodies aren't pushed.
+int CrucibleSim::explode_cone(int x, int y, double radius, int power, double dir, double half) {
+	const bool cone = half < 3.1415926;
 	float rad = (float)std::clamp(radius, 1.0, 64.0);
 	int bx0 = std::max(2, x - (int)rad - 1), bx1 = std::min(W - 3, x + (int)rad + 1);
 	int by0 = std::max(2, y - (int)rad - 1), by1 = std::min(H - 3, y + (int)rad + 1);
@@ -2210,9 +2218,15 @@ int CrucibleSim::explode(int x, int y, double radius, int power) {
 	}
 	std::vector<uint8_t> hit(bw * bh, 0);
 	int rays = std::max(24, (int)(rad * 8.0f));
+	if (cone) {
+		rays = std::max(12, (int)(rad * 8.0f * (float)half / 3.1415926f));
+	}
 	int broken = 0;
 	for (int k = 0; k < rays; k++) {
 		float ang = (6.2831853f * k) / rays;
+		if (cone) {
+			ang = (float)dir - (float)half + 2.0f * (float)half * (k + 0.5f) / rays;
+		}
 		float dx = std::cos(ang);
 		float dy = std::sin(ang);
 		float energy = (float)power * rad;
@@ -2269,7 +2283,7 @@ int CrucibleSim::explode(int x, int y, double radius, int power) {
 	}
 	// The flash: fire in the open middle, and anything that burns nearby catches.
 	float flash = rad * 0.45f;
-	for (int yy = by0; yy <= by1; yy++) {
+	for (int yy = by0; yy <= by1 && !cone; yy++) {
 		for (int xx = bx0; xx <= bx1; xx++) {
 			float ddx = xx - x, ddy = yy - y;
 			float dist = std::sqrt(ddx * ddx + ddy * ddy);
@@ -2297,7 +2311,9 @@ int CrucibleSim::explode(int x, int y, double radius, int power) {
 			}
 		}
 	}
-	push_bodies(x + 0.5f, y + 0.5f, rad, power);
+	if (!cone) {
+		push_bodies(x + 0.5f, y + 0.5f, rad, power);
+	}
 	return broken;
 }
 
@@ -3342,6 +3358,7 @@ void CrucibleSim::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_caved"), &CrucibleSim::get_caved);
 	ClassDB::bind_method(D_METHOD("tremor", "wanted", "y_min", "y_max"), &CrucibleSim::tremor);
 	ClassDB::bind_method(D_METHOD("explode", "x", "y", "radius", "power"), &CrucibleSim::explode);
+	ClassDB::bind_method(D_METHOD("explode_cone", "x", "y", "radius", "power", "dir", "half"), &CrucibleSim::explode_cone);
 	ClassDB::bind_method(D_METHOD("add_particle", "x", "y", "vx", "vy", "material"), &CrucibleSim::add_particle);
 	ClassDB::bind_method(D_METHOD("refresh_heat", "all"), &CrucibleSim::refresh_heat);
 	ClassDB::bind_method(D_METHOD("get_heat"), &CrucibleSim::get_heat);
