@@ -273,6 +273,8 @@ const TECHS := [
 		"text": "A bolted pipe: powder passed into one end comes out of the other, so a line of them carries it across a gap."},
 	{"id": "conveyor", "name": "Conveyor", "tier": 1, "needs": ["chute"], "power": 220, "module": "conveyor",
 		"text": "A bolted belt that carries loose powder and loose rigid bodies lying on it along its length, and lets them into a Tank or Funnel at the end."},
+	{"id": "drone_cage", "name": "Drone Cage", "tier": 2, "needs": ["conveyor"], "power": 900, "mats": [0, 8, 0, 0, 0], "module": "drone_cage",
+		"text": "A bolted cage of drones that fly out, lift loose powder from a square of ground round it and bring it back, to pass on into a Tank or Funnel."},
 	{"id": "macerator", "name": "Macerator", "tier": 2, "needs": [], "power": 700, "module": "macerator",
 		"text": "A bolted module with an open mouth that grinds loose rigid bodies (a collapsed slab, a Press's block) to powder."},
 	{"id": "press", "name": "Press", "tier": 2, "needs": [], "power": 700, "module": "press",

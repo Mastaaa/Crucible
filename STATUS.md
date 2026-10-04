@@ -4,6 +4,23 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A4 part: Drone Cage
+
+Tests: nineteen scenarios and engine_compare end `FAILURES: 0`; scenario_haulers is new (the Drone Cage and
+its research gate). The engine did not change, so `bin/` is as it was.
+
+- Drone Cage (`scripts/machines/haulers/drone_cage.gd`, the Warren reworked; Tier 2 research after Conveyor,
+  14 Stone and 6 Glimmer): a bolted 30 x 20 cage of four drones with a pixel face on top. A drone flies
+  (30 cells a second, over anything) to a spot of loose powder in a square of ground centred on the cage,
+  scoops the 6 x 6 cells round it (`dig_rect` on the powder mask), flies home and drops the load into the
+  cage's hollow (200 cells), which the `pass` rule moves out of the top face into a joined Tank, Funnel or
+  Chute. The spot is found by halving the square towards a half that has powder (a few counts, seeded per
+  cage), so a pile is worked from a random side. A trip costs 0.4 power from the Hub's stock; no power, no
+  Node or Hub in reach, or a full hollow keeps the drones home. It never lifts rock, liquid or a casing.
+  Click it to cycle the square's size (60, 100 or 160 across; the middle is the start). Not built: a
+  highlighted pickup area and a separate drop point (the A5 UI), and drone hazards (Hush, fire, crush).
+  Needs no mites: the Warren's creature code is gone.
+
 ## A4 part: Chute and Conveyor
 
 Tests: eighteen scenarios and engine_compare end `FAILURES: 0`; scenario_logistics is new (Chutes, the

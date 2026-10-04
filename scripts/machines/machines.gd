@@ -29,6 +29,7 @@ const K_MACERATOR = preload("res://scripts/machines/processing/macerator.gd")
 const K_PRESS = preload("res://scripts/machines/processing/press.gd")
 const K_CHUTE = preload("res://scripts/machines/logistics/chute.gd")
 const K_CONVEYOR = preload("res://scripts/machines/logistics/conveyor.gd")
+const K_DRONE_CAGE = preload("res://scripts/machines/haulers/drone_cage.gd")
 const K_WINCH = preload("res://scripts/machines/movers/winch.gd")
 const K_SLIDE = preload("res://scripts/machines/movers/slide.gd")
 const K_TURNTABLE = preload("res://scripts/machines/movers/turntable.gd")
@@ -57,7 +58,8 @@ static func ensure_defs() -> void:
 		kinds = {"tank": K_TANK, "funnel": K_FUNNEL, "cutter": K_CUTTER, "winch": K_WINCH, "windmill": K_WINDMILL,
 				"lab": K_LAB, "lamp": K_LAMP, "slide": K_SLIDE, "turntable": K_TURNTABLE, "laser": K_LASER, "thumper": K_THUMPER,
 				"macerator": K_MACERATOR, "press": K_PRESS,
-				"chute": K_CHUTE, "conveyor": K_CONVEYOR}
+				"chute": K_CHUTE, "conveyor": K_CONVEYOR,
+				"drone_cage": K_DRONE_CAGE}
 		for d: Dictionary in MD.defs():
 			register(d)
 		for d: Dictionary in TM.defs():

@@ -1,0 +1,15 @@
+{
+	"_about": "Module definitions for the haulers group (A4: the Drone Cage, the Warren reworked). See logistics.json for the shape.",
+	"modules": [
+		{
+			"id": "drone_cage", "name": "Drone Cage", "kind": "drone_cage", "size": [30, 20], "wall": 2, "anchored": true,
+			"tech": "drone_cage", "cost": [14, 6, 0, 0, 0],
+			"blurb": "A bolted cage of four drones. They fly out to loose powder anywhere in a square of ground round the cage, scoop up a handful, bring it back and drop it into the cage, which passes it up out of its top face into a Tank, Funnel or Chute joined there. They only ever lift loose powder, and fly over anything. Each trip costs a little power; needs a Node or the Hub in reach. Click it to change the size of the square.",
+			"faces": [
+				{"type": "pixel", "dir": "up", "at": 15, "w": 6, "name": "out"}
+			],
+			"pass": {"face": 0, "rate": 40},
+			"params": {"drones": 4, "speed": 30.0, "cap": 200, "radii": [30, 50, 80], "trip_power": 0.4}
+		}
+	]
+}
