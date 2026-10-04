@@ -1,0 +1,32 @@
+{
+	"_about": [
+		"Module definitions for the logistics group (A3 starter kit: Tank, Funnel). Shape: id, name, kind (the behaviour",
+		"script in scripts/machines/), size [w, h] in cells, wall (casing thickness), faces [{type pixel|power|mech|signal,",
+		"dir up|down|left|right, at (middle along the wall), w, name}], cost [stone, glimmer, obsidian, water, power], blurb,",
+		"anchored (bolted in place: it holds still until something drives it), pass {face, rate} (units a scan moved out of",
+		"that face into what's joined there), params (the behaviour's own numbers)."
+	],
+	"modules": [
+		{
+			"id": "tank", "name": "Tank", "kind": "tank", "size": [26, 30], "wall": 2,
+			"cost": [8, 0, 0, 0, 0],
+			"blurb": "Holds what the Excavator below it digs, packed four cells to a slot of its hollow. Hooks onto a Winch at the top and empties through a Funnel when it docks. Tank Size research makes it hold more.",
+			"faces": [
+				{"type": "pixel", "dir": "up", "at": 6, "w": 6, "name": "out"},
+				{"type": "mech", "dir": "up", "at": 20, "w": 4, "name": "hook"},
+				{"type": "pixel", "dir": "down", "at": 13, "w": 6, "name": "in"}
+			],
+			"pass": {"face": 0, "rate": 40},
+			"params": {"pack": 4, "fill": [0.5, 1.0, 2.0, 4.0]}
+		},
+		{
+			"id": "funnel", "name": "Funnel", "kind": "funnel", "size": [14, 14], "wall": 2,
+			"cost": [4, 0, 0, 0, 0], "anchored": true,
+			"blurb": "Bolted in place. A Tank docked under it empties into it, and what it takes goes into the Hub's stockpile.",
+			"faces": [
+				{"type": "pixel", "dir": "down", "at": 6, "w": 6, "name": "in"}
+			],
+			"params": {"bank": 40}
+		}
+	]
+}

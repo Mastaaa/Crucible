@@ -1,0 +1,18 @@
+{
+	"_about": "Module definitions for the excavation group. See logistics.json for the shape. `front` is the way the cutter digs.",
+	"modules": [
+		{
+			"id": "cutter", "name": "Cutter Excavator", "kind": "cutter", "size": [26, 16], "wall": 2, "front": "down",
+			"cost": [10, 0, 0, 0, 0],
+			"blurb": "Cuts a 30-wide tunnel in soft ground ahead of it (Drill Bit research hardens it: Clay and Stone later) and passes what it digs to the Tank above. Needs power, and a Winch to hang from.",
+			"faces": [
+				{"type": "pixel", "dir": "up", "at": 13, "w": 6, "name": "out"}
+			],
+			"pass": {"face": 0, "rate": 30},
+			"params": {
+				"width": 30, "speed": 0.05, "bit_speed": 1.5, "bit_power": 1.2, "wobble": 3,
+				"hardness": [40, 30, 20, 12, 8, 7], "intake": 40, "deep_rows": 1500.0
+			}
+		}
+	]
+}

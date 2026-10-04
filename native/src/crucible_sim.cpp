@@ -3394,6 +3394,7 @@ void CrucibleSim::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_creature", "id", "on"), &CrucibleSim::set_creature);
 	ClassDB::bind_method(D_METHOD("remove_body", "id"), &CrucibleSim::remove_body);
 	ClassDB::bind_method(D_METHOD("set_module", "id", "on"), &CrucibleSim::set_module);
+	ClassDB::bind_method(D_METHOD("drive_body", "id", "vx", "vy"), &CrucibleSim::drive_body);
 	ClassDB::bind_method(D_METHOD("body_info", "id"), &CrucibleSim::body_info);
 	ClassDB::bind_method(D_METHOD("body_pixels", "id"), &CrucibleSim::body_pixels);
 	ClassDB::bind_method(D_METHOD("body_set_pixel", "id", "lx", "ly", "material"), &CrucibleSim::body_set_pixel);

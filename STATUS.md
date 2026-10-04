@@ -4,6 +4,26 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A3 part: starter kit modules
+
+Tests: sixteen suites end `FAILURES: 0` (scenario_quarry is new). The engine changed (`drive_body`):
+close Godot before pulling, restart after.
+
+- Five modules in the Build list from the start, a few Stone each: Cutter Excavator, Tank, Winch,
+  Funnel and Windmill. Place the Cutter on the ground, the Tank on it, the Funnel and the Winch on
+  top (a picked module snaps onto a free matching face, R turns it); the Winch and Funnel are
+  bolted in place wherever they are put.
+- The rig works by itself: the Cutter digs a 30-wide tunnel in soft ground (dirt, sand, gravel,
+  packed dirt) with a wobbling edge, the Winch lets the rig down as rows open and hauls it up
+  when the Tank is full, the Funnel empties the Tank into the Hub's stockpile, and it goes
+  down again. Stone stops it ("The Excavator stopped: Stone ahead") until Drill Bit research
+  lifts the Cutter's hardness; the cable is as long as Drill Shaft allows; Tank Size is a new
+  upgrade. Water that seeps into the tunnel is drunk into the Tank.
+- Power comes from the Hub's stock when the Winch has a Conduit or the Hub within reach. The
+  Windmill (open sky, gusts of 0.15 to 0.45 power/s) feeds the same stock.
+- Hover a module for its readout. The old Drill still runs; the legacy cut is the next step.
+- Engine: `drive_body`, a body that takes its velocity from the game (no gravity).
+
 ## A2 done: wave 1 materials
 
 Tests: fifteen suites end `FAILURES: 0` (scenario_wave1 and scenario_spawn are new). The engine

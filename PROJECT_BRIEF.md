@@ -115,7 +115,9 @@ materials with real chemistry, modular machines (Create-like), and biomes.
    Lamp, Strut and Bulkhead stay; the Warren is kept for the Drone Cage). The starter quarry
    (Cutter Excavator, Tank, Winch, Funnel, Windmill, Nodes), Chute, Conveyor, Bus Hopper, a
    skippable tutorial as Hub instructions, research that consumes produced goods, and the Hub's
-   trickle cut to about 0.2 power/s.
+   trickle cut to about 0.2 power/s. Done so far: the framework core, the goal layer and the five
+   starter modules (Cutter Excavator, Tank, Winch, Funnel, Windmill); the quarry runs beside the
+   old Drill. Left: the cut, Nodes as a module, Chute, Conveyor, Bus Hopper, the tutorial rewrite.
 4. A4, movers and excavators: Gantry, Piston, Turntable, full Cutter, Laser Excavator, tethered
    Thumper, Macerator, Press, the Drone Cage; tests and the bot rewritten.
 5. A5, materials wave 2 (about 25 in all), processing chains, sensors, Mk I to IV upgrades,

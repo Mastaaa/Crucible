@@ -66,13 +66,29 @@ index as [Stone, Glimmer, Obsidian, Water, Power].
   `native/src/rng.h`: the random helpers both share.
 - `native/src/modules.cpp` (A3): the engine side of machine modules: `set_module` (a
   body that never settles; saved as a flag), `body_info` (size, centre of mass, pixels),
-  `body_pixels` (its bitmap), `body_set_pixel` (opens and closes ports, knocks out walls).
+  `body_pixels` (its bitmap), `body_set_pixel` (opens and closes ports, knocks out walls),
+  `drive_body(id, vx, vy)` (no gravity, that velocity for two ticks: call it every tick to hold or haul a rig).
 - `scripts/machines/` (A3 framework): `faces.gd` (face types, `layout` turns a template
   into pixels and faces in the body's frame), `casing.gd` (stand-in material, `integrity`,
   `breach_at` floods from the cavity), `machines.gd` (the registry: `place`/`check_place`,
   `tick` every 6 ticks: integrity, breach spill, wreckage, joining and leaving faces,
   contents; `knock_out`; Build-list buttons, `click`, `key`), `test_modules.gd` (Box,
   Plug, Cap). State is plain data in `game.modules` (saved via GAME_VARS).
+- `scripts/machines/` (A3 starter kit): `module_data.gd` loads `data/modules/{logistics,excavation,movers,power}.json`
+  (one file per group, `FILES` lists them) into definitions; a definition's `kind` names its behaviour
+  script, registered in machines.gd (`kinds`), each with `scan` (every 6 ticks), `step` (every tick),
+  `info` and `draw`. `mu.gd` is what machines.gd and the behaviours share without a preload cycle:
+  `defs`, `frame`/`world`/`turn`, `front`, `partner`, `bounds`, `capacity`/`stored`/`add`, `networked`
+  (a Conduit or the Hub in reach, via `find_link`), `take_power` (the Hub's stock). `logistics/tank.gd`
+  (capacity from the hollow, `pack` and Tank Size; draws its fill), `logistics/funnel.gd` (banks what it
+  holds through `_bank`), `excavation/cutter.gd` (`front_of`, `slice`, hardness masks from the Drill Bit
+  level, wobbling 30-wide window, `room` rows clear ahead), `movers/winch.gd` (the rig, states docked /
+  down / up, `drive_body` on every rig module each tick, halt reasons keyed on Drill Bit and Drill
+  Shaft), `power/windmill.gd` (gusts, open sky, network reach). machines.gd also has `snap` (a picked
+  module snaps onto a free matching face within 12 cells), `click` (snaps, charges the definition's
+  `cost`), `module_at`, `info`, `generating`, `draw` (the overlay's hook: ghost, cable, readout) and
+  `_motion` (every tick: `anchored` modules hold still, behaviours step). A `tether` module's links
+  never break by distance.
 - Session tooling in `native/`: `cloud_setup.sh` (run by `.claude/hooks/session-start.sh`),
   `build.sh`, `run_tests.sh`, `lsp_check.py`, `cache/godot-cpp-built.tar.gz`.
 
