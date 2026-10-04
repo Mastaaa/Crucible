@@ -4,6 +4,27 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A4 part: Macerator and Press
+
+Tests: seventeen scenarios and engine_compare end `FAILURES: 0`; scenario_processing is new (the Macerator, the
+Press, their research gates). The engine did not change, so `bin/` is as it was.
+
+- Macerator (`scripts/machines/processing/macerator.gd`, Tier 2 research, 12 Stone and 4 Glimmer): bolted, 26 x 18,
+  with an open mouth (its `front`, up) 3 rows deep. A loose rigid body touching the mouth is ground away
+  24 cells a scan: each cell becomes what it shatters to (`M.ground_of`: Stone to Rubble, Glass to Sand) and goes
+  into the Macerator's hollow and out of its pixel face (`out`, left side) into a joined Tank or Funnel. It never
+  grinds a module's casing. It pays power per cell (4 times the cell's dig power) from the Hub's stock and needs a
+  Node or the Hub in reach. A body it has started on is flagged so it doesn't settle back into the ground
+  (a body that comes to rest settles within half a second and is rock again, so a Macerator is meant to take
+  bodies on the way in: from a chute, a Conveyor or a fall, not off the ground).
+- Press (`scripts/machines/processing/press.gd`, Tier 2 research, 12 Stone and 4 Glimmer): bolted, 26 x 18. Powder
+  joined into its `in` face (down: a Tank under it) is pressed, once it holds 96 cells of one kind, into a 12 x 8
+  block of the rock that powder is the shards of (`M.pressed_of`: Rubble to Stone, Loose dirt to Dirt, Sand to
+  Glass), made a rigid body out of its front (right). It takes 3 seconds and 3 power a block and needs open air
+  over the block's footprint ("Blocked: no room in front for the block." otherwise). One cell of block for one cell
+  of powder.
+- Materials: `M.shatters` per id, `M.ground_of`, `M.pressed_of`. New group file `data/modules/processing.json`.
+
 ## A4 part: the tethered Thumper
 
 Tests: sixteen scenarios and engine_compare end `FAILURES: 0`; scenario_excavators gains E (the Thumper).
