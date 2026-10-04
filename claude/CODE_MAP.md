@@ -1,4 +1,4 @@
-# Crucible: code map (as of A2 wave 1)
+# Crucible: code map (as of the A3 legacy cut)
 
 Where things are, so a new session can go straight to the right function instead of
 grepping. Line numbers drift; names don't. Coordinates are cells: x across (0..767),
@@ -6,14 +6,15 @@ y down (0..5119), GROUND_Y 200; D.S (10) is the scale of everything built. Resou
 index as [Stone, Glimmer, Obsidian, Water, Power].
 
 ## Files
-- `scripts/game.gd` (~3500 lines): the game node. Sections, in order: Setup, Frame loop,
-  Buildings, Machines, Movers, Links, Blasts, Network and packets, Research, The Crucible,
+- `scripts/game.gd` (~3000 lines): the game node. Sections, in order: Setup, Frame loop,
+  Buildings, Upkeep, Braces, Links, Blasts, Network and packets, Research, The Crucible,
   Knowledge maps, Alerts, Camera, Input.
 - `scripts/defs.gd`: every tunable and table: material ids, building tables (per-type
-  arrays), PALETTE/keys, network ranges, power, machine numbers, Warren, collapse and
-  Strut numbers, light and fog radii, TECHS, recipe, layers, hazards.
-- `scripts/building.gd`: one placed structure (fields for every type; a Warren's mites,
-  a Borer's trail, a Strut's anchors).
+  arrays: Hub, Node, Bulkhead, Crucible, Brace), PALETTE/keys, network ranges, power, quarry
+  numbers (`SHAFT_REACHES`), collapse and Brace numbers, light and fog radii (`LIGHT_PILOT`,
+  `SIGHT_MACHINE`), TECHS, recipe, layers, hazards.
+- `scripts/building.gd`: one placed structure (Hub, Node, Bulkhead, Brace, Crucible): link
+  and network fields, anchoring and falling, a Brace's anchors.
 - `scripts/materials.gd`: loads data/materials.json into what the sim, game and shader
   use (kinds, dig rates, yields, palette image 256x4). A1: temperature keys (kind
   defaults for `conduct` and `sink`), `families` (name to bit) and `family_of` (bits per
@@ -33,13 +34,11 @@ index as [Stone, Glimmer, Obsidian, Water, Power].
   worldgen's grid; worldgen calls it once, after `_heat`, and returns its report as `spawned`.
   Rows are blobs, speckles, or seams (`aspect`); the second half of the table is wave 1's home
   ranges. Cells come out of `set_cells` at their `placed` temperature (Rime is cold).
-- `scripts/warren.gd`: static helpers for the Warren, on 4x4 bites (`tick`, `search`
-  over bites with `block_counts`, mite `_step`, `_nibble` bursts). As bodies (8d):
-  `_gripping`, `loosen` (a mite becomes a creature body), `_fly` (follow it; walk again
-  at rest). `game.mite_bodies` maps body ids to mites; `game.body_momentum(id)`.
 - `scripts/hud.gd`: top bar (speed buttons, `speed_label` when the sim can't keep up),
-  Build list, building panel (`_rebuild_info`), alerts, depth ruler/minimap, Crucible
-  panel, Help (`_build_help`), Research tab, the end panel (`_build_end`, `show_end`).
+  Build list (structures by key, then `MC.add_build_buttons` for the modules; `MC.refresh_buttons`
+  shows a tech-gated one once it opens), building panel (`_rebuild_info`), alerts, depth
+  ruler/minimap (structures and modules), Crucible panel, Help (`_build_help`), Research tab,
+  the end panel (`_build_end`, `show_end`).
 - `scripts/goals.gd` (A3): static helpers; state is `game.goals`. `tick` (hook in `_tick`),
   `delivered` (hooks in `_bank` and `_deliver`), `skip_tutorial`, `research_mats` (used by
   `tech_mats_needed`). Orders, chapters and research goods are in `data/instructions.json`.
@@ -51,7 +50,7 @@ index as [Stone, Glimmer, Obsidian, Water, Power].
 - `scripts/title.gd` (phase 10): the title screen (a CanvasLayer): Continue, Start Run
   with an optional seed, Quit; Esc goes back to a live run.
 - `scripts/overlay.gd`: world-space drawing: buildings, links, packets, ghosts,
-  ranges, Warren zones, Strut beams and holds.
+  ranges, Brace beams and holds, and the module hook (`MC.draw`).
 - `scripts/sim_factory.gd`: C++ sim if the extension loaded (sized D.W x D.H, free fall,
   temperature params and the ambient from defs), else `sim.gd` (GDScript fallback, no chemistry/light/collapse; slow
   versions of the rest).
@@ -75,16 +74,21 @@ index as [Stone, Glimmer, Obsidian, Water, Power].
   contents; `knock_out`; Build-list buttons, `click`, `key`), `test_modules.gd` (Box,
   Plug, Cap). State is plain data in `game.modules` (saved via GAME_VARS).
 - `scripts/machines/` (A3 starter kit): `module_data.gd` loads `data/modules/{logistics,excavation,movers,power}.json`
-  (one file per group, `FILES` lists them) into definitions; a definition's `kind` names its behaviour
+  (one file per group, `FILES` lists them: logistics, excavation, movers, power, support) into definitions; a definition's `kind` names its behaviour
   script, registered in machines.gd (`kinds`), each with `scan` (every 6 ticks), `step` (every tick),
   `info` and `draw`. `mu.gd` is what machines.gd and the behaviours share without a preload cycle:
   `defs`, `frame`/`world`/`turn`, `front`, `partner`, `bounds`, `capacity`/`stored`/`add`, `networked`
-  (a Conduit or the Hub in reach, via `find_link`), `take_power` (the Hub's stock). `logistics/tank.gd`
+  (a Node or the Hub in reach, via `find_link`), `take_power` (the Hub's stock). `logistics/tank.gd`
   (capacity from the hollow, `pack` and Tank Size; draws its fill), `logistics/funnel.gd` (banks what it
   holds through `_bank`), `excavation/cutter.gd` (`front_of`, `slice`, hardness masks from the Drill Bit
   level, wobbling 30-wide window, `room` rows clear ahead), `movers/winch.gd` (the rig, states docked /
   down / up, `drive_body` on every rig module each tick, halt reasons keyed on Drill Bit and Drill
-  Shaft), `power/windmill.gd` (gusts, open sky, network reach). machines.gd also has `snap` (a picked
+  Shaft), `power/windmill.gd` (gusts, open sky, network reach), `support/lab.gd` (A3 cut: power and goods
+  from the Hub's stock into `game.current_tech`) and `support/lamp.gd` (`lit` while the stock pays).
+  A module's `tech` (a definition key) gates its Build button (`unlocked`); `count_named` counts
+  built modules by name (goals); `lights` and `sensing` give the game's light and sight passes the
+  modules' pilot lights, lit Lamps and the Cutter's sense; `deepest`/`deepest_module` feed
+  `game.deepest_point()` and `_track_depth`; `place` marks "First <name> built". machines.gd also has `snap` (a picked
   module snaps onto a free matching face within 12 cells), `click` (snaps, charges the definition's
   `cost`), `module_at`, `info`, `generating`, `draw` (the overlay's hook: ghost, cable, readout) and
   `_motion` (every tick: `anchored` modules hold still, behaviours step). A `tether` module's links
@@ -95,9 +99,9 @@ index as [Stone, Glimmer, Obsidian, Water, Power].
 ## The tick (`game._tick`, 60 a second)
 sim.step (cells, then bodies, then particles), `_bodies` (impacts hurt buildings;
 links crossed every 3rd tick), erode (every 2nd), weather, wash, collapse (+ `_cave_ins` alert), network
-rebuild if dirty, springs, falling buildings, fliers (Thumpers), `_update_buildings`
-(each machine; Warrens via `WR.tick`), research, Hub trickles, dispatch and packets,
-`_damage_scan` + `_check_struts` (tick % 6 == 0), `_link_scan` (% 6 == 3), heat (20),
+rebuild if dirty, springs, falling buildings, `_update_buildings`
+(the Hub's upkeep, Nodes' drowning and relinking), `MC.tick` (modules), research, Hub trickles, dispatch and packets,
+`_damage_scan` + `_check_braces` (tick % 6 == 0), `_link_scan` (% 6 == 3), heat (20),
 sense (30), vision/light (15), Crucible. The engine's temperature pass runs inside
 `step`, every 8th tick.
 
@@ -109,7 +113,7 @@ sense (30), vision/light (15), Crucible. The engine's temperature pass runs insi
 - Tick and slow passes: `step`, `erode(samples, y0, y1)`, `weather(samples)`,
   `wash(samples)`, `collapse(rows)`, `stabilize()`, `tremor(n, y0, y1)`.
 - Holds: `settle_around(x, y, r, ticks)`/`get_settle` (freshly dug), `hold_circle(x, y,
-  r, +1/-1)`/`get_held` (Struts), `set_shields(circles)` (Tremor Dampers).
+  r, +1/-1)`/`get_held` (Braces), `set_shields(circles)` (Tremor Dampers).
 - Effects: `explode(x, y, radius, power)`, `ignite`, `add_particle`, `particle_count`.
 - Light and heat: `light_update(lights, sights, sun, known)` (per 4x4 block; copies
   live blocks into the remembered map), `set_light_view(x0, y0, x1, y1)`, `get_light`
@@ -128,7 +132,7 @@ sense (30), vision/light (15), Crucible. The engine's temperature pass runs insi
 - Rectangles: `count_in_rect(x, y, w, h, mask)`, `rect_counts`, `block_counts(bx, by,
   bw, bh, mask)`, `dig_rect(x, y, w, h, mask, settle_r, ticks)`, `place_spots(x, y, w,
   h, radius, open_mask, solid_mask)`. Masks: `Mats.mask(name)` (open, closed, solid,
-  dig, liquid, powder, ...) and `WR.mask(name)`.
+  dig, liquid, powder, ...).
 - Scans for the game: `hazards_batch(rects, reach)` (NHAZ = 8 ints per building: hot
   liquid, fire, scald, liquid, open, corrosive, ground, structure), `segments_batch`,
   `building_hazards`, `segment_hazards`, `ring_counts`, `materials_in(mask)`.
@@ -167,16 +171,10 @@ sense (30), vision/light (15), Crucible. The engine's temperature pass runs insi
 ## Key game functions
 - Placing: `footprint`, `snap_place` (engine `place_spots`, then fog and link),
   `check_place` ("" or a reason), `place` (blueprint; `_complete` when paid),
-  `find_link`, `touches_solid`. Struts: `strut_rect` (STRUT_THICK), `check_strut`,
-  `place_strut` (instant), `strut_anchors`.
-- Machines: `_drill` (`_drill_find` halves down with counts, `_drill_row` digs a row at
-  once), `_hopper` (skips an empty rim), `_springs` (`_spring_top` remembers the top),
-  generators `_wheel` and `_turbine` (`D.is_generator`).
-- Heat (9): `can_cut` / `cut_mask` (obsidian needs the Saw, hot rock the Coolant
-  Jacket), `_cool` (tank water, `b.coolant`; else `b.stuck = DRY`), `_vent` (steam into
-  open cells, `b.steam_due`), `_tank_full` (a charging Borer waits for it). Coolant
-  requests sit after machine power in `_requests`; `_deliver` fills the tank. Mites:
-  `WR.can_dig(m, teeth, ember)`, mask "ember".
+  `find_link`, `touches_solid`. Braces: `brace_rect` (BRACE_THICK), `check_brace`,
+  `place_brace` (instant), `brace_anchor_ok`. Modules are placed by machines.gd (`click`).
+- Upkeep: `_springs` (`_spring_top` remembers the top), `_update_buildings` (the Hub's
+  `_hub_upkeep`; Node drowning in `_damage_scan`'s hysteresis).
 - Crucible: `activate_crucible`, `_update_crucible` (power draw from `c_power`,
   `c_starved`, drain, tremors); its power request leads `_requests`.
 - A run (phase 10): `new_game` = `_label_sim`, `_reset(seed)`, `_start`; `save_run`,
@@ -188,47 +186,39 @@ sense (30), vision/light (15), Crucible. The engine's temperature pass runs insi
 - Lines (phase 10): `line_points` (spacing by type), `lay_line` (places what it can,
   plans the rest), `plans`/`_try_plans` (every 30 ticks), `plan_at`, `cut_plans`;
   input `dragged_line`.
-- Jacket and lava (phase 10): `_quench` (a Drill or Borer facing lava turns it to
-  obsidian from its tank), `_jacket_drink` (water on a jacketed Borer fills its tank);
-  `_damage_scan` lets a jacketed Borer boil JACKET_LAVA_WATER instead of burning.
 - Worth: `D.cell_units(m)` (units a cell of m banks; data "worth").
 - Drawing: `_upload` (dirty tiles near the view), `view_rect(pad)`, float `zoom`.
 - Losing: `demolish` (50% back), `_destroy(b, cause)` (alert, rubble), `_remove`.
 - Anchoring: `_damage_scan` finds unheld buildings, `_settle` keeps those joined to a
   held one, `_come_loose` drops the rest (`_update_falling`, `_land`: fall damage).
-- Bodies: `_bodies` (impacts on buildings), `_crush_links`; Thumper bumps in
-  `_update_fliers` via `_bump`.
+- Bodies: `_bodies` (impacts on buildings), `_crush_links`.
 - Damage: `_hurt(b, amount, cause)`, `hurt_link`, repairs via `_requests`.
 - Network: `_rebuild_network` (relays, sources, links), `_dispatch`, `_route`,
-  `_deliver`, `_bank(pos, res, amount)` (to the nearest Cache in reach, else Hub).
+  `_deliver`, `_bank(pos, res, amount)` (into the Hub's stock; Funnels and Labs use it).
 - Research: `tech(id)`, `level(id)`, `_finish_research`, `is_unlocked(type)`,
   `_refresh_unlocks`; tests set `researched[id] = true` then `_refresh_unlocks()`.
 - Knowledge: `is_known(x, y)`, `reveal`, `_refresh_vision`; `reveal_all` for tests.
 - Alerts: `alert(kind, text, at)` (merges same kind nearby within 20 s), `show_banner`.
 - Blasts: `blast(at, radius, power, source)`.
-- Tests: `run_ticks(n)`, `new_game(seed)`, `paused = true`, `drill.enabled = false`.
+- Tests: `run_ticks(n)`, `new_game(seed)`, `paused = true`.
 - Lab bench (A1): `start_bench(fresh)`, `_bench_mats` (every material, then Heat, Cool,
   Blast), `brush_list`/`brush_material`, `_paint` (engine `paint_circle`, or
   `heat_circle` for Heat and Cool); `bench`, `brush_r`, `temp_view` (F6; the shader's
   `temp_view`). `_reset` turns the bench's reveal, brush and view off.
 
-## The autoplay bot (tests/autoplay.gd, phase 10)
-Plays a run headless through the game's own calls and prints milestones with times
-(`--seed`, `--max`, `--quiet`, `--save=SECONDS` for a checkpoint, `--load=PATH`,
-`--dump=SECONDS --rect=x,y,w,h` for a map of an area). It knows the map. `think()` runs
-its jobs once a game second: research (PLAN), shaft_chain, place_conduits (its own
-Conduit queue: exact spots, sliding to a wall), drive_borers (routes of legs; turns
-checked every 10 ticks by `_turns`), deep (the column), glimmer, tap, lava (a Thumper
-down to lava: Tier 3), descent (`lava_free_legs`: a search over 30-cell blocks clear of
-lava and caves), obsidian (jacketed dives into a lava pocket), plug, crucible (two
-Caches by the plug, then charge). Its state `st` is plain data saved beside a checkpoint
-(`.bot`), so a run resumes from any checkpoint.
+## The quarry bot (tests/autoplay.gd, A3 cut)
+A pacing probe, not a run. Flattens a strip left of the Hub, then each second places Nodes down
+it (blueprints fill by packet), the rig (Cutter, Tank, Funnel, Winch), a Lab and a Windmill,
+and picks research from `ORDER`; prints the tutorial steps, research and the 500-row depth
+marks (`--seed`, `--max`, `--quiet`). The phase 10 bot (Borers, Conduit logistics, checkpoints)
+is gone; the full bot comes back at the end of A4.
 
 ## Tests: the usual harness
 `extends SceneTree`; `_initialize` instantiates `scenes/main.tscn`; `_process` runs the
 scenarios on frame 2 and prints `FAILURES: n`. Helpers each file defines: `fresh()`
 (new_game(7), paused, reveal_all, stock), `fill(r, m)`, `count(...)`, `check(ok, what)`,
-`secs(s)` (run_ticks(60 * s)), `build(type, r)` (place, then tick until built).
+`secs(s)` (run_ticks(60 * s)), `build(type, r)` (place, then tick until built); module tests use `MC.place(game, def, at, 0)`
+on a strip they flatten first (a module that falls far shatters).
 Phase 8b tests also define `P(x, y)` / `R(x, y, w, h)`: a v2 cell or rectangle near the
 Hub, scaled by D.S about the pad's middle at ground level.
 scenario_bodies walls its rooms in bedrock (`arena`), which never caves, and counts bodies

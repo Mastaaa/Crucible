@@ -25,6 +25,8 @@ const K_FUNNEL = preload("res://scripts/machines/logistics/funnel.gd")
 const K_CUTTER = preload("res://scripts/machines/excavation/cutter.gd")
 const K_WINCH = preload("res://scripts/machines/movers/winch.gd")
 const K_WINDMILL = preload("res://scripts/machines/power/windmill.gd")
+const K_LAB = preload("res://scripts/machines/support/lab.gd")
+const K_LAMP = preload("res://scripts/machines/support/lamp.gd")
 
 const SCAN := MU.SCAN           # ticks between scans
 const CONNECT_DIST := 3.5       # faces this near (cells) and square on join
@@ -44,7 +46,8 @@ static func register(def: Dictionary) -> void:
 ## The module data files' definitions, then the throwaway test modules, registered once.
 static func ensure_defs() -> void:
 	if defs.is_empty():
-		kinds = {"tank": K_TANK, "funnel": K_FUNNEL, "cutter": K_CUTTER, "winch": K_WINCH, "windmill": K_WINDMILL}
+		kinds = {"tank": K_TANK, "funnel": K_FUNNEL, "cutter": K_CUTTER, "winch": K_WINCH, "windmill": K_WINDMILL,
+				"lab": K_LAB, "lamp": K_LAMP}
 		for d: Dictionary in MD.defs():
 			register(d)
 		for d: Dictionary in TM.defs():
@@ -106,6 +109,9 @@ static func place(g, def_id: String, at: Vector2i, turns: int) -> int:
 		"integrity": 1.0, "breach": Vector2i(-1, -1), "faces": fl, "contents": {},
 		"at": Vector2(at) + Vector2(size) * 0.5,
 	}
+	if not g.firsts.has(def_id):
+		g.firsts[def_id] = true
+		g.mark("First %s built" % def["name"], false)
 	return id
 
 
@@ -457,7 +463,17 @@ static func add_build_buttons(hud, vb: VBoxContainer) -> void:
 				hud.game.cancel_tool()
 				hud.game.module_pick = id
 				hud.game.show_banner("%s: click to place, R turns it, Esc cancels." % defs[id]["name"], 3.0))
+			b.visible = pass_test or unlocked(hud.game, def)
+			hud.module_buttons.append({"button": b, "def": def})
 			vb.add_child(b)
+
+
+## Shows a module's Build button once its tech is researched.
+static func refresh_buttons(hud) -> void:
+	for e: Dictionary in hud.module_buttons:
+		var open: bool = e["def"].get("test", false) or unlocked(hud.game, e["def"])
+		if e["button"].visible != open:
+			e["button"].visible = open
 
 
 ## Where a module picked for placement goes with the cursor on `cell`: its top left, and
@@ -505,6 +521,9 @@ static func click(g, cell: Vector2i) -> bool:
 	if g.module_pick == "":
 		return false
 	var def: Dictionary = defs[g.module_pick]
+	if not unlocked(g, def):
+		g.module_pick = ""
+		return true
 	var at: Vector2i = snap(g, g.module_pick, g.module_turns, cell)["at"]
 	var why := check_place(g, g.module_pick, at, g.module_turns)
 	if why == "" and not affordable(g, def):
@@ -529,6 +548,80 @@ static func key(g, k: int) -> bool:
 		g.module_pick = ""
 		return true
 	return false
+
+
+# --- What the game asks of the modules ----------------------------------------------
+
+## Whether the Build list offers module `def` and it can be placed: it names a tech, or
+## doesn't need one.
+static func unlocked(g, def: Dictionary) -> bool:
+	return not def.has("tech") or g.researched.has(def["tech"])
+
+
+## The axis-aligned bounds of module `m`.
+static func bounds(m: Dictionary) -> Rect2i:
+	return MU.bounds(m, defs[m["def"]])
+
+
+## The module whose bottom edge is deepest ({} with none).
+static func deepest_module(g) -> Dictionary:
+	var best := {}
+	var best_y := -1
+	for id: int in g.modules:
+		var m: Dictionary = g.modules[id]
+		var y := bounds(m).end.y
+		if y > best_y:
+			best_y = y
+			best = m
+	return best
+
+
+## How deep the modules have got (the bottom edge of the deepest), 0 with none.
+static func deepest(g) -> int:
+	var m := deepest_module(g)
+	return 0 if m.is_empty() else bounds(m).end.y
+
+
+## Where the first module of `kind` is, else `fallback`.
+static func first_at(g, kind: String, fallback: Vector2) -> Vector2:
+	for id: int in g.modules:
+		var m: Dictionary = g.modules[id]
+		if defs[m["def"]].get("kind", "") == kind:
+			return m["at"]
+	return fallback
+
+
+## Modules built so far under `name` (a definition's name, "Lab"); `built` ones only matter for
+## the goal layer's "built" check.
+static func count_named(g, name: String) -> int:
+	var n := 0
+	for id: int in g.modules:
+		if defs[g.modules[id]["def"]]["name"] == name:
+			n += 1
+	return n
+
+
+## Light and sight the modules give, as [position, light radius, sight radius]: every module
+## carries a pilot light (enough to see it work), and a running Lamp lights its whole pool.
+static func lights(g) -> Array:
+	var out: Array = []
+	for id: int in g.modules:
+		var m: Dictionary = g.modules[id]
+		if defs[m["def"]].get("kind", "") == "lamp" and m.get("lit", false):
+			out.append([m["at"], D.LIGHT_LAMP, D.LIGHT_LAMP])
+		else:
+			out.append([m["at"], D.LIGHT_PILOT, D.SIGHT_MACHINE])
+	return out
+
+
+## Where modules that feel hidden pockets (the Cutter) are.
+static func sensing(g) -> Array:
+	var out: Array = []
+	for id: int in g.modules:
+		var m: Dictionary = g.modules[id]
+		if defs[m["def"]].get("sense", false):
+			out.append(m["at"])
+	return out
 
 
 # --- Overlay and readings -----------------------------------------------------------

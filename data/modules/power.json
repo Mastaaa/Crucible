@@ -4,7 +4,7 @@
 		{
 			"id": "windmill", "name": "Windmill", "kind": "windmill", "size": [12, 36], "wall": 2,
 			"cost": [10, 0, 0, 0, 0],
-			"blurb": "Turns in open sky and feeds the Hub's stockpile while a Conduit or the Hub is within reach. Gusts come and go.",
+			"blurb": "Turns in open sky and feeds the Hub's stockpile while a Node or the Hub is within reach. Gusts come and go.",
 			"faces": [],
 			"params": {"power": 0.3, "gust": 0.5, "period": 14.0, "sky": 60}
 		}

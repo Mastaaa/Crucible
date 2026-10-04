@@ -41,6 +41,6 @@ func _process(_d: float) -> bool:
 	game.reveal_all = true
 	_t("snap_place hub", func() -> void:
 		game.snap_key = []
-		game.snap_place(D.B_LAB, Vector2i(200, 150), false))
-	_t("check_place", func() -> void: game.check_place(D.B_LAB, Rect2i(200, 150, 40, 30)))
+		game.snap_place(D.B_NODE, Vector2i(200, 150), false))
+	_t("check_place", func() -> void: game.check_place(D.B_NODE, Rect2i(200, 150, 40, 30)))
 	return true

@@ -18,6 +18,8 @@ func _initialize() -> void:
 func _process(_d: float) -> bool:
 	f += 1
 	if f == 3:
+		game.title.visible = false
+		game.hud.visible = true
 		game.new_game(7)
 		game.hud.toggle_help()
 	if f == 8 and OS.get_cmdline_user_args().has("--end"):

@@ -49,7 +49,7 @@ func cave_with_line() -> Array:
 	var out_list: Array = []
 	for r: Rect2i in [Rect2i(136, 38, 2, 2), Rect2i(140, 50, 2, 2), Rect2i(146, 60, 2, 2),
 			Rect2i(160, 60, 2, 2), Rect2i(174, 60, 2, 2), Rect2i(132, 60, 2, 2), Rect2i(118, 60, 2, 2)]:
-		out_list.append(build(D.B_CONDUIT, r))
+		out_list.append(build(D.B_NODE, r))
 	return out_list
 
 

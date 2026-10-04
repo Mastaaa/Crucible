@@ -23,13 +23,14 @@ uncover elements, deposits and curios; exploit reactions or get blindsided by th
 - data/materials.json: every material (kinds, physics, burning, collapse, water wear, digging, colours)
   and reactions.
 - scripts/: game.gd (controller), defs.gd (all tunables), materials.gd, worldgen.gd, sim_factory.gd,
-  sim.gd (GDScript fallback sim), building.gd, hud.gd, overlay.gd, warren.gd. shaders/terrain.gdshader.
+  sim.gd (GDScript fallback sim), building.gd, hud.gd, overlay.gd, machines/ (the module framework and
+  its groups). shaders/terrain.gdshader.
 - native/: C++ GDExtension sim (godot-cpp 4.5) in src/; bin/ holds the built .dll and .so. Session
   tooling: cloud_setup.sh (run by the SessionStart hook in .claude/), build.sh, run_tests.sh,
   lsp_check.py, cache/ (prebuilt godot-cpp).
-- tests/: scenario_* (power, research, chemistry, light, digging, warren, collapse, bodies, depth, run), engine_compare,
-  descent (pacing probe), autoplay (the bot that plays a run), bench, bench_net, mapdump, shot_* (screenshots;
-  shot_help is the F1 panel, shot_title the title, win and loss screens).
+- tests/: scenario_* (power, research, chemistry, light, collapse, bodies, depth, run, goals, modules, quarry,
+  temperature, wave1, spawn), engine_compare, autoplay (the quarry bot, a pacing probe), bench, bench_net,
+  mapdump, shot_* (screenshots; shot_help is the F1 panel, shot_title the title, win and loss screens).
 
 ## Working with a cloud session (how Claude works on it)
 - Claude Code on the web: the repo is cloned fresh each session and the SessionStart hook sets up
@@ -112,12 +113,15 @@ materials with real chemistry, modular machines (Create-like), and biomes.
    near the Hub. Done: 12 materials and 7 made by reactions (claude/WAVE1_MATERIALS.md), the
    engine's setting, blast, swell, growth, heat-mass and body-forging extensions, spawn rows.
 3. A3, machine framework and the hard cut: legacy buildings go (Hub, Crucible, Nodes, Lab,
-   Lamp, Strut and Bulkhead stay; the Warren is kept for the Drone Cage). The starter quarry
+   Lamp, Brace and Bulkhead stay; the Warren returns in A4 as the Drone Cage). The starter quarry
    (Cutter Excavator, Tank, Winch, Funnel, Windmill, Nodes), Chute, Conveyor, Bus Hopper, a
    skippable tutorial as Hub instructions, research that consumes produced goods, and the Hub's
-   trickle cut to about 0.2 power/s. Done so far: the framework core, the goal layer and the five
-   starter modules (Cutter Excavator, Tank, Winch, Funnel, Windmill); the quarry runs beside the
-   old Drill. Left: the cut, Nodes as a module, Chute, Conveyor, Bus Hopper, the tutorial rewrite.
+   trickle cut to about 0.2 power/s. Done: the framework core, the goal layer, the five starter
+   modules, and the cut (the Drill, Thumper, Borer, Hopper, Spout, Floodgate, Waterwheel, Turbine,
+   Cache, Mast and Warren removed; Lab and Lamp are modules; Node, Bulkhead and Brace stay
+   structures; the tutorial is rewritten around the quarry; the bot is a quarry pacing probe).
+   Left: Chute, Conveyor and Bus Hopper (logistics modules). The gaps the cut exposes are listed
+   in claude/STATUS.md.
 4. A4, movers and excavators: Gantry, Piston, Turntable, full Cutter, Laser Excavator, tethered
    Thumper, Macerator, Press, the Drone Cage; tests and the bot rewritten.
 5. A5, materials wave 2 (about 25 in all), processing chains, sensors, Mk I to IV upgrades,
@@ -127,12 +131,14 @@ materials with real chemistry, modular machines (Create-like), and biomes.
 
 Parked past Alpha: enemies, curios and wreckage, weather, Schematics, logic wiring, randomised
 chemistry (a "pocket dimension" update), more than one Crucible per world. Between A3 and A5 no
-run can be finished; phase 10's jacket rules, building-tied tuning and the bot's logistics are
-placeholders that the cut removes.
+run can be finished; the cut removed phase 10's jacket rules, building-tied tuning and the bot's
+logistics, and the full bot returns at the end of A4.
 
 ## Standing decisions
 (The v3 decisions below hold until the Alpha plan replaces them. Where they conflict, claude/ALPHA_PLAN.md
 wins: buildings, the Drill, the Warren and mites, the Hub's power, and heat as a material.)
+The A3 cut retired the decisions below about the Drill, Thumper, Borer, Hopper, Spout, Floodgate, Waterwheel,
+Cache, Turbine, Relay Mast, Warren and mites, and the Conduit and Strut names (now Node and Brace); they stay as history.
 
 - Engine in C++; Noita-style chunks, dirty rects, checkerboard threading, deterministic per-chunk RNG.
 - Materials are data. Alex wants to design a wider material set before more are implemented;
@@ -176,21 +182,16 @@ wins: buildings, the Drill, the Warren and mites, the Hub's power, and heat as a
   `_about` lists them. The family list is full at 16 tags (a bit each in a uint16).
 - Settling: cells next to anything a building digs hold still for SETTLE_S (20 s) before weathering,
   erosion, loosening or powder falls can take them; liquids aren't held.
-- The Warren never moves (no Advance); mites never dig its footing. It has no zone picker: a chamber over it,
-  then a marker the player sets, which the mites reach their own way.
 - A run (10): lost when the Hub is destroyed (it takes damage like any building and patches itself with its
   own Stone); won when the Crucible is lit, and the player can keep going. One save slot, no Load menu: the
   title has Continue and Start Run; it saves on quit, on going to the title and every 5 minutes; a loss
   erases it, a win keeps it. A random seed unless one is typed in.
-- Pacing (10): a first run about 2 hours; the map-aware bot (tests/autoplay.gd) about 1, on the Hub's power
-  alone. Research power is the early clock; Tier 1 is v2 x3, later tiers x4.
+- Pacing (10): a first run about 2 hours; research power is the early clock; Tier 1 is v2 x3, later tiers x4.
+  The phase 10 bot is gone (the A3 cut); the quarry bot only probes the starter loop.
 - Deposits (10): glimmer, obsidian, coal and sulfur (and their shards) bank 6x a cell ("worth" in the data).
-- The Coolant Jacket and lava (10): Borers stop short of lava; with the jacket a Drill or Borer facing lava
-  quenches it into obsidian from its tank (then the Saw cuts it), a jacketed Borer boils its tank instead of
-  burning in lava or flames, and water landing on it goes into its tank.
 - Steam (10): condensing, half of it turns back to water and half is lost, so boil cycles die out.
-- Dragged lines (10): relays spaced to link, Lamps a light apart, the rest side by side; what can't go down
-  yet is planned and goes down when the network reaches it.
+- Dragged lines (10): Nodes spaced to link, Bulkheads side by side; what can't go down yet is planned and
+  goes down when the network reaches it.
 
 ## Tone and working style
 Dry, deadpan, concise, pragmatic. No "Not X, but Y" lines, no triplet-heavy descriptions, no pet names.

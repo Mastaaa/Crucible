@@ -11,6 +11,7 @@ const FILES := [
 	"res://data/modules/excavation.json",
 	"res://data/modules/movers.json",
 	"res://data/modules/power.json",
+	"res://data/modules/support.json",
 ]
 
 const TYPES := {"pixel": F.PIXEL, "power": F.POWER, "mech": F.MECH, "signal": F.SIGNAL}

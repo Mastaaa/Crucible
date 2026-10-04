@@ -1,6 +1,6 @@
 extends RefCounted
 ## Windmill (A3 starter kit): turns in open sky and feeds the Hub's stockpile while a
-## Conduit or the Hub is within reach. The wind comes in gusts. The first real generator.
+## Node or the Hub is within reach. The wind comes in gusts. The first real generator.
 
 const MU = preload("res://scripts/machines/mu.gd")
 const D = preload("res://scripts/defs.gd")
@@ -25,7 +25,7 @@ static func scan(g, m: Dictionary, def: Dictionary) -> void:
 		m["why"] = "The sky over it is blocked."
 		return
 	if not MU.networked(g, m, def):
-		m["why"] = "No Conduit or Hub within reach."
+		m["why"] = "No Node or Hub within reach."
 		return
 	m["why"] = ""
 	var rate := gust(g, m, def)

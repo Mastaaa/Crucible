@@ -98,8 +98,7 @@ static func is_solid(m: int) -> bool:
 	return k == M.K_STATIC or k == M.K_POWDER
 
 ## How fast a material gives way, in cells of depth per second, at full pace.
-## The Drill works at DRILL_SPEED of this (faster with Drill Bit), a Borer at
-## BORER_SPEED.
+## The Cutter works at its own fraction of this (faster with Drill Bit).
 static func bore_rate(m: int) -> float:
 	return M.dig_rate(m)
 
@@ -133,196 +132,78 @@ static func cell_units(m: int) -> float:
 	return M.worth_of(m) / CELLS_PER_UNIT
 
 # --- Buildings ---------------------------------------------------------------
+# The structures: the Hub and Crucible (fixed, one each per world), the Node that
+# carries the network, and what holds ground up (Brace) or holds it back (Bulkhead).
+# Everything that works is a module (scripts/machines/, data/modules/*.json).
 const B_HUB := 0
-const B_CONDUIT := 1
-const B_DRILL := 2
-const B_HOPPER := 3
-const B_SPOUT := 4
-const B_BULKHEAD := 5
-const B_FLOODGATE := 6
-const B_CRUCIBLE := 7
-const B_WATERWHEEL := 8
-const B_CACHE := 9
-const B_LAMP := 10
-const B_LAB := 11
-const B_THUMPER := 12
-const B_BORER := 13
-const B_MAST := 14
-const B_WARREN := 15
-const B_STRUT := 16
-const B_TURBINE := 17
+const B_NODE := 1
+const B_BULKHEAD := 2
+const B_CRUCIBLE := 3
+const B_BRACE := 4
 
-const B_NAMES := ["Hub", "Conduit", "Drill", "Hopper", "Spout", "Bulkhead", "Floodgate", "Crucible",
-		"Waterwheel", "Cache", "Lamp", "Lab", "Thumper", "Borer", "Relay Mast", "Warren", "Strut",
-		"Steam Turbine"]
-const B_LETTERS := ["HUB", "C", "D", "V", "S", "", "F", "", "", "K", "L", "LAB", "T", "B", "M", "W", "", ""]
-const B_SIZES := [Vector2i(8, 6) * S, Vector2i(2, 2) * S, Vector2i(3, 3) * S, Vector2i(3, 2) * S,
-		Vector2i(2, 2) * S, Vector2i(2, 2) * S, Vector2i(2, 6) * S, Vector2i(14, 8) * S,
-		Vector2i(3, 5) * S, Vector2i(3, 3) * S, Vector2i(2, 2) * S, Vector2i(4, 3) * S,
-		Vector2i(2, 2) * S, Vector2i(3, 3) * S, Vector2i(2, 3) * S, Vector2i(5, 3) * S, Vector2i(1, 1) * S,
-		Vector2i(4, 4) * S]
-const B_HP := [1000.0, 100.0, 100.0, 100.0, 100.0, 200.0, 200.0, 1000.0, 100.0, 150.0, 60.0, 120.0,
-		80.0, 150.0, 120.0, 120.0, 60.0, 120.0]
+const B_NAMES := ["Hub", "Node", "Bulkhead", "Crucible", "Brace"]
+const B_LETTERS := ["HUB", "N", "", "", ""]
+const B_SIZES := [Vector2i(8, 6) * S, Vector2i(2, 2) * S, Vector2i(2, 2) * S, Vector2i(14, 8) * S,
+		Vector2i(1, 1) * S]
+const B_HP := [1000.0, 100.0, 200.0, 1000.0, 60.0]
 # Cost per building as [stone, glimmer, obsidian, water, power].
-const B_COSTS := [[0, 0, 0, 0, 0], [2, 0, 0, 0, 0], [5, 0, 0, 0, 0], [3, 0, 0, 0, 0],
-		[3, 2, 0, 0, 0], [1, 0, 0, 0, 0], [3, 1, 0, 0, 0], [0, 0, 0, 0, 0],
-		[6, 0, 0, 0, 0], [8, 0, 0, 0, 0], [2, 0, 0, 0, 0], [8, 0, 0, 0, 0],
-		[3, 0, 0, 0, 0], [14, 0, 0, 0, 0], [4, 1, 0, 0, 0], [10, 0, 0, 0, 0], [2, 0, 0, 0, 0],
-		[10, 4, 0, 0, 0]]
-const B_COLORS := [Color("#f2c14e"), Color("#7cc4ff"), Color("#ff9a52"), Color("#5fd1b0"),
-		Color("#5aa9ff"), Color("#9aa3b5"), Color("#c7a2ff"), Color("#ffd27a"),
-		Color("#8fd3ff"), Color("#e2b86a"), Color("#fff0a0"), Color("#e59ad8"),
-		Color("#ff7a6b"), Color("#f0a04b"), Color("#9ad8ff"), Color("#c9a36b"), Color("#d8c08a"),
-		Color("#c8d2e6")]
+const B_COSTS := [[0, 0, 0, 0, 0], [2, 0, 0, 0, 0], [1, 0, 0, 0, 0], [0, 0, 0, 0, 0], [2, 0, 0, 0, 0]]
+const B_COLORS := [Color("#f2c14e"), Color("#7cc4ff"), Color("#9aa3b5"), Color("#ffd27a"), Color("#d8c08a")]
 const B_BLURBS := [
 	"Holds the stockpile and sends every packet.",
-	"Extends the network. Links to other Conduits within 160 cells.",
-	"Bores a 30-wide shaft straight down from beside the Hub and banks what it removes. Drill Bit and Drill Shaft research make it faster and deeper.",
-	"Swallows loose material that falls into its mouth.",
-	"Releases stockpiled Water, 600 cells per packet.",
+	"Extends the network. Links to other Nodes within 160 cells.",
 	"A wall with 200 HP. Holds lava for 8 seconds.",
-	"A Bulkhead that opens and closes.",
 	"The goal. Feed it, light it.",
-	"Makes power from water falling through it, in at the top and out of the bottom.",
-	"Stores power and materials at the front. Serves nearby machines first; nearby digging banks here.",
-	"Lights 200 cells round it while it has power. Rock casts shadows.",
-	"Turns power into progress on the tech picked in the Research tab (T). Each Lab adds up to 2 power/s.",
-	"Goes off every few seconds, cratering the ground under it and throwing itself up. Drag it where you want it. What it breaks flies as rubble for Hoppers to catch.",
-	"Grinds a 30-wide tunnel the way it's pointed and follows it, until its power runs out or it meets something it can't cut. Turn it any time.",
-	"A Conduit on a mast: links other relays within 280 cells.",
-	"A colony of mites that hollows out a chamber over it, then tunnels toward the marker you set in its panel and digs out a small circle there. They go their own way getting there.",
 	"A beam across a gap, rock to rock. Holds up what rests on it, and nothing within 50 cells of either end caves in or crumbles. Built at once from the Hub's Stone; no upkeep.",
-	"Makes power from steam rising through it, in at the bottom and out of the top. What gets past it still scalds Conduits.",
 ]
-# Build list: keys 1-9, 0, then letters. Only what's unlocked shows; the keys stay put.
-const PALETTE := [B_CONDUIT, B_THUMPER, B_HOPPER, B_BULKHEAD, B_LAB, B_SPOUT, B_FLOODGATE,
-		B_WATERWHEEL, B_CACHE, B_LAMP, B_BORER, B_MAST, B_WARREN, B_STRUT, B_TURBINE]
-const PALETTE_KEYS := ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "B", "M", "G", "X", "U"]
-const STARTING_KIT := [B_CONDUIT, B_HOPPER, B_BULKHEAD, B_LAB]
+# Build list: keys 1-3. Only what's unlocked shows; the keys stay put. Modules have their own
+# section under it (machines.gd).
+const PALETTE := [B_NODE, B_BULKHEAD, B_BRACE]
+const PALETTE_KEYS := ["1", "2", "3"]
+const STARTING_KIT := [B_NODE, B_BULKHEAD]
 
 # --- Network -----------------------------------------------------------------
 const RELAY_RANGE := 16.0 * S
-const MAST_RANGE := 28.0 * S
 const LINK_RANGE := 8.0 * S
 const HUB_PACKETS_PER_S := 6.0
-const CACHE_PACKETS_PER_S := 4.0
-const GEN_PACKETS_PER_S := 2.0
 const PACKET_SPEED := 60.0 * S
 
 # --- Power ------------------------------------------------------------------------
+# Power is the Hub's stock. Modules draw on it directly while a Node or the Hub is in reach
+# (MU.networked) and generators (Windmill) add to it; only the Crucible's charge still travels
+# by packet.
 const HUB_POWER_PER_S := 0.2        # the floor: the Hub always makes this much
-const POWER_RESERVE := 10.0         # what each powered machine holds
-const HOPPER_POWER_PER_CELL := 0.02 / (S * S)
-const SPOUT_POWER_PER_PACKET := 1.0
-const GATE_POWER := 1.0
 const LAMP_POWER_PER_S := 0.1
-const WHEEL_POWER_PER_CELL := 0.08 / (S * S)
-const WHEEL_CELLS_PER_S := 25.0 * S * S   # most water a Waterwheel passes a second (2 power/s)
-const TURBINE_POWER_PER_CELL := 0.4 / (S * S)   # 4/s from the ~1000 cells/s a room of steam pushes through it (phase 10)
-const TURBINE_CELLS_PER_S := 10.0 * S * S        # the most it takes: its 4/s
-                                                  # gives about half that (2 power/s)
-const GEN_BUFFER := 20.0            # power a generator holds before the rest goes to the Hub
-const CACHE_CAP := 60.0
-const CACHE_TOPUP := [30.0, 0.0, 0.0, 0.0, 60.0]   # what the network keeps a Cache stocked with
-const CACHE_BANK_RANGE := 24.0 * S  # digging this close to a Cache banks into it
-const SPRING_CELLS_PER_S := 8.0 * S * S   # a Waterwheel under a spring makes about 0.6 power/s
+const HUB_POWER_CAP := 100.0        # the Hub's power store
+const SPRING_CELLS_PER_S := 8.0 * S * S   # a spring tops its aquifer up by this much water
 const CAVE_SPRING_CHANCE := 0.4
-const HUB_POWER_CAP := 100.0        # the Hub's own power store; Caches hold more out at the front
 
-## Power a Drill spends to remove one cell of `m`.
+## Power a dug cell of `m` costs (the Cutter's base rate, before depth and Drill Bit).
 static func power_per_cell(m: int) -> float:
 	return M.dig_power(m)
 
-## Buildings that run on power.
-static func uses_power(t: int) -> bool:
-	return t == B_DRILL or t == B_HOPPER or t == B_SPOUT or t == B_FLOODGATE or t == B_LAMP or t == B_LAB \
-			or t == B_THUMPER or t == B_BORER or t == B_WARREN
-
-## Relays pass the network on: the Hub, Conduits and Relay Masts.
+## Nodes pass the network on: the Hub and every Node.
 static func is_relay_type(t: int) -> bool:
-	return t == B_HUB or t == B_CONDUIT or t == B_MAST
+	return t == B_HUB or t == B_NODE
 
-## Conduits and Masts: they drown, steam scalds them and lava destroys them.
-static func is_conduit(t: int) -> bool:
-	return t == B_CONDUIT or t == B_MAST
+## Nodes drown, steam scalds them and lava destroys them.
+static func is_node(t: int) -> bool:
+	return t == B_NODE
 
 ## How far a relay links to other relays (a link holds when either end reaches).
-static func relay_range(t: int) -> float:
-	return MAST_RANGE if t == B_MAST else RELAY_RANGE
+static func relay_range(_t: int) -> float:
+	return RELAY_RANGE
 
-## Everything but a Strut draws on the network through a link.
+## Everything but a Brace draws on the network through a link.
 static func needs_link(t: int) -> bool:
-	return t != B_STRUT
-
-## Generators: Waterwheels and Steam Turbines hold what they make and send it.
-static func is_generator(t: int) -> bool:
-	return t == B_WATERWHEEL or t == B_TURBINE
-
-## Things that move on their own: their light, sight and links follow them.
-static func is_mover(t: int) -> bool:
-	return t == B_THUMPER or t == B_BORER
+	return t != B_BRACE
 
 # --- Machines ----------------------------------------------------------------
-# The Drill: one, fixed beside the Hub from the start, boring a 3-wide shaft
-# straight down. Drill Bit levels make it faster (and dearer per cell), Drill
-# Shaft levels deeper; the last reaches the bedrock shell over the chamber.
-const DRILL_SPEED := 1.0 / 8.0      # of full pace, before any Drill Bit
-const DRILL_BIT_SPEED := 1.5        # per Drill Bit level
-const DRILL_BIT_POWER := 1.2        # power per cell, per Drill Bit level
-const DRILL_REACHES := [150, 300, 500, 800, 1200, 1650, 2250, 2950, 3650, 4350]   # by Drill Shaft level
-const DRILL_DEEP_ROWS := 1500.0     # power per cell goes up by its base every this many rows down
-const DRILL_SCAN_ROWS := 1024       # rows of channel a Drill looks over for loose fill in a tick
-const DRILL_REACH := 12 * S         # a Drill placed by a test script (not the fixed one)
-# Thumper: blasts under itself on a timer and is thrown up by it. Indexed by
-# upgrade level (Thumper Charge, Blast Radius, Efficiency, Rhythm).
-const THUMP_POWERS := [3, 5, 6, 8, 10]      # beats dirt, coal and sulfur; stone 5, glimmer 6, obsidian 10
-const THUMP_RADII := [3.5 * S, 4.5 * S, 5.5 * S, 6.5 * S]
-const THUMP_COSTS := [1.5, 1.1, 0.8, 0.55]  # power per blast
-const THUMP_INTERVALS := [6.0, 4.5, 3.4, 2.5]
-const THUMP_DEPTH := S               # the charge goes off this many cells under it
-const THUMP_LAUNCH := 20.0 * S      # cells/s up off a blast, plus 2 * S per point of blast power
-const THUMP_DRIFT := 2.5 * S        # most sideways speed a blast adds, cells/s: it lands in or by its crater
-const DRAG_SPEED := 45.0 * S        # fastest a dragged Thumper follows the cursor, cells/s
-const FLY_WATER_MAX := 10.0 * S     # fastest anything sinks through liquid
-# Borer: grinds the rock in front of it at BORER_SPEED of full pace, moves into
-# the space, runs on its reserve out past the network.
-const BORER_SPEED := 0.3             # phase 10: 0.5 made the mid-game a sprint
-const BORER_MOVE_PER_S := 8.0 * S   # cells a second through open space
-const BORER_MOVE_POWER := 0.02 / S  # power per cell moved
-const BORER_RESERVES := [30.0, 50.0, 80.0, 120.0]   # by Borer Cells level
-# Warren (phase 7): its mites dig a half-circle chamber over it, then tunnel toward
-# its marker and hollow out a small circle there, hauling each cell home to bank.
-# Hard Teeth scales the chamber, the circle and the marker's range by WARREN_TEETH_SCALE.
-const WARREN_DOME_R := 6.0 * S       # the chamber over it, from the middle of its floor line
-const WARREN_MARKER_RANGE := 32.0 * S   # furthest a marker can sit from it
-const WARREN_MARKER_R := 3.0 * S     # the circle dug out at the marker
-const WARREN_TUNNEL_SLACK := 8.0 * S # furthest off the straight line to the marker they'll wander
-const WARREN_WOBBLE := 3.0 * S       # how much each cell's quirk counts against its distance to the marker
-const WARREN_DETOUR := 2.0 * S       # furthest back from their nearest point to the marker they'll dig to get round something
-const WARREN_SKIN := S               # with Sounding, cells of ground they leave against a liquid
-const WARREN_TEETH_SCALE := 1.5
-const WARREN_MITES := 3
-const WARREN_MITES_EMBER := 5
-const WARREN_BREED_S := 20.0         # a replacement mite every this long
-const WARREN_BREED_COST := 1.0       # Stone, taken from the Hub or a Cache like a blueprint
-const WARREN_POWER_FRAC := 0.5       # power per cell dug, of the Drill's base rate
-const WARREN_REACH_MARGIN := 3 * S   # mites path through open cells this far outside the zone
-const MITE_SPEED := 4.0              # of full pace, nibbling a cell (phase 10: v2's pace against building size)
-const MITE_BURST := 8                # bites (4 x 4 cells) nibbled out a trip before hauling them home
-const MITE_MOVE_PER_S := 20.0 * S    # cells a second along a surface
-const MITE_DROWN_S := 5.0            # under liquid this long and it drowns
-const MITE_CHOKE_S := 5.0            # in fumes this long and it chokes
-const MITE_BURN_S := 3.0             # alight this long, running and lighting what it brushes, then dead
-# Mites as bodies (phase 8d): a mite walks and clings on its own, and turns into a
-# MITE_SIZE-square body the moment physics takes it (it loses its grip, a blast
-# catches it); it walks again once it lies still. Anything moving into it with at
-# least MITE_CRUSH (cells of it x cells a second) crushes it; less squeezes it aside.
-const MITE_SIZE := 3
-const MITE_CRUSH := 3000.0          # a 20-cell pebble at 150; a falling mite (9 cells) never does
-const MITE_FALL_V := 480.0          # landing faster than this kills one (a fall of about 130 cells)
-const MITE_GRIP := 2                # bites off it can reach to cling to
-const MITE_SOFT := [DIRT, LOOSE_DIRT, RUBBLE, COAL_CHUNKS, ASH, SAND, GRAVEL]   # Tier 1
-const MITE_HARD := [STONE, GLIMMER, COAL, GLIMMER_SHARDS, OBSIDIAN_SHARDS, PACKED_DIRT, CLAY]   # added by Hard Teeth
+# Drill Shaft research lengthens the Winch's cable: the depth (in rows below the surface of
+# the world) the rig may go to by level. The last reaches the bedrock shell over the chamber.
+const SHAFT_REACHES := [150, 300, 500, 800, 1200, 1650, 2250, 2950, 3650, 4350]
+# Mites were the Warren's: the engine still has creature bodies, which shatter above this fall speed.
+const CREATURE_FALL_V := 480.0
 # Settling: when a building digs a cell out, the solid cells round it hold still
 # this long (no weathering, erosion or loosening; held powder doesn't fall), so
 # there's time to shore the hole up. Liquids aren't held.
@@ -333,37 +214,33 @@ const SETTLE_RADIUS := S
 # engine sweeps COLLAPSE_ROWS rows a tick, bottom up (the whole map every 10 ticks).
 const COLLAPSE_ROWS := 512
 const CAVE_ALERT_CELLS := 12 * S     # cells down in a couple of seconds before it's called a cave-in (a front S times wider)
-# Strut: a beam S cells thick across a gap, rock at both ends, built at once.
-const STRUT_MAX := 16 * S            # longest gap it spans
-const STRUT_THICK := S               # how thick the beam is, where the gap allows
-const STRUT_HOLD := 5 * S            # rock within this of either anchor never caves in, weathers or loosens
-const STRUT_DAMP_R := 12.0 * S       # with Tremor Dampers, tremors spare stone this close to a Strut
-const SENSE_RADIUS := 10.0 * S  # drills feel hidden pockets this far off
-const SENSOR_RANGE := 16.0 * S  # how far a Spout or Floodgate sensor can sit from it
+# Brace: a beam S cells thick across a gap, rock at both ends, built at once.
+const BRACE_MAX := 16 * S            # longest gap it spans
+const BRACE_THICK := S               # how thick the beam is, where the gap allows
+const BRACE_HOLD := 5 * S            # rock within this of either anchor never caves in, weathers or loosens
+const BRACE_DAMP_R := 12.0 * S       # with Tremor Dampers, tremors spare stone this close to a Brace
+const SENSE_RADIUS := 10.0 * S  # a Cutter feels hidden pockets this far off
 # Light and fog. A block is explored when it's lit and within sight of one of your
 # buildings; after that it shows live whenever it's lit, and as last seen (dimmed)
 # when it isn't. Light fades a cell per cell of air, twice that through liquid and
 # five times through rock (see "opacity" in data/materials.json). Radii in cells.
 const LIGHT_HUB := 22.0 * S
 const LIGHT_LAMP := 20.0 * S
-const LIGHT_PILOT := 3.0 * S    # every machine and Drill head: enough to see it work
+const LIGHT_PILOT := 3.0 * S    # every module: enough to see it work
 const LIGHT_CRUCIBLE := 10.0 * S
 const SUN_LIGHT := 12 * S       # the sky, and straight down open shafts
 const LIGHT_VIEW_PAD := 256     # explored ground this far past the screen stays lit (live)
 const SIGHT_HUB := 24.0 * S
-const SIGHT_CONDUIT := 12.0 * S
+const SIGHT_NODE := 12.0 * S
 const SIGHT_MACHINE := 10.0 * S # a lit Lamp watches its whole pool of light
 const REVEAL_START := 20.0 * S  # known round the Hub from the start
-const REVEAL_DIG := 6.0 * S     # a Drill knows the rock round its head as it reaches
 # Anchoring: a building with nothing solid (or no held-up building) touching it falls.
 const FALL_ACCEL := 60.0 * S    # cells a second, per second
 const FALL_MAX := 40.0 * S      # cells a second
+const FALL_WATER_MAX := 10.0 * S  # fastest a building sinks through liquid
 const PLACE_SNAP := 5 * S       # a ghost that's floating or poking into rock snaps to a legal spot this near
-const HOPPER_RATE := 90.0 * S * S   # cells a second; fast enough to keep up with a full aquifer breach
-const SPOUT_RATES := [0.5, 1.0, 2.0]
-const SPOUT_QUEUE_MAX := 20
 const LAVA_DPS := 25.0
-const STEAM_DPS := 5.0          # to Conduits only
+const STEAM_DPS := 5.0          # to Nodes only
 
 # --- Research -------------------------------------------------------------------
 const LAB_POWER_PER_S := 2.0        # the most one Lab turns into research a second
@@ -373,82 +250,34 @@ const TIER_FOUND := ["", "", "Glimmer", "Lava", "The Crucible"]
 
 # The tech tree. "needs": parent techs (all of them, or any one when "any" is set);
 # "mats": materials the Labs must be sent, [stone, glimmer, obsidian, water, power];
-# "building": what it adds to the build list; "phase": the build that implements
-# it, for techs whose content doesn't exist yet (they show but can't be picked).
-# Upgrades have "levels" instead of one cost: each level is researched in turn,
-# costs more than the last and may want a later tier open.
+# "building": what it adds to the build list; "module": a module (data/modules) it unlocks;
+# "phase": the build that implements it, for techs whose content doesn't exist yet (they show
+# but can't be picked). Upgrades have "levels" instead of one cost: each level is researched in
+# turn, costs more than the last and may want a later tier open.
+# The A3 cut left a short tree (the retired buildings' techs went with them); A4 and A5 grow it
+# around goods.
 const TECHS := [
-	{"id": "waterwheel", "name": "Waterwheel", "tier": 1, "needs": [], "power": 180, "building": B_WATERWHEEL,
-		"text": "Generator: power from water falling through it."},
-	{"id": "spout", "name": "Spout", "tier": 1, "needs": [], "power": 240, "building": B_SPOUT,
-		"text": "Releases stockpiled Water where you put it."},
-	{"id": "cache", "name": "Cache", "tier": 1, "needs": [], "power": 180, "building": B_CACHE,
-		"text": "Storage for power and materials out at the front."},
-	{"id": "lamp", "name": "Lamp", "tier": 1, "needs": [], "power": 120, "building": B_LAMP,
-		"text": "Lights 200 cells round it for 0.1 power/s. Everywhere else underground stays dark."},
-	{"id": "thumper", "name": "Thumper", "tier": 1, "needs": [], "power": 150, "building": B_THUMPER,
-		"text": "Blasts the ground under it every few seconds and throws itself up. Drag it anywhere; Hoppers catch the rubble."},
-	{"id": "borer", "name": "Borer", "tier": 1, "needs": [], "power": 450, "building": B_BORER,
-		"text": "A digger you point and let go: it tunnels until its power runs out or it meets something it can't cut."},
-	{"id": "warren", "name": "Warren", "tier": 1, "needs": [], "power": 300, "building": B_WARREN,
-		"text": "Mites dig a chamber round the Warren, then tunnel toward a marker you set (soft ground only)."},
-	{"id": "strut", "name": "Strut", "tier": 1, "needs": [], "power": 180, "building": B_STRUT,
+	{"id": "lamp", "name": "Lamp", "tier": 1, "needs": [], "power": 120, "module": "lamp",
+		"text": "A module that lights 200 cells round it for 0.1 power/s. Everywhere else underground stays dark."},
+	{"id": "brace", "name": "Brace", "tier": 1, "needs": [], "power": 180, "building": B_BRACE,
 		"text": "A beam across a gap, rock to rock (up to 160 cells). It props what rests on it and holds rock within 50 cells of each end."},
-	{"id": "floodgate", "name": "Floodgate", "tier": 2, "needs": ["spout"], "power": 480, "mats": [0, 10, 0, 0, 0],
-		"building": B_FLOODGATE, "text": "A Bulkhead that opens and closes on a sensor."},
-	{"id": "relay_mast", "name": "Relay Mast", "tier": 2, "needs": ["cache"], "power": 480, "mats": [0, 20, 0, 0, 0],
-		"building": B_MAST, "text": "A Conduit on a mast that links 280 cells instead of 160."},
-	{"id": "homing", "name": "Homing", "tier": 2, "needs": ["borer"], "power": 720, "mats": [0, 16, 0, 0, 0],
-		"text": "A Borer at half power heads back the way it came, recharges, then goes back to work."},
-	{"id": "sounding", "name": "Sounding", "tier": 2, "needs": ["warren"], "power": 400, "mats": [0, 10, 0, 0, 0],
-		"text": "Mites leave a 10-cell skin against any liquid."},
-	{"id": "hard_teeth", "name": "Hard Teeth", "tier": 2, "needs": ["warren"], "power": 600, "mats": [0, 20, 0, 0, 0],
-		"text": "Mites dig stone, glimmer and coal; chamber, marker circle and marker range 1.5x larger."},
-	{"id": "obsidian_saw", "name": "Obsidian Saw", "tier": 3, "needs": ["hard_teeth", "borer"], "any": true, "power": 1000,
-		"mats": [0, 24, 0, 0, 0], "text": "The Drill and Borers cut obsidian. Until then it stops them."},
-	{"id": "steam_turbine", "name": "Steam Turbine", "tier": 3, "needs": ["waterwheel"], "power": 1000, "mats": [0, 30, 0, 0, 0],
-		"building": B_TURBINE, "text": "Generator: power from steam rising through it."},
-	{"id": "ember_brood", "name": "Ember Brood", "tier": 3, "needs": ["hard_teeth"], "power": 1000, "mats": [0, 30, 0, 0, 0],
-		"text": "5 mites per Warren; they dig hot rock and walk through fire (lava still kills them)."},
-	{"id": "coolant_jacket", "name": "Coolant Jacket", "tier": 3, "needs": ["borer"], "power": 1000, "mats": [0, 30, 0, 0, 0],
-		"text": "The Drill and Borers cut hot rock, for 1 Water per 2000 cells, all of it vented as steam behind them. A jacketed Borer shrugs off lava while its tank has water, and both quench lava they face into obsidian, a cell of water a cell. Water that lands on a jacketed Borer goes into its tank."},
-	{"id": "tremor_dampers", "name": "Tremor Dampers", "tier": 4, "needs": ["obsidian_saw", "strut"], "power": 1200,
-		"mats": [0, 0, 20, 0, 0], "text": "Tremors crumble no stone within 120 cells of a Strut."},
+	{"id": "tremor_dampers", "name": "Tremor Dampers", "tier": 4, "needs": ["brace"], "power": 1200,
+		"mats": [0, 0, 20, 0, 0], "text": "Tremors crumble no stone within 120 cells of a Brace."},
 	# Upgrades.
 	{"id": "drill_bit", "name": "Drill Bit", "tier": 1, "needs": [],
-		"text": "The Drill digs 50% faster a level, and each level costs 20% more power per cell.",
+		"text": "The Cutter digs 50% faster a level, and each level costs 20% more power per cell. Harder ground opens up: Clay and Stone first.",
 		"levels": [{"tier": 1, "power": 180}, {"tier": 1, "power": 390}, {"tier": 2, "power": 1040, "mats": [0, 16, 0, 0, 0]},
 			{"tier": 2, "power": 2000, "mats": [0, 32, 0, 0, 0]}, {"tier": 3, "power": 3600, "mats": [0, 48, 8, 0, 0]}]},
 	{"id": "drill_shaft", "name": "Drill Shaft", "tier": 1, "needs": [],
-		"text": "The Drill reaches deeper: 300, 500, 800, 1200, 1650, 2250, 2950, 3650, then 4350 rows (the bedrock over the chamber). Deep rows cost more power, and past about 2800 rows the rock is hot: that needs the Coolant Jacket.",
+		"text": "The Winch's cable lengthens: the rig reaches 300, 500, 800, 1200, 1650, 2250, 2950, 3650, then 4350 rows (the bedrock over the chamber). Deep rows cost more power, and past about 2800 rows the rock is hot.",
 		"levels": [{"tier": 1, "power": 120}, {"tier": 1, "power": 240}, {"tier": 1, "power": 450}, {"tier": 1, "power": 780},
 			{"tier": 2, "power": 1680, "mats": [0, 20, 0, 0, 0]}, {"tier": 2, "power": 2600, "mats": [0, 40, 0, 0, 0]},
 			{"tier": 3, "power": 3800, "mats": [0, 60, 0, 0, 0]}, {"tier": 3, "power": 5200, "mats": [0, 60, 10, 0, 0]},
 			{"tier": 3, "power": 7200, "mats": [0, 80, 20, 0, 0]}]},
-	{"id": "thump_charge", "name": "Thumper Charge", "tier": 1, "needs": ["thumper"],
-		"text": "Harder blasts: through stone, then glimmer, then (at the last level) obsidian.",
-		"levels": [{"tier": 1, "power": 180}, {"tier": 2, "power": 600, "mats": [0, 12, 0, 0, 0]},
-			{"tier": 3, "power": 1200, "mats": [0, 30, 0, 0, 0]}, {"tier": 3, "power": 2000, "mats": [0, 50, 0, 0, 0]}]},
-	{"id": "thump_radius", "name": "Blast Radius", "tier": 1, "needs": ["thumper"],
-		"text": "Thumper craters 10 cells wider each level (35, 45, 55, 65).",
-		"levels": [{"tier": 1, "power": 150}, {"tier": 2, "power": 560, "mats": [0, 12, 0, 0, 0]},
-			{"tier": 3, "power": 1200, "mats": [0, 30, 0, 0, 0]}]},
-	{"id": "thump_efficiency", "name": "Thumper Efficiency", "tier": 1, "needs": ["thumper"],
-		"text": "Less power a blast: 1.5, 1.1, 0.8, 0.55.",
-		"levels": [{"tier": 1, "power": 120}, {"tier": 2, "power": 480, "mats": [0, 10, 0, 0, 0]},
-			{"tier": 2, "power": 960, "mats": [0, 20, 0, 0, 0]}]},
-	{"id": "thump_rhythm", "name": "Thumper Rhythm", "tier": 1, "needs": ["thumper"],
-		"text": "Blasts come quicker: every 6, 4.5, 3.4, then 2.5 seconds.",
-		"levels": [{"tier": 1, "power": 150}, {"tier": 2, "power": 600, "mats": [0, 12, 0, 0, 0]},
-			{"tier": 3, "power": 1280, "mats": [0, 30, 0, 0, 0]}]},
 	{"id": "tank_size", "name": "Tank Size", "tier": 1, "needs": [],
 		"text": "Tanks hold more: half, then the full, double and four times what their hollow packs.",
 		"levels": [{"tier": 1, "power": 150}, {"tier": 2, "power": 520, "mats": [0, 12, 0, 0, 0]},
 			{"tier": 3, "power": 1100, "mats": [0, 28, 0, 0, 0]}]},
-	{"id": "borer_cells", "name": "Borer Cells", "tier": 1, "needs": ["borer"],
-		"text": "A Borer holds more power, so it gets further past the network: 30, 50, 80, 120.",
-		"levels": [{"tier": 1, "power": 240}, {"tier": 2, "power": 800, "mats": [0, 16, 0, 0, 0]},
-			{"tier": 3, "power": 1600, "mats": [0, 40, 0, 0, 0]}]},
 ]
 
 ## Index of a tech in TECHS by id, or -1.
@@ -480,13 +309,6 @@ const LAYERS := [
 
 # --- Heat (phase 9) ---------------------------------------------------------------
 const HOT_TOP := 3000               # hot rock from here down (wobbling by up to 24)
-# Coolant Jacket: the Drill and Borers cut hot rock for water (v2: 1 per 20 cells),
-# and it all goes up as steam, from the cut (a Borer steps past it: out its tail).
-const COOLANT_WATER_PER_CELL := 1.0 / (20.0 * S * S)
-const COOLANT_STEAM_PER_CELL := COOLANT_WATER_PER_CELL * CELLS_PER_UNIT   # 0.3
-const COOLANT_CAP := 4.0            # water a Drill or Borer holds for its jacket
-const JACKET_LAVA_WATER := 0.05     # water a second a jacketed Borer boils off touching lava, instead of burning (phase 10)
-const QUENCH_WATER_PER_CELL := 1.0 / CELLS_PER_UNIT   # a jacket quenching lava it faces to obsidian: a cell of water a cell
 
 # --- Temperature (A1) --------------------------------------------------------------
 # Every cell has a temperature (degrees) that the engine leaks between neighbours
@@ -561,7 +383,7 @@ const LINK_FIRE_DPS := 4.0          # with 4 or more burning cells on the line
 const LINK_CORRODE_DPS := 0.25      # with 8 or more corrosive cells on or beside it
 const LINK_LAVA_DPS := 20.0
 const LINK_REPAIR_BELOW := 0.5
-# Blasts: the sandbox brush's (the Thumper's come from its upgrades). Power is what
+# Blasts: the sandbox brush's. Power is what
 # a material's durability must not beat (stone 5, glimmer 6, obsidian 10).
 const BLAST_RADIUS := 6.0 * S
 const BLAST_POWER := 6
@@ -588,11 +410,6 @@ const CRUSH_LINK := 1.0e-4          # ... and 24 to a link
 # FALL_HURT of their HP at FALL_MAX.
 const FALL_SAFE_V := 200.0         # a fall of about 33 cells
 const FALL_HURT := 0.75
-# Thumper collisions: hitting rock or a building sideways or upward faster than
-# THUMP_BUMP_SAFE hurts it, and the building, by THUMP_BUMP_DAMAGE per cell a second over.
-const THUMP_BUMP_SAFE := 30.0 * S
-const THUMP_BUMP_DAMAGE := 0.25   # the hardest flick (450) into rock: 37 of its 80
-
 
 ## What the engine's bodies are set up with (sim_factory).
 static func body_params() -> Dictionary:
@@ -600,4 +417,4 @@ static func body_params() -> Dictionary:
 			"shatter_per_durability": BODY_SHATTER_PER_DUR, "crush_min": CRUSH_MIN_V,
 			"min_cells": BODY_MIN_CELLS, "piece_min": PIECE_WIDTH.x, "piece_max": PIECE_WIDTH.y,
 			"thick_min": PIECE_THICK.x, "thick_max": PIECE_THICK.y, "piece_room": PIECE_ROOM, "pieces": true,
-			"creature_shatter": MITE_FALL_V}
+			"creature_shatter": CREATURE_FALL_V}

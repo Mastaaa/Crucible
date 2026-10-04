@@ -4,6 +4,40 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A3 part: the legacy cut
+
+Tests: fourteen scenarios and engine_compare end `FAILURES: 0` (scenario_digging and scenario_warren are
+gone). The engine did not change, so `bin/` is as it was and Godot need not be closed before pulling.
+Saves from before this are not readable (save VERSION 2).
+
+- Gone: the Drill, Thumper, Borer, Hopper, Spout, Floodgate, Waterwheel, Steam Turbine, Cache, Relay
+  Mast and the Warren (scripts/warren.gd, mites, the jacket and Saw rules, breach alerts and the pause
+  option, the cells-drilled stat). The Warren comes back in A4 as the Drone Cage.
+- Kept: the Hub and the Crucible, Node (the old Conduit), Bulkhead, Brace (the old Strut), the Lab and
+  the Lamp. Lab and Lamp are modules now (data/modules/support.json), so research and light run off the
+  Hub's stock like every other machine; the Lamp opens with its tech. Nodes stay a structure: the
+  packet network still carries blueprints, repairs and the Crucible's supplies, and fog sight hangs off
+  them. Build keys are 1 Node, 2 Bulkhead, 3 Brace; machines are buttons.
+- Every module now glows a little and sees (the Drill used to light the descent): a quarry is never
+  dark, a lit Lamp lights 200 cells and the Cutter senses hidden pockets. The minimap and Home/End use
+  modules too.
+- The tutorial is the quarry: build the rig, deliver 30 Stone, build a Lab, finish one research, reach
+  depth 500, deliver 20 Water. The "legacy" flags are gone from data/instructions.json.
+- Tests: scenario_power is the Hub trickle and Node chains (drowning, reach); scenario_research runs on
+  the Lab module and the remaining techs; scenario_light, bodies, depth, run, goals, chemistry and
+  collapse lost what used the removed buildings. tests/autoplay.gd is a quarry bot that builds the rig,
+  a Lab and a Windmill beside the Hub and researches in a fixed order; descent, smoke_v2 and the shots of
+  removed buildings are deleted.
+- Bot baseline (seed 7, rig left of the Hub, 0:00 to 1:30): Drill Bit at 4:26, depth 210 at 5:00, 306 at
+  10:00, 452 at 14:00, then the rig stalls on the way up with a full Tank ("jammed on the way up") for the
+  rest of the run; 11 techs by 1:03. Instruction 2 (30 Stone) never completes. The same stall happens on
+  main (0a6bcb8) with the same rig, so the cut did not cause it. Built right of the Hub the rig digs
+  to about 265 and crawls. Power sits at 0 until research is done: a Lab eats 2/s against 0.2 from the
+  Hub and a Windmill's gusts.
+- Gaps written down in claude/STATUS.md: pacing, the jam, tiers 2 and 3 having no techs of their own,
+  the Crucible's 4 power/s against a 100-power Hub store, no breach alerts, nothing that pumps or pours
+  water, modules drifting a cell across a save.
+
 ## A3 part: starter kit modules
 
 Tests: sixteen suites end `FAILURES: 0` (scenario_quarry is new). The engine changed (`drive_body`):

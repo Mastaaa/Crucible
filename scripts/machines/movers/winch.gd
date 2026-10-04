@@ -123,7 +123,7 @@ static func step(g, m: Dictionary, def: Dictionary) -> void:
 			elif not dig.is_empty() and dig.get("stuck", "") != "" and dig["room"] == 0:
 				_stop(g, m, "The Excavator stopped: %s ahead." % dig["stuck"])
 			elif not m["net"]:
-				why = "No Conduit or Hub within reach."
+				why = "No Node or Hub within reach."
 			else:
 				var room: int = dig.get("room", 0)
 				var speed := float(p["down"]) * (1.0 if room >= 2 else 0.5 if room == 1 else 0.0)
@@ -136,7 +136,7 @@ static func step(g, m: Dictionary, def: Dictionary) -> void:
 			if m["cable"] <= 0.02:
 				m["state"] = "docked"
 			elif not m["net"]:
-				why = "No Conduit or Hub within reach."
+				why = "No Node or Hub within reach."
 			elif MU.take_power(g, float(p["power"]) * D.DT):
 				v = -minf(float(p["up"]), maxf(m["cable"], 0.0))
 			else:

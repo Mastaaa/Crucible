@@ -6,7 +6,6 @@ extends Node2D
 ## terrain; hud.gd builds the interface. Balance numbers live in defs.gd.
 
 const D = preload("res://scripts/defs.gd")
-const WR = preload("res://scripts/warren.gd")
 const MC = preload("res://scripts/machines/machines.gd")
 const Goals = preload("res://scripts/goals.gd")
 const SimFactory = preload("res://scripts/sim_factory.gd")
@@ -38,7 +37,7 @@ const BRUSH_R_MAX := 40
 const SPEEDS := [1, 2, 4]
 const TICK_BUDGET_US := 25000       # most of a frame the sim may take at a raised speed
 const LINE_MAX := 40                # most buildings one drag lays out
-const LINE_RELAY_SPACING := 0.75    # Conduits and Masts in a dragged line, apart by this much of their range
+const LINE_RELAY_SPACING := 0.75    # Nodes in a dragged line, apart by this much of their range
 const FIX_BUILDING := -2            # Packet.fix for a Stone that repairs the building it goes to
 const BUCKET_SHIFT := 7        # relay grid buckets are 128 x 128 cells (under one relay range)
 const GRID_W := D.W >> BUCKET_SHIFT
@@ -63,21 +62,18 @@ var seed_value := 0
 var buildings: Array = []
 var hub: Building
 var crucible: Building
-var drill: Building               # the fixed Drill beside the Hub
-var rng := RandomNumberGenerator.new()   # seeded with the map: Thumper throws and the like
+var rng := RandomNumberGenerator.new()   # seeded with the map: spills and the like
 var stock := PackedFloat64Array([0.0, 0.0, 0.0, 0.0, 0.0])
 var packets: Array = []
 var relays: Array = []
 var relay_index := {}             # relay -> its index in `relays`
 var spring_tops := {}              # (spring x, spring y, column) -> the first cell over its water last tick
 var relay_grid := {}              # 128x128-cell bucket -> indices of the relays in it
-var caches: Array = []            # built, linked Caches (for banking), as of the last rebuild
 var dispatch_wait := 0            # ticks until the next dispatch pass after one that sent nothing
 var net_dirty := true
 var next_id := 1
 var next_order := 1
 var send_log: Array = []
-var spout_rr := 0
 # Sources (Hub, Caches, generators): one shortest-path tree over the relays each.
 var src_list: Array = []
 var src_dist: Array = []          # PackedFloat64Array per source, indexed like `relays`
@@ -97,23 +93,18 @@ var damaged := {}                 # building -> true once hurt, until repaired o
 var scan_dirty := true
 var scan_list: Array = []         # buildings checked for hazards
 var scan_rects := PackedInt32Array()
-var scan_gates := PackedInt32Array()  # indexes in scan_list of Floodgates (open ones leak liquid)
 var link_list: Array = []         # buildings whose link is checked
 var fallers: Array = []           # buildings falling right now
-var fliers: Array = []            # Thumpers in the air, or being dragged
 var crushed := {}                 # body id -> {link key: true} for the links it has already hit
-var mite_bodies := {}             # body id -> the mite (Dictionary) that is that body
 var modules := {}                 # module id -> its state (machines/machines.gd)
 var next_module := 1
 var module_pick := ""             # a module being placed (its id), or ""
 var module_turns := 0
 var body_seen := {}               # body id -> cells x speed, as of body_seen_tick
 var body_seen_tick := -1
-var scan_stale := false           # a mover changed its link: rebuild the scan lists soon
 var by_id := {}                   # building id -> building, rebuilt with the scan cache
 var still_lights := PackedInt32Array()  # lights and sights that don't move or switch, with the cache
 var still_sights := PackedInt32Array()
-var lit_list: Array = []          # Lamps and Drills: their light switches or moves
 var link_segs := PackedInt32Array()
 
 var game_time := 0.0
@@ -126,7 +117,6 @@ var carry_on := false             # won, and playing on past it
 var run_lost := false             # the Hub is gone: the run is over
 var lost_cause := ""
 var buildings_lost := 0
-var cells_drilled := 0
 var goals := Goals.fresh()        # the goal layer: instructions, chapters, delivered tallies
 var milestones: Array = []        # {t, text, major}, in the order they happened
 var firsts := {}                  # building type -> true once one has been built
@@ -161,14 +151,13 @@ var tremor_timer := D.TREMOR_EVERY_S
 var tremor_left := 0
 var cave_cells := 0               # cells caved in recently (for the cave-in alert)
 var cave_t := 0.0                 # seconds since that count started
-var strut_list: Array = []        # Struts, with the scan cache (their anchors are checked)
+var brace_list: Array = []        # Braces, with the scan cache (their anchors are checked)
 var crucible_linked_once := false
 
 # --- Alerts --------------------------------------------------------------------
 var alerts: Array = []
 var seen_kinds := {}
 var seen_mats := {}               # material id -> true once its first-sighting note has shown
-var pause_on_breach := true
 var banner_text := ""
 var banner_time := 0.0
 
@@ -230,7 +219,6 @@ var ui_scale := 1.0
 
 # --- Tools and input -------------------------------------------------------------
 var tool_type := -1
-var tool_dir := 0
 var tool_horizontal := false
 var drag_from := Vector2i(-1, -1)
 var plans: Array = []              # buildings laid out by a drag, waiting for the network: {type, at, dir, horiz, line}
@@ -240,11 +228,8 @@ var hover := Vector2i(-1, -1)
 var snap_key: Array = []          # snap_place's last question and answer, reused for a few frames
 var snap_rect := Rect2i()
 var mouse_screen := Vector2.ZERO
-var sensor_mode := false
 var demolish_target: Building = null
 var demolish_hold := 0.0
-var grab: Building = null          # a Thumper under a left press: dragged once the mouse moves
-var grab_from := Vector2i.ZERO
 var panning := false
 var pan_last := Vector2.ZERO
 var show_network := false
@@ -382,13 +367,10 @@ func _reset(s: int) -> void:
 	link_ends.clear()
 	damaged.clear()
 	fallers.clear()
-	fliers.clear()
 	crushed.clear()
-	mite_bodies.clear()
 	MC.reset(self)
 	body_seen.clear()
 	body_seen_tick = -1
-	scan_stale = false
 	scan_dirty = true
 	send_log.clear()
 	next_id = 1
@@ -416,7 +398,6 @@ func _reset(s: int) -> void:
 	lost_cause = ""
 	paused = false
 	buildings_lost = 0
-	cells_drilled = 0
 	milestones.clear()
 	goals = Goals.fresh()
 	firsts.clear()
@@ -436,13 +417,11 @@ func _reset(s: int) -> void:
 	tremor_left = 0
 	cave_cells = 0
 	cave_t = 0.0
-	strut_list.clear()
+	brace_list.clear()
 	crucible_linked_once = false
 	selected = null
 	demolish_target = null
-	grab = null
 	tool_type = -1
-	sensor_mode = false
 	banner_text = ""
 	save_clock = 0.0
 	plans.clear()
@@ -455,24 +434,12 @@ func _reset(s: int) -> void:
 	bench = false
 
 
-## A new run on the world just made: the Hub, the Crucible, the fixed Drill and
-## what's known round the Hub.
+## A new run on the world just made: the Hub, the Crucible and what's known round the Hub.
 func _start() -> void:
 	hub = _make_building(D.B_HUB, info["hub"])
 	hub.built = true
 	crucible = _make_building(D.B_CRUCIBLE, info["crucible"])
 	crucible.built = true
-	# The Drill: fixed on the Hub's right, boring straight down from the start.
-	var hr: Rect2i = info["hub"]
-	var ds: Vector2i = D.B_SIZES[D.B_DRILL]
-	drill = _make_building(D.B_DRILL, Rect2i(hr.end.x, hr.end.y - ds.y, ds.x, ds.y))
-	drill.fixed = true
-	drill.built = true
-	drill.power = D.POWER_RESERVE
-	drill.reach_limit = max_reach()
-	for yy in range(drill.y, drill.y + drill.h):
-		for xx in range(drill.x, drill.x + drill.w):
-			sim.set_cell(xx, yy, D.BUILDING)
 
 	known = PackedByteArray()
 	known.resize(KW * KH)
@@ -496,8 +463,8 @@ func _start() -> void:
 	sim.changed = true
 	net_dirty = true
 	_rebuild_network()
-	alert("info", "The Drill beside the Hub is boring down. The Crucible waits at the bottom.", hub.center())
-	alert("info", "Build a Lab (5) and pick something to research (T).", hub.center())
+	alert("info", "The Crucible waits at the bottom. The Build list holds a starter quarry: Cutter, Tank, Winch, Funnel and Windmill.", hub.center())
+	alert("info", "Build a Lab and pick something to research (T).", hub.center())
 	if hud:
 		hud.on_new_game()
 
@@ -573,7 +540,6 @@ func start_bench(fresh := false) -> void:
 		_reset(0)
 		bench = true
 		_start()
-		drill.enabled = false
 		reveal_all = true
 		brush_mode = true
 		brush_r = 6
@@ -587,7 +553,7 @@ func start_bench(fresh := false) -> void:
 
 
 ## Every material the bench's brush offers, by id (not steam's later stages, a
-## building's cells or a mite), then the heat, cool and blast tools.
+## building's cells), then the heat, cool and blast tools.
 func _bench_mats() -> Array:
 	var out: Array = []
 	for m in 256:
@@ -623,11 +589,6 @@ func continue_run(path := Save.PATH) -> bool:
 
 ## After a load: what's rebuilt rather than saved.
 func _loaded() -> void:
-	mite_bodies.clear()
-	for b: Building in buildings:
-		for mt: Dictionary in b.mites:
-			if mt.body != 0:
-				mite_bodies[mt.body] = mt
 	_refresh_unlocks()
 	scan_dirty = true
 	net_dirty = true
@@ -683,11 +644,6 @@ func _process(delta: float) -> void:
 		if save_clock >= Save.AUTOSAVE_S:
 			save_run()
 	_update_demolish(delta)
-	if grab != null:
-		if grab.dead:
-			grab = null
-		elif grab.held:
-			grab.hold_at = Vector2(hover) + Vector2(0.5, 0.5)
 	if painting != 0 and hover.x >= 0:
 		_paint(hover, painting == 2)
 	_update_camera(delta)
@@ -718,8 +674,6 @@ func _tick() -> void:
 	_springs()
 	if not fallers.is_empty():
 		_update_falling()
-	if not fliers.is_empty():
-		_update_fliers()
 	_update_buildings()
 	_research_check()
 	if not bench:
@@ -734,12 +688,9 @@ func _tick() -> void:
 	_dispatch()
 	_move_packets()
 	# Buildings and links take turns, three ticks apart, so neither lands on the other.
-	if scan_stale and ticks % 30 == 0:
-		scan_stale = false
-		scan_dirty = true
 	if ticks % 6 == 0:
 		_damage_scan()
-		_check_struts()
+		_check_braces()
 	elif ticks % 6 == 3:
 		_link_scan(6.0 * D.DT)
 	if ticks % 20 == 0:
@@ -797,9 +748,9 @@ func mark(text: String, major := true) -> void:
 	milestones.append({"t": game_time, "text": text, "major": major})
 
 
-## Depth milestones: the deepest the Drill, the diggers and the network have got.
+## Depth milestones: the deepest the modules and the network have got.
 func _track_depth() -> void:
-	var y := int(drill.drill_head().y)
+	var y := MC.deepest(self)
 	for b: Building in buildings:
 		if b.built and not b.dead and not b.falling and b.type != D.B_CRUCIBLE:
 			y = maxi(y, b.y + b.h)
@@ -893,10 +844,8 @@ func _make_building(type: int, r: Rect2i) -> Building:
 
 
 ## Footprint of a building of `type` centred on cell `c`.
-func footprint(type: int, c: Vector2i, horiz: bool) -> Rect2i:
+func footprint(type: int, c: Vector2i, _horiz: bool) -> Rect2i:
 	var s: Vector2i = D.B_SIZES[type]
-	if type == D.B_FLOODGATE and horiz:
-		s = Vector2i(s.y, s.x)
 	return Rect2i(c.x - (s.x >> 1), c.y - (s.y >> 1), s.x, s.y)
 
 
@@ -994,7 +943,7 @@ func find_link(type: int, r: Rect2i, exclude: Building = null) -> Building:
 	var best_cost := INF
 	var c := Vector2(r.position) + Vector2(r.size) * 0.5
 	var relay := D.is_relay_type(type)
-	var reach := int(ceil(D.MAST_RANGE if relay else D.LINK_RANGE)) + 1
+	var reach := int(ceil(D.RELAY_RANGE if relay else D.LINK_RANGE)) + 1
 	for i in _relays_near(r.grow(reach)):
 		var rl: Building = relays[i]
 		if rl.dead or not rl.connected or rl == exclude:
@@ -1038,29 +987,13 @@ static func dist_to_rect(p: Vector2, r: Rect2i) -> float:
 	return sqrt(dx * dx + dy * dy)
 
 
-func place(type: int, r: Rect2i, dir := 0, horiz := false) -> Building:
+func place(type: int, r: Rect2i, horiz := false) -> Building:
 	var b := _make_building(type, r)
-	b.dir = dir
 	b.horizontal = horiz
-	# Buildings can go into water; a Hopper banks the water it displaces.
+	# Buildings can go into water.
 	for yy in range(r.position.y, r.end.y):
 		for xx in range(r.position.x, r.end.x):
-			if type == D.B_HOPPER and sim.get_cell(xx, yy) == D.WATER:
-				_bank(Vector2(xx, yy), D.R_WATER, 1.0 / D.CELLS_PER_UNIT)
 			sim.set_cell(xx, yy, D.BUILDING)
-	if type == D.B_DRILL:
-		b.reach_limit = D.DRILL_REACH
-	elif type == D.B_BORER:
-		b.trail = [Vector2i(b.x, b.y)]
-		b.mode = 2              # charges up where it's placed before it sets off
-	elif type == D.B_SPOUT:
-		b.sensor_on = true
-		b.sx = b.x + (b.w >> 1)
-		b.sy = mini(b.y + b.h + 3 * D.S, D.H - 3)
-	elif type == D.B_FLOODGATE:
-		b.sensor_on = true
-		b.sx = b.x + (b.w >> 1)
-		b.sy = maxi(b.y - 2, 2)
 	if b.fully_delivered():
 		_complete(b)
 	net_dirty = true
@@ -1073,18 +1006,16 @@ func _complete(b: Building) -> void:
 	scan_dirty = true
 	if not firsts.has(b.type):
 		firsts[b.type] = true
-		mark("First %s built" % D.B_NAMES[b.type], b.type == D.B_LAB)
+		mark("First %s built" % D.B_NAMES[b.type], false)
 	if D.is_relay_type(b.type) or b.is_source():
 		net_dirty = true
-	if b.type == D.B_DRILL:
-		_refresh_sense()
 
 
 # --- Lines (phase 10) ------------------------------------------------------------------
-# A drag with a build tool lays out a line of buildings: Conduits and Masts far
-# enough apart to link (with room to snap), Lamps a light's reach apart, the rest
-# side by side. Each one is a plan until the network reaches its spot; then it's
-# a blueprint like any other, so a chain of Conduits goes down one after another.
+# A drag with a build tool lays out a line of buildings: Nodes far enough apart to
+# link (with room to snap), the rest side by side. Each one is a plan until the network
+# reaches its spot; then it's a blueprint like any other, so a chain of Nodes goes down
+# one after another.
 
 ## Centres of the buildings a line from `a` to `b` lays out, `a` first.
 func line_points(type: int, a: Vector2i, b: Vector2i, horiz := false) -> Array:
@@ -1095,10 +1026,8 @@ func line_points(type: int, a: Vector2i, b: Vector2i, horiz := false) -> Array:
 		return out
 	var u := d / length
 	var step := 0.0
-	if D.is_conduit(type):
+	if D.is_node(type):
 		step = D.relay_range(type) * LINE_RELAY_SPACING
-	elif type == D.B_LAMP:
-		step = D.LIGHT_LAMP
 	else:
 		var sz := Vector2(footprint(type, Vector2i.ZERO, horiz).size)
 		step = minf(sz.x / maxf(absf(u.x), 0.001), sz.y / maxf(absf(u.y), 0.001))
@@ -1114,7 +1043,7 @@ func lay_line(type: int, a: Vector2i, b: Vector2i) -> int:
 	next_line += 1
 	var pts := line_points(type, a, b, tool_horizontal)
 	for c: Vector2i in pts:
-		plans.append({"type": type, "at": c, "dir": tool_dir, "horiz": tool_horizontal, "line": line})
+		plans.append({"type": type, "at": c, "horiz": tool_horizontal, "line": line})
 	var now := _try_plans()
 	if now < pts.size():
 		show_banner("%d of %d %ss laid; the rest go down as the network reaches them. Right-click one to cut the line there." % [
@@ -1130,7 +1059,7 @@ func _try_plans() -> int:
 		var p: Dictionary = plans[k]
 		var r := snap_place(p.type, p.at, p.horiz)
 		if check_place(p.type, r) == "":
-			place(p.type, r, p.dir, p.horiz)
+			place(p.type, r, p.horiz)
 			plans.remove_at(k)
 			placed += 1
 			continue
@@ -1157,36 +1086,36 @@ func cut_plans(k: int) -> void:
 		i -= 1
 
 
-# --- Struts ---------------------------------------------------------------------------
+# --- Braces ---------------------------------------------------------------------------
 
-## The gap a Strut would span through cell `c`: the open cells (air, gas or water)
+## The gap a Brace would span through cell `c`: the open cells (air, gas or water)
 ## in its row (flat) or column (upright), out to what stops them both ways. Stops
-## looking a cell past STRUT_MAX so open sky isn't searched end to end. Empty
+## looking a cell past BRACE_MAX so open sky isn't searched end to end. Empty
 ## when `c` itself isn't open.
-func strut_rect(c: Vector2i, horiz: bool) -> Rect2i:
+func brace_rect(c: Vector2i, horiz: bool) -> Rect2i:
 	if c.x < 2 or c.y < 2 or c.x >= D.W - 2 or c.y >= D.H - 2 or not Mats.buildable_in(sim.get_cell(c.x, c.y)):
 		return Rect2i(c, Vector2i.ZERO)
 	var step := Vector2i(1, 0) if horiz else Vector2i(0, 1)
 	var a := c
 	var b := c
-	for _k in D.STRUT_MAX:
+	for _k in D.BRACE_MAX:
 		var n := a - step
 		if n.x < 2 or n.y < 2 or not Mats.buildable_in(sim.get_cell(n.x, n.y)):
 			break
 		a = n
-	for _k in D.STRUT_MAX:
+	for _k in D.BRACE_MAX:
 		var n := b + step
 		if n.x >= D.W - 2 or n.y >= D.H - 2 or not Mats.buildable_in(sim.get_cell(n.x, n.y)):
 			break
 		b = n
 	# Thickness: down from the cursor's row (flat) or right from its column
-	# (upright), STRUT_THICK at most, stopping where the gap does, and always
+	# (upright), BRACE_THICK at most, stopping where the gap does, and always
 	# thinner than it is long (its shape says which way it runs).
 	var line := Rect2i(a, b - a + Vector2i.ONE)
 	var across := Vector2i(0, 1) if horiz else Vector2i(1, 0)
 	var length := maxi(line.size.x, line.size.y)
 	var t := 1
-	while t < D.STRUT_THICK and t + 1 < length:
+	while t < D.BRACE_THICK and t + 1 < length:
 		var next := Rect2i(line.position + across * t, line.size)
 		if next.end.x > D.W - 2 or next.end.y > D.H - 2 or \
 				sim.count_in_rect(next.position.x, next.position.y, next.size.x, next.size.y, Mats.mask("closed")) > 0:
@@ -1195,43 +1124,43 @@ func strut_rect(c: Vector2i, horiz: bool) -> Rect2i:
 	return Rect2i(line.position, line.size + across * (t - 1))
 
 
-## The two cells a Strut at `r` rests on, one past each end.
+## The two cells a Brace at `r` rests on, one past each end.
 ## (Its first row or column, the line through the cursor it was drawn from.)
-static func strut_anchors(r: Rect2i) -> Array:
+static func brace_anchors(r: Rect2i) -> Array:
 	if r.size.x >= r.size.y:
 		return [Vector2i(r.position.x - 1, r.position.y), Vector2i(r.end.x, r.position.y)]
 	return [Vector2i(r.position.x, r.position.y - 1), Vector2i(r.position.x, r.end.y)]
 
 
-## Rock a Strut can rest on: anything static that isn't a building.
-func strut_anchor_ok(c: Vector2i) -> bool:
+## Rock a Brace can rest on: anything static that isn't a building.
+func brace_anchor_ok(c: Vector2i) -> bool:
 	var m: int = sim.get_cell(c.x, c.y)
 	return Mats.kind_of(m) == Mats.K_STATIC and m != D.BUILDING
 
 
-## "" when a Strut can go at `r` (from strut_rect), otherwise a short reason.
-func check_strut(r: Rect2i) -> String:
+## "" when a Brace can go at `r` (from brace_rect), otherwise a short reason.
+func check_brace(r: Rect2i) -> String:
 	if r.size.x <= 0 or r.size.y <= 0:
 		return "Needs a gap: open air or water"
-	if maxi(r.size.x, r.size.y) > D.STRUT_MAX:
-		return "Too wide: a Strut spans %d cells at most" % D.STRUT_MAX
-	for c: Vector2i in strut_anchors(r):
-		if not strut_anchor_ok(c):
+	if maxi(r.size.x, r.size.y) > D.BRACE_MAX:
+		return "Too wide: a Brace spans %d cells at most" % D.BRACE_MAX
+	for c: Vector2i in brace_anchors(r):
+		if not brace_anchor_ok(c):
 			return "Both ends must meet rock"
 	for yy in range(r.position.y, r.end.y):
 		for xx in range(r.position.x, r.end.x):
 			if not is_known(xx, yy):
 				return "Unexplored"
-	var cost: Array = D.B_COSTS[D.B_STRUT]
+	var cost: Array = D.B_COSTS[D.B_BRACE]
 	for res in D.NRES:
 		if stock[res] < cost[res]:
 			return "Needs %d %s at the Hub" % [cost[res], D.RES_NAMES[res]]
 	return ""
 
 
-## Build a Strut at once, paid from the Hub's stock: no blueprint, no link.
-func place_strut(r: Rect2i) -> Building:
-	var b := _make_building(D.B_STRUT, r)
+## Build a Brace at once, paid from the Hub's stock: no blueprint, no link.
+func place_brace(r: Rect2i) -> Building:
+	var b := _make_building(D.B_BRACE, r)
 	b.horizontal = r.size.x >= r.size.y
 	for res in D.NRES:
 		stock[res] -= b.cost[res]
@@ -1239,27 +1168,27 @@ func place_strut(r: Rect2i) -> Building:
 	for yy in range(r.position.y, r.end.y):
 		for xx in range(r.position.x, r.end.x):
 			sim.set_cell(xx, yy, D.BUILDING)
-	var ends := strut_anchors(r)
+	var ends := brace_anchors(r)
 	b.anchor_a = ends[0]
 	b.anchor_b = ends[1]
-	_strut_hold(b, 1)
+	_brace_hold(b, 1)
 	_complete(b)
 	return b
 
 
-func _strut_hold(b: Building, delta: int) -> void:
+func _brace_hold(b: Building, delta: int) -> void:
 	if b.anchor_a.x >= 0:
-		sim.hold_circle(b.anchor_a.x, b.anchor_a.y, D.STRUT_HOLD, delta)
+		sim.hold_circle(b.anchor_a.x, b.anchor_a.y, D.BRACE_HOLD, delta)
 	if b.anchor_b.x >= 0:
-		sim.hold_circle(b.anchor_b.x, b.anchor_b.y, D.STRUT_HOLD, delta)
+		sim.hold_circle(b.anchor_b.x, b.anchor_b.y, D.BRACE_HOLD, delta)
 
 
-## A Strut snaps when either end loses its rock (dug, blasted, caved in).
-func _check_struts() -> void:
-	for b: Building in strut_list:
+## A Brace snaps when either end loses its rock (dug, blasted, caved in).
+func _check_braces() -> void:
+	for b: Building in brace_list:
 		if b.dead or b.falling:
 			continue
-		if not strut_anchor_ok(b.anchor_a) or not strut_anchor_ok(b.anchor_b):
+		if not brace_anchor_ok(b.anchor_a) or not brace_anchor_ok(b.anchor_b):
 			_destroy(b, "losing an anchor")
 
 
@@ -1281,19 +1210,14 @@ func _cave_ins(n: int) -> void:
 
 
 ## Rigid bodies (pieces of ground falling): a building one lands on is hurt by its
-## mass and speed, a mite (as a body) is crushed by enough of both; links it crosses
-## fast are worn (every third tick).
+## mass and speed; links it crosses fast are worn (every third tick).
 func _bodies() -> void:
 	var hits: PackedInt32Array = sim.take_impacts()
 	for k in range(0, hits.size(), 6):
-		var mt = mite_bodies.get(hits[k + 5])
-		if mt != null and hits[k + 2] * hits[k + 3] >= D.MITE_CRUSH:
-			mt.fate = "crushed"
-			sim.remove_body(hits[k + 5])
 		if hits[k + 4] == 0:
 			continue
 		var b := building_at(Vector2i(hits[k], hits[k + 1]))
-		if b == null or b.dead or b.type == D.B_CRUCIBLE or b.fixed:
+		if b == null or b.dead or b.type == D.B_CRUCIBLE:
 			continue
 		_hurt(b, D.CRUSH_DAMAGE * hits[k + 3] * hits[k + 2], "falling rock")
 	if ticks % 3 == 0 and (sim.body_count() > 0 or not crushed.is_empty()):
@@ -1357,15 +1281,13 @@ static func _segment_hits_rect(a: Vector2, b: Vector2, r: Rect2) -> bool:
 
 
 func demolish(b: Building) -> void:
-	if b == null or b.dead or b.type == D.B_HUB or b.type == D.B_CRUCIBLE or b.fixed:
+	if b == null or b.dead or b.type == D.B_HUB or b.type == D.B_CRUCIBLE:
 		return
 	for r in D.NRES:
 		if b.built:
-			stock[r] += b.cost[r] * 0.5 + b.store[r]
+			stock[r] += b.cost[r] * 0.5
 		else:
 			stock[r] += b.delivered[r]
-	if b.built:
-		stock[D.R_POWER] += b.power
 	_remove(b, D.AIR)
 
 
@@ -1383,21 +1305,14 @@ func _destroy(b: Building, cause: String) -> void:
 
 func _remove(b: Building, fill: int) -> void:
 	b.dead = true
-	for mt: Dictionary in b.mites:
-		if mt.body != 0:
-			sim.remove_body(mt.body)
-			mite_bodies.erase(mt.body)
-	if b.type == D.B_STRUT:
-		_strut_hold(b, -1)
+	if b.type == D.B_BRACE:
+		_brace_hold(b, -1)
 	for yy in range(b.y, b.y + b.h):
 		for xx in range(b.x, b.x + b.w):
 			if sim.get_cell(xx, yy) == D.BUILDING:
 				sim.set_cell(xx, yy, fill)
 	buildings.erase(b)
 	damaged.erase(b)
-	fliers.erase(b)
-	if grab == b:
-		grab = null
 	scan_dirty = true
 	_forget_links(b)
 	if selected == b:
@@ -1405,8 +1320,6 @@ func _remove(b: Building, fill: int) -> void:
 	if demolish_target == b:
 		demolish_target = null
 	net_dirty = true
-	if b.type == D.B_DRILL:
-		_refresh_sense()
 
 
 func building_at(c: Vector2i) -> Building:
@@ -1416,595 +1329,17 @@ func building_at(c: Vector2i) -> Building:
 	return null
 
 
-func set_drill_dir(b: Building, dir: int) -> void:
-	if b.dir == dir:
-		return
-	b.dir = dir
-	b.reach = 0
-	b.scan_from = 0
-	_refresh_sense()
-
-
-func set_reach_limit(b: Building, limit: int) -> void:
-	b.reach_limit = limit
-	b.reach = mini(b.reach, limit)
-	b.scan_from = 0
-
-
 # ================================================================================
-# Machines
+# Buildings' upkeep
 # ================================================================================
 
+## The structures only keep their feedback timers; what works is a module (machines.gd).
 func _update_buildings() -> void:
 	for b: Building in buildings:
 		if b.flash > 0.0:
 			b.flash -= D.DT
 		if b.alert_cd > 0.0:
 			b.alert_cd -= D.DT
-		var t := b.type
-		if D.is_conduit(t) or t == D.B_BULKHEAD or not b.built or b.falling:
-			continue
-		if b.breach_cd > 0.0:
-			b.breach_cd -= D.DT
-		# Machines run on their reserves, cut off or not; an empty one stops.
-		if t == D.B_DRILL:
-			b.starved = false
-			if b.enabled:
-				_drill(b)
-		elif t == D.B_HOPPER:
-			b.starved = false
-			if b.enabled:
-				_hopper(b)
-		elif t == D.B_SPOUT:
-			_spout(b)
-		elif t == D.B_FLOODGATE:
-			if ticks % 6 == 0:
-				_gate(b)
-		elif t == D.B_WATERWHEEL:
-			_wheel(b)
-		elif t == D.B_TURBINE:
-			_turbine(b)
-		elif t == D.B_LAMP:
-			_lamp(b)
-		elif t == D.B_LAB:
-			_lab(b)
-		elif t == D.B_THUMPER:
-			_thumper(b)
-		elif t == D.B_BORER:
-			_borer(b)
-		elif t == D.B_WARREN:
-			WR.tick(self, b)
-
-
-func _drill(b: Building) -> void:
-	b.work = minf(b.work + D.DT, 2.0)   # must exceed the dearest cell (obsidian, 1.3 s)
-	b.rescan -= 1
-	if b.rescan <= 0:
-		b.scan_from = 0
-		b.rescan = 30
-	var guard := 0
-	while guard < 256:
-		guard += 1
-		var c := _drill_find(b)
-		if c.x == -2:
-			break                  # still looking down a long channel; carry on next tick
-		if c.x < 0:
-			if b.reach >= b.reach_limit or not _drill_can_extend(b):
-				break
-			b.reach += 1
-			if b.reach % 2 == 0:
-				reveal(b.drill_head(), D.REVEAL_DIG)
-			continue
-		if _drill_row(b, c):
-			continue
-		var m: int = sim.get_cell(c.x, c.y)
-		var cost := 1.0 / (D.bore_rate(m) * b.lanes() * drill_speed())
-		if b.work < cost:
-			break
-		var pc := drill_power(m, b.channel_row(c))
-		if b.power < pc:
-			b.starved = true
-			break
-		if m == D.HOT_ROCK and not _cool(b, 1):
-			break
-		b.work -= cost
-		b.power -= pc
-		used_acc += pc
-		sim.set_cell(c.x, c.y, D.AIR)
-		if m == D.HOT_ROCK:
-			_vent(b, Rect2i(c, Vector2i.ONE), D.COOLANT_STEAM_PER_CELL)
-		excavated(c)
-		for r: int in D.mat_yields(m):
-			_bank(Vector2(c), r, D.cell_units(m))
-		b.cells_bored += 1
-		cells_drilled += 1
-		b.stuck = ""
-		_breach_check(b, c)
-
-
-## Dig the rest of the channel row `c` is in at once, if the Drill can pay for all
-## of it now; false (nothing done) if not, and it digs cell by cell instead.
-func _drill_row(b: Building, c: Vector2i) -> bool:
-	var r := b.channel_row(c)
-	var row := b.channel_span(r, r + 1)
-	var counts: PackedInt32Array = sim.rect_counts(row.position.x, row.position.y, row.size.x, row.size.y)
-	var mask := cut_mask()
-	var cost := 0.0
-	var pw := 0.0
-	var n := 0
-	for m: int in Mats.dig_ids():
-		var k: int = counts[m]
-		if k == 0 or mask[m] == 0:
-			continue
-		cost += k / (D.bore_rate(m) * b.lanes() * drill_speed())
-		pw += k * drill_power(m, r)
-		n += k
-	var hot: int = counts[D.HOT_ROCK] if mask[D.HOT_ROCK] != 0 else 0
-	if n < 2 or b.work < cost or b.power < pw or b.coolant < hot * D.COOLANT_WATER_PER_CELL:
-		return false
-	var dug: PackedInt32Array = sim.dig_rect(row.position.x, row.position.y, row.size.x, row.size.y, mask,
-			D.SETTLE_RADIUS, int(D.SETTLE_S * D.TICKS_PER_S))
-	b.work -= cost
-	b.power -= pw
-	used_acc += pw
-	if dug[D.HOT_ROCK] > 0:
-		_cool(b, dug[D.HOT_ROCK])
-		_vent(b, row, dug[D.HOT_ROCK] * D.COOLANT_STEAM_PER_CELL)
-	var at := Vector2(row.get_center())
-	for m: int in Mats.dig_ids():
-		if dug[m] > 0:
-			for res: int in D.mat_yields(m):
-				_bank(at, res, dug[m] * D.cell_units(m))
-	b.cells_bored += n
-	cells_drilled += n
-	b.stuck = ""
-	# Breaches: only worth looking cell by cell with liquid round the row.
-	var around := row.grow(1)
-	if sim.count_in_rect(around.position.x, around.position.y, around.size.x, around.size.y, Mats.mask("liquid")) > 0:
-		for k in b.lanes():
-			_breach_check(b, b.channel_cell(r, k))
-	return true
-
-
-## The first cell left to dig in the channel, from `scan_from` down. A long
-## channel is looked over DRILL_SCAN_ROWS rows a tick: (-2, -2) means "not found
-## yet, keep looking next tick"; (-1, -1) that the channel is clear to `reach`.
-func _drill_find(b: Building) -> Vector2i:
-	var end := mini(b.reach, b.scan_from + D.DRILL_SCAN_ROWS)
-	var mask := cut_mask()
-	var lo := b.scan_from
-	var hi := end
-	if hi > lo and _count_in(b.channel_span(lo, hi), mask) > 0:
-		# Halve the stretch down to the first row with something to cut.
-		while hi - lo > 1:
-			var mid := (lo + hi) >> 1
-			if _count_in(b.channel_span(lo, mid), mask) > 0:
-				hi = mid
-			else:
-				lo = mid
-		for k in b.lanes():
-			var c := b.channel_cell(lo, k)
-			if can_cut(sim.get_cell(c.x, c.y)):
-				b.scan_from = lo
-				return c
-	b.scan_from = end
-	if end < b.reach:
-		return Vector2i(-2, -2)
-	return Vector2i(-1, -1)
-
-
-func _count_in(r: Rect2i, mask: PackedByteArray) -> int:
-	return sim.count_in_rect(r.position.x, r.position.y, r.size.x, r.size.y, mask)
-
-
-## What the Drill and Borers can cut: anything diggable, obsidian only with the Saw
-## and hot rock only with the Coolant Jacket.
-func can_cut(m: int) -> bool:
-	if m == D.OBSIDIAN and not researched.has("obsidian_saw"):
-		return false
-	if m == D.HOT_ROCK and not researched.has("coolant_jacket"):
-		return false
-	return D.is_drillable(m)
-
-
-const DRY := "Out of water for the Coolant Jacket."
-
-
-## can_cut as a mask for the engine's rectangle queries.
-func cut_mask() -> PackedByteArray:
-	var saw := researched.has("obsidian_saw")
-	var cool := researched.has("coolant_jacket")
-	return Mats.mask(("dig" if saw else "dig_no_obsidian") + ("" if cool else "_no_hot"))
-
-
-## With the Coolant Jacket, the Drill and Borers quench lava they face into
-## obsidian from their tank (phase 10): QUENCH_WATER_PER_CELL each, the water going
-## up as steam into open cells of `vent`. False (and the tank dry) without the water.
-func _quench(b: Building, c: Vector2i, vent: Rect2i) -> bool:
-	if b.coolant < D.QUENCH_WATER_PER_CELL:
-		b.stuck = DRY
-		return false
-	b.coolant -= D.QUENCH_WATER_PER_CELL
-	sim.set_cell(c.x, c.y, D.OBSIDIAN)
-	_vent(b, vent, D.QUENCH_WATER_PER_CELL * D.CELLS_PER_UNIT)
-	return true
-
-
-## A jacketed Borer's tank takes water standing on it or against its sides (phase
-## 10): boring down, its own steam condenses up the shaft and rains back onto it.
-func _jacket_drink(b: Building) -> void:
-	if b.coolant > D.COOLANT_CAP - D.QUENCH_WATER_PER_CELL or b.y < 2 or not researched.has("coolant_jacket"):
-		return
-	if sim.count_in_rect(b.x - 1, b.y - 1, b.w + 2, b.h + 1, Mats.mask("worth_liquid")) == 0:
-		return
-	for k in b.w + 2 * b.h:
-		var c := Vector2i(b.x + k, b.y - 1) if k < b.w else (Vector2i(b.x - 1, b.y + k - b.w) if k < b.w + b.h \
-				else Vector2i(b.x + b.w, b.y + k - b.w - b.h))
-		var m: int = sim.get_cell(c.x, c.y)
-		if Mats.kind_of(m) != Mats.K_LIQUID or D.mat_res(m) != D.R_WATER:
-			continue
-		sim.set_cell(c.x, c.y, D.AIR)
-		b.coolant += 1.0 / D.CELLS_PER_UNIT
-		if b.coolant > D.COOLANT_CAP - D.QUENCH_WATER_PER_CELL:
-			return
-
-
-## The Coolant Jacket's water for `cells` of hot rock: false (and it waits for more)
-## when there isn't enough.
-func _cool(b: Building, cells: int) -> bool:
-	var need := cells * D.COOLANT_WATER_PER_CELL
-	if b.coolant < need:
-		b.stuck = DRY
-		return false
-	b.coolant -= need
-	return true
-
-
-## The jacket's water goes up as steam: `amount` cells more, placed in open cells of
-## `r` (what doesn't fit waits for the next cut).
-func _vent(b: Building, r: Rect2i, amount: float) -> void:
-	b.steam_due += amount
-	var n := int(b.steam_due)
-	if n <= 0:
-		return
-	var k := 0
-	var start := ticks % r.size.x
-	for yy in range(r.position.y, r.end.y):
-		for i in r.size.x:
-			if k >= n:
-				break
-			var xx := r.position.x + (start + i) % r.size.x
-			if sim.get_cell(xx, yy) == D.AIR:
-				sim.set_cell(xx, yy, D.STEAM)
-				k += 1
-	b.steam_due -= k
-
-
-## The channel grows one row at a time. It stops at bedrock or buildings across
-## the whole row, and at a row of solid lava: a drill won't push its channel into
-## a lava body (so boring into a lava lake stops at the surface), unless its
-## Coolant Jacket quenches the lava to obsidian first. Water it bores straight through.
-func _drill_can_extend(b: Building) -> bool:
-	var blocked := 0
-	var lava := 0
-	var hot := 0
-	var n := b.lanes()
-	for k in n:
-		var c := b.channel_cell(b.reach, k)
-		if c.x < 2 or c.x > D.W - 3 or c.y < 2 or c.y > D.H - 3:
-			return false
-		var m: int = sim.get_cell(c.x, c.y)
-		if m == D.LAVA and researched.has("coolant_jacket") and _quench(b, c, Rect2i(c.x - 2, c.y - 4, 5, 4)):
-			m = D.OBSIDIAN
-		if m == D.BEDROCK or m == D.BUILDING or ((m == D.OBSIDIAN or m == D.HOT_ROCK) and not can_cut(m)):
-			blocked += 1
-			if m == D.HOT_ROCK:
-				hot += 1
-		elif m == D.LAVA:
-			lava += 1
-	var ok := blocked < n and lava < n
-	b.stuck = "" if ok or hot == 0 else "Hot rock below: it needs the Coolant Jacket."
-	return ok
-
-
-## A breach is liquid that was sealed until this cell went: no other open
-## neighbour. Liquid already lapping at the channel doesn't count again, and
-## each drill reports each liquid once.
-func _breach_check(b: Building, c: Vector2i) -> void:
-	if b.breach_cd > 0.0:
-		return
-	for o: Vector2i in DIRS4:
-		var p := c + o
-		var m: int = sim.get_cell(p.x, p.y)
-		if m != D.WATER and m != D.LAVA:
-			continue
-		var sealed := true
-		for o2: Vector2i in DIRS4:
-			var q := p + o2
-			if q == c:
-				continue
-			var n: int = sim.get_cell(q.x, q.y)
-			if D.is_thin(n):
-				sealed = false
-				break
-		if not sealed:
-			continue
-		# One report per drill per liquid: a farm drill mining a lava crust knows.
-		var bit := 1 if m == D.WATER else 2
-		if b.breached & bit:
-			continue
-		b.breached |= bit
-		b.breach_cd = 30.0
-		if m == D.WATER:
-			alert("water_breach", "Water breach at depth %d" % c.y, Vector2(c))
-		else:
-			alert("lava_breach", "Lava breach at depth %d" % c.y, Vector2(c))
-		return
-
-
-## Hoppers swallow loose material that lands in their mouth (the row above them),
-## worth something or not (so ash doesn't clog them), and drink water from their
-## sides too, so one dropped into a flood drains it.
-func _hopper(b: Building) -> void:
-	b.intake = minf(b.intake + D.HOPPER_RATE * D.DT, maxf(3.0, D.HOPPER_RATE * D.DT * 2.0))
-	if b.intake < 1.0 or b.y - 1 < 2:
-		return
-	var bw := b.w
-	var bh := b.h
-	var n := bw + 2 * bh
-	var start := ticks % n
-	var take_water := b.filter != 2
-	var take_solids := b.filter != 1
-	# Nothing to take anywhere round its rim (the usual case): skip the look.
-	var wet := 0
-	if take_water:
-		wet = sim.count_in_rect(b.x - 1, b.y - 1, bw + 2, bh + 1, Mats.mask("worth_liquid"))
-	var loose := 0
-	if take_solids:
-		loose = sim.count_in_rect(b.x, b.y - 1, bw, 1, Mats.mask("powder"))
-	if wet == 0 and loose == 0:
-		return
-	for k in n:
-		if b.intake < 1.0:
-			break
-		# Rim cells in turn: the mouth (the row above), then the left and right sides.
-		var idx := (start + k) % n
-		var cx := 0
-		var cy := 0
-		var mouth := idx < bw
-		if mouth:
-			cx = b.x + idx
-			cy = b.y - 1
-		elif idx < bw + bh:
-			cx = b.x - 1
-			cy = b.y + idx - bw
-		else:
-			cx = b.x + bw
-			cy = b.y + idx - bw - bh
-		var m: int = sim.get_cell(cx, cy)
-		# Liquids worth something (water, not lava), and any powder in the mouth.
-		var mk := Mats.kind_of(m)
-		var drink := take_water and mk == Mats.K_LIQUID and D.mat_res(m) >= 0
-		var eat := mouth and take_solids and mk == Mats.K_POWDER
-		if not (drink or eat):
-			continue
-		if b.power < D.HOPPER_POWER_PER_CELL:
-			b.starved = true
-			return
-		b.power -= D.HOPPER_POWER_PER_CELL
-		used_acc += D.HOPPER_POWER_PER_CELL
-		sim.set_cell(cx, cy, D.AIR)
-		for r: int in D.mat_yields(m):
-			_bank(Vector2(cx, cy), r, D.cell_units(m))
-		b.intake -= 1.0
-		b.cells_taken += 1
-
-
-func _spout(b: Building) -> void:
-	b.sensor_wet = b.sensor_on and D.is_liquid(sim.get_cell(b.sx, b.sy))
-	var pending := b.queue + b.inflight[D.R_WATER] * int(D.CELLS_PER_UNIT)
-	var wants := b.enabled and b.connected and not b.sensor_wet and pending < D.SPOUT_QUEUE_MAX
-	if wants:
-		b.tokens = minf(b.tokens + D.SPOUT_RATES[b.rate_idx] * D.DT, 1.0)
-	b.starved = wants and b.tokens >= 1.0 and not spout_can_pay(b)
-	if b.queue > 0:
-		# Under the middle first, then along the underside, then out of the sides.
-		var outs: Array = [Vector2i(b.x + (b.w >> 1), b.y + b.h)]
-		for k in b.w:
-			outs.append(Vector2i(b.x + k, b.y + b.h))
-		outs.append(Vector2i(b.x - 1, b.y + b.h - 1))
-		outs.append(Vector2i(b.x + b.w, b.y + b.h - 1))
-		for o: Vector2i in outs:
-			var px := o.x
-			var py := o.y
-			var m: int = sim.get_cell(px, py)
-			if D.is_thin(m):
-				sim.set_cell(px, py, D.WATER)
-				b.queue -= 1
-				break
-
-
-## Opening or closing costs a little power; a Floodgate with none stays as it is.
-func _gate(b: Building) -> void:
-	b.sensor_wet = D.is_liquid(sim.get_cell(b.sx, b.sy))
-	var want := b.gate_mode == 1 or (b.gate_mode == 2 and b.sensor_wet)
-	b.starved = false
-	if want == b.gate_open:
-		return
-	if b.power < D.GATE_POWER:
-		b.starved = true
-		return
-	b.power -= D.GATE_POWER
-	used_acc += D.GATE_POWER
-	set_gate(b, want)
-
-
-## A Spout pays for each packet of water as it pours; it only asks for one it can pay for.
-func spout_can_pay(b: Building) -> bool:
-	return b.power - b.inflight[D.R_WATER] * D.SPOUT_POWER_PER_PACKET >= D.SPOUT_POWER_PER_PACKET
-
-
-## Water landing on a Waterwheel's top runs through it and out underneath, and
-## every cell makes a little power. The wheel keeps some for machines nearby; the
-## network carries the rest to the Hub. Water pooled under it stalls it.
-func _wheel(b: Building) -> void:
-	var made := 0.0
-	if b.enabled:
-		b.gen_tokens = minf(b.gen_tokens + D.WHEEL_CELLS_PER_S * D.DT, maxf(3.0, D.WHEEL_CELLS_PER_S * D.DT * 2.0))
-		var start := ticks % b.w
-		var out_k := 0             # the next cell under it to try as an exit
-		for k in b.w:
-			if b.gen_tokens < 1.0:
-				break
-			var ix := b.x + (start + k) % b.w
-			if sim.get_cell(ix, b.y - 1) != D.WATER:
-				continue
-			# Out underneath: the first open cell along its bottom edge.
-			var exit := Vector2i(-1, -1)
-			while out_k < b.w:
-				var o := Vector2i(b.x + (start + out_k) % b.w, b.y + b.h)
-				out_k += 1
-				if D.is_thin(sim.get_cell(o.x, o.y)):
-					exit = o
-					break
-			if exit.x < 0:
-				break
-			sim.set_cell(ix, b.y - 1, D.AIR)
-			sim.set_cell(exit.x, exit.y, D.WATER)
-			b.gen_tokens -= 1.0
-			made += D.WHEEL_POWER_PER_CELL
-	b.store[D.R_POWER] = minf(b.store[D.R_POWER] + made, D.GEN_BUFFER)
-	b.flow = lerpf(b.flow, made / D.DT, 0.03)
-	if b.flow < 0.005:
-		b.flow = 0.0
-	b.spin = fmod(b.spin + b.flow * D.DT * 2.0, TAU)
-
-
-## Steam rising into a Turbine's bottom comes out of its top, and every cell makes
-## power. Like the Waterwheel, it keeps some and the network takes the rest; steam
-## piled up over it stalls it.
-func _turbine(b: Building) -> void:
-	var made := 0.0
-	if b.enabled:
-		b.gen_tokens = minf(b.gen_tokens + D.TURBINE_CELLS_PER_S * D.DT, maxf(3.0, D.TURBINE_CELLS_PER_S * D.DT * 2.0))
-		var start := ticks % b.w
-		var out_k := 0             # the next cell over it to try as an exit
-		for k in b.w:
-			if b.gen_tokens < 1.0:
-				break
-			var ix := b.x + (start + k) % b.w
-			var m: int = sim.get_cell(ix, b.y + b.h)
-			if m < D.STEAM or m > D.STEAM_LAST:
-				continue
-			# Out of the top: the first open cell along it.
-			var exit := Vector2i(-1, -1)
-			while out_k < b.w:
-				var o := Vector2i(b.x + (start + out_k) % b.w, b.y - 1)
-				out_k += 1
-				if sim.get_cell(o.x, o.y) == D.AIR:
-					exit = o
-					break
-			if exit.x < 0:
-				break
-			sim.set_cell(ix, b.y + b.h, D.AIR)
-			sim.set_cell(exit.x, exit.y, m)
-			b.gen_tokens -= 1.0
-			made += D.TURBINE_POWER_PER_CELL
-	b.store[D.R_POWER] = minf(b.store[D.R_POWER] + made, D.GEN_BUFFER)
-	b.flow = lerpf(b.flow, made / D.DT, 0.03)
-	if b.flow < 0.005:
-		b.flow = 0.0
-	b.spin = fmod(b.spin + b.flow * D.DT * 2.0, TAU)
-
-
-func _lamp(b: Building) -> void:
-	b.starved = false
-	if not b.enabled:
-		return
-	var burn := D.LAMP_POWER_PER_S * D.DT
-	if b.power >= burn:
-		b.power -= burn
-		used_acc += burn
-	else:
-		b.power = 0.0
-		b.starved = true
-
-
-# ================================================================================
-# Movers: Thumpers and Borers
-# ================================================================================
-# A mover steps a cell at a time into open space (air, gas or liquid), and
-# whatever was in the cells it moves into ends up in the cells it leaves, so
-# water it pushes through goes round it. Its link, hazard-scan entry, light and
-# sight follow it without rebuilding the whole network.
-
-static func _open(m: int) -> bool:
-	return D.is_thin(m) or D.is_liquid(m)
-
-
-## Whether `b` can move one cell by (dx, dy) (one of them 0).
-func _can_shift(b: Building, dx: int, dy: int) -> bool:
-	if dx != 0:
-		var cx := b.x + b.w if dx > 0 else b.x - 1
-		if cx < 2 or cx > D.W - 3:
-			return false
-		for yy in range(b.y, b.y + b.h):
-			if not _open(sim.get_cell(cx, yy)):
-				return false
-		return true
-	var cy := b.y + b.h if dy > 0 else b.y - 1
-	if cy < 2 or cy > D.H - 3:
-		return false
-	for xx in range(b.x, b.x + b.w):
-		if not _open(sim.get_cell(xx, cy)):
-			return false
-	return true
-
-
-func _shift(b: Building, dx: int, dy: int) -> void:
-	if dx != 0:
-		var lead := b.x + b.w if dx > 0 else b.x - 1
-		var tail := b.x if dx > 0 else b.x + b.w - 1
-		for yy in range(b.y, b.y + b.h):
-			var m: int = sim.get_cell(lead, yy)
-			sim.set_cell(lead, yy, D.BUILDING)
-			sim.set_cell(tail, yy, m)
-		b.x += dx
-	else:
-		var lead := b.y + b.h if dy > 0 else b.y - 1
-		var tail := b.y if dy > 0 else b.y + b.h - 1
-		for xx in range(b.x, b.x + b.w):
-			var m: int = sim.get_cell(xx, lead)
-			sim.set_cell(xx, lead, D.BUILDING)
-			sim.set_cell(xx, tail, m)
-		b.y += dy
-	b.moved += 1
-	if not scan_dirty and b.scan_idx >= 0 and b.scan_idx < scan_list.size() and scan_list[b.scan_idx] == b:
-		scan_rects[b.scan_idx * 5] = b.x
-		scan_rects[b.scan_idx * 5 + 1] = b.y
-	if not scan_dirty and b.seg_idx >= 0 and b.seg_idx < link_list.size() and link_list[b.seg_idx] == b:
-		var c := b.center()
-		link_segs[b.seg_idx * 4] = int(c.x)
-		link_segs[b.seg_idx * 4 + 1] = int(c.y)
-
-
-## Find `b` a relay from where it is now (a mover's link follows it about).
-func _relink(b: Building) -> void:
-	var old = b.link
-	b.link = null if b.falling or not b.built else find_link(b.type, b.rect(), b)
-	b.connected = b.link != null
-	b.was_connected = b.connected
-	if b.link != old:
-		scan_stale = true
-		if b.link != null and not scan_dirty and b.seg_idx >= 0 and b.seg_idx < link_list.size() and link_list[b.seg_idx] == b:
-			var c: Vector2 = b.link.center()
-			link_segs[b.seg_idx * 4 + 2] = int(c.x)
-			link_segs[b.seg_idx * 4 + 3] = int(c.y)
-
-
-## A homing Borer climbs back the way it came: it doesn't need ground under it.
-func _clinging(b: Building) -> bool:
-	return b.type == D.B_BORER and (b.mode == 1 or b.mode == 3)
 
 
 ## Liquid round the bottom of `b` (it sinks slowly through it).
@@ -2013,360 +1348,9 @@ func _wet(b: Building) -> bool:
 			or D.is_liquid(sim.get_cell(b.x + b.w, b.y + b.h - 1))
 
 
-## Throw `b` (a Thumper) with velocity (vx, vy) in cells a second. It's off the
-## network until it lands.
-func launch(b: Building, vx: float, vy: float) -> void:
-	if not b.flying:
-		b.flying = true
-		b.falling = true
-		fliers.append(b)
-		b.fx = b.x
-		b.fy = b.y
-		_relink(b)
-	b.vx = vx
-	b.vy = vy
-
-
-## Pick up a built Thumper and drag it: it follows `hold_at` until let go.
-func grab_thumper(b: Building, at: Vector2) -> void:
-	if b == null or b.dead or not b.built or b.type != D.B_THUMPER:
-		return
-	b.held = true
-	b.hold_at = at
-	launch(b, b.vx, b.vy)
-
-
-## Let go of a dragged Thumper: it keeps the speed it had, so a flick throws it.
-func release_thumper(b: Building) -> void:
-	if b == null:
-		return
-	b.held = false
-
-
-## Thrown and dragged Thumpers: gravity (slow through liquid), a cell at a time,
-## stopping against anything solid; they land once something is under them.
-func _update_fliers() -> void:
-	for k in range(fliers.size() - 1, -1, -1):
-		var b: Building = fliers[k]
-		if b.dead:
-			fliers.remove_at(k)
-			continue
-		if b.held:
-			var want := b.hold_at - Vector2(b.w, b.h) * 0.5
-			var v := (want - Vector2(b.fx, b.fy)) * 10.0
-			if v.length() > D.DRAG_SPEED:
-				v = v.normalized() * D.DRAG_SPEED
-			b.vx = v.x
-			b.vy = v.y
-		else:
-			b.vy = minf(b.vy + D.FALL_ACCEL * D.DT, D.FALL_MAX)
-			if _wet(b):
-				b.vx *= 0.9
-				b.vy = clampf(b.vy, -D.FLY_WATER_MAX, D.FLY_WATER_MAX)
-		b.fx += b.vx * D.DT
-		b.fy += b.vy * D.DT
-		var tx := roundi(b.fx)
-		var ty := roundi(b.fy)
-		var guard := 0
-		while (b.x != tx or b.y != ty) and guard < 32:
-			guard += 1
-			var ddx := tx - b.x
-			var ddy := ty - b.y
-			if ddx != 0 and absi(ddx) >= absi(ddy):
-				var sx := signi(ddx)
-				if _can_shift(b, sx, 0):
-					_shift(b, sx, 0)
-				else:
-					if not b.held:
-						_bump(b, absf(b.vx), Vector2i(b.x + b.w if sx > 0 else b.x - 1, b.y + (b.h >> 1)))
-					b.vx = 0.0 if b.held else -b.vx * 0.3
-					b.fx = b.x
-					tx = b.x
-			else:
-				var sy := signi(ddy)
-				if _can_shift(b, 0, sy):
-					_shift(b, 0, sy)
-				else:
-					if sy < 0 and not b.held:
-						_bump(b, -b.vy, Vector2i(b.x + (b.w >> 1), b.y - 1))
-					b.vy = 0.0
-					b.fy = b.y
-					ty = b.y
-			if b.dead:
-				break
-		if b.dead:
-			fliers.erase(b)
-			continue
-		if not b.held and b.vy >= 0.0 and not _can_shift(b, 0, 1):
-			fliers.remove_at(k)
-			_land_flier(b)
-
-
-## A flying Thumper hitting rock or a building (at cell `at`) sideways or upward at
-## `hit_v`: past THUMP_BUMP_SAFE it's hurt, and so is the building. Landing on its
-## feet never hurts; it's built to.
-func _bump(b: Building, hit_v: float, at: Vector2i) -> void:
-	var over := hit_v - D.THUMP_BUMP_SAFE
-	if over <= 0.0:
-		return
-	var dmg := over * D.THUMP_BUMP_DAMAGE
-	var o := building_at(at) if sim.get_cell(at.x, at.y) == D.BUILDING else null
-	if o != null and o != b and not o.dead and o.type != D.B_CRUCIBLE and not o.fixed:
-		_hurt(o, dmg, "a collision")
-	_hurt(b, dmg, "a collision")
-
-
-func _land_flier(b: Building) -> void:
-	b.flying = false
-	b.falling = false
-	b.vx = 0.0
-	b.vy = 0.0
-	b.fx = b.x
-	b.fy = b.y
-	_relink(b)
-	scan_stale = true
-
-
-## A Thumper goes off every few seconds while it has power: a blast just under
-## it craters the ground (what breaks flies as debris) and throws it up.
-func _thumper(b: Building) -> void:
-	b.starved = false
-	if not b.enabled:
-		return
-	b.work = minf(b.work + D.DT, 60.0)
-	if b.work < thump_interval():
-		return
-	var cost := thump_cost()
-	if b.power < cost:
-		b.starved = true
-		return
-	b.work = 0.0
-	b.power -= cost
-	used_acc += cost
-	var pw := thump_power()
-	b.blasts += 1
-	# The charge sits a little under it, and its body is out of the way for the
-	# blast, so what goes up flies clear of the crater instead of hitting it.
-	for yy in range(b.y, b.y + b.h):
-		for xx in range(b.x, b.x + b.w):
-			sim.set_cell(xx, yy, D.AIR)
-	blast(Vector2i(b.x + (b.w >> 1), b.y + b.h + D.THUMP_DEPTH), thump_radius(), pw, b)
-	for yy in range(b.y, b.y + b.h):
-		for xx in range(b.x, b.x + b.w):
-			sim.set_cell(xx, yy, D.BUILDING)
-	if not b.dead:
-		launch(b, rng.randf_range(-D.THUMP_DRIFT, D.THUMP_DRIFT), -(D.THUMP_LAUNCH + 2.0 * pw))
-
-
-## The cells a Borer's front faces heading `dir` (0 down, 1 left, 2 right, 3 up).
-static func _face(b: Building, dir: int) -> Array:
-	var out: Array = []
-	match dir:
-		1:
-			for k in b.h:
-				out.append(Vector2i(b.x - 1, b.y + k))
-		2:
-			for k in b.h:
-				out.append(Vector2i(b.x + b.w, b.y + k))
-		3:
-			for k in b.w:
-				out.append(Vector2i(b.x + k, b.y - 1))
-		_:
-			for k in b.w:
-				out.append(Vector2i(b.x + k, b.y + b.h))
-	return out
-
-
-const BORER_STEPS := [Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0), Vector2i(0, -1)]
-
-
-func set_borer_dir(b: Building, dir: int) -> void:
-	b.dir = dir
-	b.stuck = ""
-
-
-## A Borer grinds the rock in front of it and moves into the space. It runs on
-## its reserve out past the network; with Homing it heads back at half power.
-func _borer(b: Building) -> void:
-	b.starved = false
-	_jacket_drink(b)
-	if not b.enabled:
-		return
-	var cap := reserve_cap(b)
-	b.work = minf(b.work + D.DT, 2.0)
-	if b.mode == 0 and researched.has("homing") and (b.power <= cap * 0.5 or b.stuck == DRY) \
-			and not b.connected and b.trail.size() > 1:
-		b.mode = 1
-		b.trail_idx = b.trail.size() - 1
-		b.stuck = ""
-		alert("info", "Borer heading home to recharge, from depth %d" % b.y, b.center())
-	elif b.mode == 1 and b.connected and b.power >= cap - 1.0 and _tank_full(b):
-		b.mode = 3              # back in reach and topped up on the way: back to work
-	if b.mode == 2:
-		if b.power >= cap - 1.0 and _tank_full(b):
-			b.mode = 3
-		return
-	if b.mode == 1 or b.mode == 3:
-		_borer_retrace(b)
-	else:
-		_borer_bore(b)
-
-
-## Dig one cell of `m` at `c` if there's time and power banked: true if it did.
-func _borer_dig(b: Building, c: Vector2i, m: int) -> bool:
-	var cost := 1.0 / (D.bore_rate(m) * b.w * D.BORER_SPEED)
-	if b.work < cost:
-		return false
-	var pc := D.power_per_cell(m)
-	if b.power < pc:
-		b.starved = true
-		return false
-	if m == D.HOT_ROCK and not _cool(b, 1):
-		return false
-	b.work -= cost
-	b.power -= pc
-	used_acc += pc
-	sim.set_cell(c.x, c.y, D.AIR)
-	if m == D.HOT_ROCK:
-		_vent(b, Rect2i(c, Vector2i.ONE), D.COOLANT_STEAM_PER_CELL)   # out its tail once it steps
-	elif b.steam_due >= 1.0:
-		_vent(b, Rect2i(c, Vector2i.ONE), 0.0)                       # what quenching left to vent
-	excavated(c)
-	for r: int in D.mat_yields(m):
-		_bank(Vector2(c), r, D.cell_units(m))
-	b.cells_bored += 1
-	cells_drilled += 1
-	_breach_check(b, c)
-	return true
-
-
-## A Borer charging up waits for its Coolant Jacket's tank too, while the network
-## has water to fill it with.
-func _tank_full(b: Building) -> bool:
-	return not researched.has("coolant_jacket") or b.coolant >= D.COOLANT_CAP - 1.0 or total(D.R_WATER) < 1.0
-
-
-## One step along (dx, dy), if there's time and power for it.
-func _borer_step(b: Building, dx: int, dy: int) -> bool:
-	var mc := 1.0 / D.BORER_MOVE_PER_S
-	if b.work < mc:
-		return false
-	if b.power < D.BORER_MOVE_POWER:
-		b.starved = true
-		return false
-	b.work -= mc
-	b.power -= D.BORER_MOVE_POWER
-	used_acc += D.BORER_MOVE_POWER
-	_shift(b, dx, dy)
-	_relink(b)
-	if b.moved % 2 == 0:
-		reveal(b.center(), D.REVEAL_DIG)
-	return true
-
-
-func _borer_bore(b: Building) -> void:
-	var guard := 0
-	while guard < 8:
-		guard += 1
-		var face := _face(b, b.dir)
-		var open_n := 0
-		var lava_n := 0
-		var hard := ""
-		var did := false
-		var cut := false
-		for c: Vector2i in face:
-			var m: int = sim.get_cell(c.x, c.y)
-			if can_cut(m):
-				cut = true
-				did = _borer_dig(b, c, m)
-				break
-			elif m == D.LAVA and researched.has("coolant_jacket"):
-				if not _quench(b, c, b.rect().grow(2)):
-					return
-				if not can_cut(D.OBSIDIAN):
-					hard = "Obsidian ahead: it needs the Obsidian Saw."
-			elif _open(m):
-				open_n += 1
-				if m == D.LAVA:
-					lava_n += 1
-			elif m == D.OBSIDIAN:
-				hard = "Obsidian ahead: it needs the Obsidian Saw."
-			elif m == D.HOT_ROCK:
-				hard = "Hot rock ahead: it needs the Coolant Jacket."
-			elif m == D.BUILDING:
-				hard = "A building is in the way."
-			else:
-				hard = "%s ahead: it can't cut that." % D.mat_name(m)
-		if cut:
-			if not did:
-				return
-			b.stuck = ""
-			continue
-		if open_n < face.size():
-			b.stuck = hard
-			return
-		if lava_n > 0:
-			b.stuck = "Lava ahead: it won't bore into lava."
-			return
-		var st: Vector2i = BORER_STEPS[b.dir]
-		if not _can_shift(b, st.x, st.y):
-			b.stuck = "The edge of the map."
-			return
-		if not _borer_step(b, st.x, st.y):
-			return
-		b.stuck = ""
-		b.trail.append(Vector2i(b.x, b.y))
-
-
-## Homing: back along the trail toward where it was placed (mode 1), or out
-## along it to where it left off (mode 3). Fill that has come down in the way
-## gets dug; a building in the way stops it.
-func _borer_retrace(b: Building) -> void:
-	var guard := 0
-	while guard < 4:
-		guard += 1
-		var at := Vector2i(b.x, b.y)
-		var next := at
-		if b.mode == 1:
-			if b.trail_idx <= 0:
-				b.mode = 2
-				b.trail_idx = 0
-				return
-			next = b.trail[b.trail_idx - 1]
-		else:
-			if b.trail_idx >= b.trail.size() - 1:
-				b.mode = 0
-				b.trail_idx = b.trail.size() - 1
-				return
-			next = b.trail[b.trail_idx + 1]
-		var d := next - at
-		if d == Vector2i.ZERO:
-			b.trail_idx += -1 if b.mode == 1 else 1
-			continue
-		if absi(d.x) + absi(d.y) != 1:
-			# The trail doesn't join up (it was moved): bore on from here.
-			b.mode = 0
-			b.trail = [at]
-			b.trail_idx = 0
-			return
-		var dir := BORER_STEPS.find(d)
-		for c: Vector2i in _face(b, dir):
-			var m: int = sim.get_cell(c.x, c.y)
-			if _open(m):
-				continue
-			if can_cut(m):
-				if not _borer_dig(b, c, m):
-					return
-				continue
-			b.stuck = "Something is in its tunnel; it can't get past."
-			return
-		if not _can_shift(b, d.x, d.y):
-			return
-		if not _borer_step(b, d.x, d.y):
-			return
-		b.stuck = ""
-		b.trail_idx += -1 if b.mode == 1 else 1
-
+# ================================================================================
+# Springs and power
+# ================================================================================
 
 ## Springs add water where there's room: into their own cell, or on top of the
 ## pool sitting over them, so a drained aquifer fills back up.
@@ -2418,28 +1402,11 @@ func _spring_top(c: Vector2i, x: int) -> int:
 
 
 func _power_stats() -> void:
-	var made := D.HUB_POWER_PER_S
-	for b: Building in buildings:
-		if D.is_generator(b.type) and b.built:
-			made += b.flow
-	made += MC.generating(self)
-	power_made = made
+	power_made = D.HUB_POWER_PER_S + MC.generating(self)
 	power_used = lerpf(power_used, used_acc / (30.0 * D.DT), 0.5)
 	used_acc = 0.0
 	research_rate = lerpf(research_rate, research_acc / (30.0 * D.DT), 0.5)
 	research_acc = 0.0
-
-
-func set_gate(b: Building, open: bool) -> void:
-	b.gate_open = open
-	for yy in range(b.y, b.y + b.h):
-		for xx in range(b.x, b.x + b.w):
-			var m: int = sim.get_cell(xx, yy)
-			if open:
-				if m == D.BUILDING:
-					sim.set_cell(xx, yy, D.AIR)
-			else:
-				sim.set_cell(xx, yy, D.BUILDING)
 
 
 ## Lava, fire, corrosion, steam and drowning checks, ten times a second; then
@@ -2452,9 +1419,6 @@ func _damage_scan() -> void:
 		return
 	var dt := 6.0 * D.DT
 	var list := scan_list
-	for k: int in scan_gates:
-		var g: Building = list[k]
-		scan_rects[k * 5 + 4] = 1 if g.gate_open else 0
 	var hz: PackedInt32Array = sim.hazards_batch(scan_rects, D.CORRODE_REACH)
 	var unheld: Array = []
 	for k in list.size():
@@ -2466,56 +1430,44 @@ func _damage_scan() -> void:
 		var b: Building = list[k]
 		# Nothing solid touching it: held up only if a building beside it is. The
 		# Hub stands whatever happens under it.
-		if hz[o + 6] == 0 and not b.falling and not b.dead and b != hub and not _clinging(b):
+		if hz[o + 6] == 0 and not b.falling and not b.dead and b != hub:
 			unheld.append(b)
 		# Most buildings, most of the time: nothing near them, nothing to count down.
 		if lava == 0 and fire == 0 and steam == 0 and corrode == 0 \
-				and (not D.is_conduit(b.type) or (hz[o + 3] == 0 and not b.drowned and b.wet_scans == 0)):
+				and (not D.is_node(b.type) or (hz[o + 3] == 0 and not b.drowned and b.wet_scans == 0)):
 			continue
 		if b.dead:
 			continue
 		var liquid := hz[o + 3]
 		var open := hz[o + 4]
 		if lava > 0:
-			if D.is_conduit(b.type):
+			if D.is_node(b.type):
 				_destroy(b, "lava")
 				continue
-			if b.type == D.B_BORER and researched.has("coolant_jacket") and b.coolant > 0.0:
-				# The jacket takes the heat: its water boils off instead (phase 10).
-				var w := minf(b.coolant, D.JACKET_LAVA_WATER * dt)
-				b.coolant -= w
-				_vent(b, b.rect().grow(2), w * D.CELLS_PER_UNIT)
-			else:
-				_hurt(b, D.LAVA_DPS * dt, "lava")
-				if b.dead:
-					continue
+			_hurt(b, D.LAVA_DPS * dt, "lava")
+			if b.dead:
+				continue
 		var ring := 2 * (b.w + b.h)
 		# Flames burn any building, in proportion to how much of its outline they
 		# wrap (full damage from half of it).
 		if fire > 0:
-			if b.type == D.B_BORER and researched.has("coolant_jacket") and b.coolant > 0.0:
-				var fw := minf(b.coolant, D.JACKET_LAVA_WATER * dt)     # the jacket takes the flames too
-				b.coolant -= fw
-				_vent(b, b.rect().grow(2), fw * D.CELLS_PER_UNIT)
-			else:
-				_hurt(b, D.FIRE_DPS * clampf(fire / (ring * 0.5), 0.0, 1.0) * dt, "fire")
-				if b.dead:
-					continue
+			_hurt(b, D.FIRE_DPS * clampf(fire / (ring * 0.5), 0.0, 1.0) * dt, "fire")
+			if b.dead:
+				continue
 		# Sulfur (a deposit, grit or fumes) within a few cells eats it slowly.
 		if corrode > 0:
 			_hurt(b, D.CORRODE_DPS * clampf(corrode / D.CORRODE_FULL, 0.0, 1.0) * dt, "corrosion")
 			if b.dead:
 				continue
-		# Steam scalds Conduits, the network's weak point, in proportion to how much
-		# of the outline it wraps (full damage from half of it). Machines shrug it off:
-		# an obsidian farm has to live in its own steam.
-		if steam > 0 and D.is_conduit(b.type):
+		# Steam scalds Nodes, the network's weak point, in proportion to how much
+		# of the outline it wraps (full damage from half of it).
+		if steam > 0 and D.is_node(b.type):
 			var share := clampf(steam / (ring * 0.5), 0.0, 1.0)
 			_hurt(b, D.STEAM_DPS * share * dt, "steam")
 			if b.dead:
 				continue
-		if D.is_conduit(b.type) and b.built:
-			# Hysteresis, so a waterline lapping at a Conduit doesn't flicker it:
+		if D.is_node(b.type) and b.built:
+			# Hysteresis, so a waterline lapping at a Node doesn't flicker it:
 			# drowned after 0.5 s fully underwater; back in service only after 2 s
 			# with a quarter of its outline in the open.
 			var under := liquid > 0 and open == 0
@@ -2553,20 +1505,19 @@ func _hub_upkeep() -> void:
 ## The hazard scans' inputs, rebuilt when buildings come or go or links change.
 func _rebuild_scan() -> void:
 	scan_dirty = false
-	strut_list = []
+	brace_list = []
 	var shields := PackedInt32Array()
 	var damp := researched.has("tremor_dampers")
 	for b: Building in buildings:
-		if b.type == D.B_STRUT and not b.dead:
-			strut_list.append(b)
+		if b.type == D.B_BRACE and not b.dead:
+			brace_list.append(b)
 			if damp:
 				shields.append(int(b.center().x))
 				shields.append(int(b.center().y))
-				shields.append(int(D.STRUT_DAMP_R + maxf(b.w, b.h) * 0.5))
+				shields.append(int(D.BRACE_DAMP_R + maxf(b.w, b.h) * 0.5))
 	sim.set_shields(shields)
 	scan_list = []
 	scan_rects = PackedInt32Array()
-	scan_gates = PackedInt32Array()
 	link_list = []
 	link_segs = PackedInt32Array()
 	# Which buildings touch (corners count), through an 8x8 bucket hash.
@@ -2588,34 +1539,26 @@ func _rebuild_scan() -> void:
 						b.touching.append(o.id)
 						o.touching.append(b.id)
 				cell.append(b)
-	# Light and sight that only change when a building comes, goes, finishes or moves.
+	# Light and sight that only change when a building comes, goes or finishes.
 	still_lights = PackedInt32Array()
 	still_sights = PackedInt32Array()
-	lit_list = []
 	_circle(still_lights, hub.center(), D.LIGHT_HUB)
 	_circle(still_sights, hub.center(), D.SIGHT_HUB)
 	_circle(still_lights, crucible.center(), D.LIGHT_CRUCIBLE)
 	for b: Building in buildings:
-		if D.is_mover(b.type) and b.built and not b.dead:
-			lit_list.append(b)       # its light and sight go where it goes
-			continue
 		if b.dead or not b.built or b.falling or b.type == D.B_HUB or b.type == D.B_CRUCIBLE:
 			continue
-		if D.is_conduit(b.type):
-			_circle(still_sights, b.center(), D.SIGHT_CONDUIT)
+		if D.is_node(b.type):
+			_circle(still_sights, b.center(), D.SIGHT_NODE)
 			continue
 		_circle(still_lights, b.center(), D.LIGHT_PILOT)
 		_circle(still_sights, b.center(), D.SIGHT_MACHINE)
-		if b.type == D.B_LAMP or b.type == D.B_DRILL:
-			lit_list.append(b)
 	for b: Building in buildings:
 		b.scan_idx = -1
 		b.seg_idx = -1
 		if b.dead:
 			continue
-		if b.type != D.B_CRUCIBLE and not b.fixed:
-			if b.type == D.B_FLOODGATE:
-				scan_gates.append(scan_list.size())
+		if b.type != D.B_CRUCIBLE:
 			b.scan_idx = scan_list.size()
 			scan_list.append(b)
 			scan_rects.append(b.x)
@@ -2662,11 +1605,8 @@ func _settle(unheld: Array) -> void:
 
 
 func _come_loose(b: Building) -> void:
-	if b.type == D.B_STRUT:
+	if b.type == D.B_BRACE:
 		_destroy(b, "losing its anchors")
-		return
-	if b.type == D.B_THUMPER:
-		launch(b, 0.0, 0.0)
 		return
 	b.falling = true
 	b.fall_v = 0.0
@@ -2689,7 +1629,7 @@ func _update_falling() -> void:
 			continue
 		b.fall_v = minf(b.fall_v + D.FALL_ACCEL * D.DT, D.FALL_MAX)
 		if _wet(b):
-			b.fall_v = minf(b.fall_v, D.FLY_WATER_MAX)
+			b.fall_v = minf(b.fall_v, D.FALL_WATER_MAX)
 		b.fall_acc += b.fall_v * D.DT
 		var landed := false
 		while b.fall_acc >= 1.0:
@@ -2723,12 +1663,6 @@ func _drop(b: Building) -> void:
 		sim.set_cell(xx, b.y, below)
 	b.y += 1
 	b.fell += 1
-	# A Drill sinking into its own channel has that much less channel below it.
-	if b.type == D.B_DRILL and b.dir == 0:
-		b.reach = maxi(b.reach - 1, 0)
-		b.scan_from = 0
-	elif b.type == D.B_BORER and b.mode == 0:
-		b.trail.append(Vector2i(b.x, b.y))   # so Homing can climb back the way it fell
 	scan_dirty = true
 
 
@@ -2739,16 +1673,13 @@ func _land(b: Building) -> void:
 	b.falling = false
 	b.fall_v = 0.0
 	b.fall_acc = 0.0
-	if b.type == D.B_DRILL and b.dir != 0:
-		b.reach = 0            # its channel is somewhere above now
-		b.scan_from = 0
 	net_dirty = true
 	scan_dirty = true
 	b.flash = 0.5
 	if hurt > 0.0:
 		var under := Vector2i(b.x + (b.w >> 1), b.y + b.h)
 		var o := building_at(under) if sim.get_cell(under.x, under.y) == D.BUILDING else null
-		if o != null and not o.dead and o.type != D.B_CRUCIBLE and not o.fixed:
+		if o != null and not o.dead and o.type != D.B_CRUCIBLE:
 			_hurt(o, hurt, "a fall")
 		b.alert_cd = maxf(b.alert_cd, 1.0)    # the landing's own alert says so
 		_hurt(b, hurt, "a fall")
@@ -2756,8 +1687,6 @@ func _land(b: Building) -> void:
 			return
 	var how := "" if hurt <= 0.0 else ", hurt (%d%% left)" % roundi(100.0 * b.hp / b.max_hp)
 	alert("loose", "%s landed %d cells down, at depth %d%s" % [b.title(), b.fell, b.y, how], b.center())
-	if b.type == D.B_DRILL:
-		_refresh_sense()
 
 
 const HURT_ALERTS := {
@@ -2779,9 +1708,7 @@ func _hurt(b: Building, amount: float, cause: String) -> void:
 	if b == hub and b.hp < b.max_hp * D.HUB_WARN and b.hp > 0.0 and not hub_warned:
 		hub_warned = true
 		show_banner("The Hub is failing (%d%% left). If it goes, the run is over." % roundi(100.0 * b.hp / b.max_hp), 5.0)
-	# A Thumper singes itself on its own flash every blast: only say so once it's in trouble.
-	var routine: bool = b.type == D.B_THUMPER and (cause == "fire" or cause == "blast") and b.hp > b.max_hp * 0.5
-	if b.alert_cd <= 0.0 and not routine:
+	if b.alert_cd <= 0.0:
 		b.alert_cd = 10.0
 		var a: Array = HURT_ALERTS.get(cause, HURT_ALERTS["lava"])
 		alert(a[0], a[1] % [b.title(), int(b.center().y)], b.center())
@@ -2891,19 +1818,12 @@ func _link_scan(dt: float) -> void:
 
 ## A blast at `at`: the sim breaks what the blast can beat and throws it as
 ## debris; buildings and links nearby take damage by distance.
-## `source` (a Thumper) is spared, and so is its own link.
+## `source` (a building that set it off) is spared, and so is its own link.
 func blast(at: Vector2i, radius: float, power: int, source: Building = null) -> int:
 	var p := Vector2(at) + Vector2(0.5, 0.5)
-	# Mites it reaches become bodies first, so it throws them.
-	for w: Building in buildings:
-		if w.type != D.B_WARREN or w.dead:
-			continue
-		for mt: Dictionary in w.mites:
-			if mt.body == 0 and WR.bite_centre(mt.p).distance_to(p) <= radius + WR.BITE:
-				WR.loosen(self, mt, Vector2.ZERO)
 	var broke: int = sim.explode(at.x, at.y, radius, power)
 	for b: Building in buildings.duplicate():
-		if b.dead or b.type == D.B_CRUCIBLE or b.fixed or b == source:
+		if b.dead or b.type == D.B_CRUCIBLE or b == source:
 			continue
 		var d := dist_to_rect(p, b.rect())
 		if d <= radius:
@@ -2936,7 +1856,7 @@ func _rebuild_network() -> void:
 		b.parent = null
 		b.net_dist = INF
 		b.active_relay = false
-		if b.type == D.B_HUB or (D.is_conduit(b.type) and b.built and b.enabled and not b.falling):
+		if b.type == D.B_HUB or (D.is_node(b.type) and b.built and b.enabled and not b.falling):
 			b.active_relay = true
 			var i := relays.size()
 			relay_index[b] = i
@@ -2954,7 +1874,7 @@ func _rebuild_network() -> void:
 	for i in n:
 		var ci: Vector2 = relays[i].center()
 		var ri := D.relay_range(relays[i].type)
-		var reach := int(ceil(D.MAST_RANGE)) + 1
+		var reach := int(ceil(D.RELAY_RANGE)) + 1
 		var area := Rect2i(int(ci.x) - reach, int(ci.y) - reach, 2 * reach + 1, 2 * reach + 1)
 		for j: int in _relays_near(area):
 			if j <= i:
@@ -2963,35 +1883,16 @@ func _rebuild_network() -> void:
 			if d <= maxf(ri, D.relay_range(relays[j].type)) and (broken_links.is_empty() or not broken_links.has(_link_key(relays[i], relays[j]))):
 				adj[i].append(Vector2(j, d))
 				adj[j].append(Vector2(i, d))
-	# Sources: the Hub, then every built Cache and generator, each entering the
-	# network at the nearest relay in reach. A Cache on a cut-off stretch keeps
-	# that stretch running.
+	# Sources: only the Hub, entering the network at its own relay.
 	src_list.clear()
 	src_dist.clear()
 	src_prev.clear()
 	src_entry = PackedInt32Array()
-	var link_reach := int(ceil(D.LINK_RANGE)) + 1
 	for b: Building in buildings:
 		if not b.built or not b.is_source() or b.falling:
 			continue
-		var entry := -1
+		var entry: int = relay_index[hub]
 		var d0 := 0.0
-		if b == hub:
-			entry = relay_index[hub]
-		else:
-			# The nearest relay in reach, preferring one that isn't drowned.
-			var best := INF
-			for i: int in _relays_near(b.rect().grow(link_reach)):
-				var dd := dist_to_rect(relays[i].center(), b.rect())
-				if dd > D.LINK_RANGE or broken_links.has(_link_key(b, relays[i])):
-					continue
-				var score := dd + (1000.0 if relays[i].drowned else 0.0)
-				if score < best:
-					best = score
-					entry = i
-					d0 = dd
-		if entry < 0:
-			continue
 		var dist := PackedFloat64Array()
 		dist.resize(n)
 		dist.fill(INF)
@@ -3009,7 +1910,7 @@ func _rebuild_network() -> void:
 				continue
 			done[u] = 1
 			if relays[u].drowned:
-				continue            # a drowned Conduit can't pass the network on
+				continue            # a drowned Node can't pass the network on
 			var du := dist[u]
 			for e: Vector2 in adj[u]:
 				var v := int(e.x)
@@ -3052,10 +1953,6 @@ func _rebuild_network() -> void:
 			lost_at = b.center()
 			b.flash = 1.0
 		b.was_connected = b.connected
-	caches.clear()
-	for b: Building in buildings:
-		if b.type == D.B_CACHE and b.built and b.connected:
-			caches.append(b)
 	if lost > 0:
 		alert("link", "%d building%s lost %s link" % [lost, "" if lost == 1 else "s", "its" if lost == 1 else "their"], lost_at)
 	if crucible.connected and not crucible_linked_once:
@@ -3118,31 +2015,18 @@ func _validate_packets() -> void:
 			packets.remove_at(k)
 
 
-## What a source holds (the Hub's is the main stockpile).
-func store_of(src: Building) -> PackedFloat64Array:
-	return stock if src == hub else src.store
-
-
 func _refund(p: Packet) -> void:
 	_fix_done(p)
-	var src: Building = p.source
-	if src != null and not src.dead and src != hub:
-		src.store[p.res] += 1.0
-	else:
-		stock[p.res] += 1.0
+	stock[p.res] += 1.0
 	if p.target == crucible:
 		c_inflight[p.res] -= 1
 	else:
 		p.target.inflight[p.res] -= 1
 
 
-## Everything held anywhere: the Hub plus every Cache and generator.
+## Everything held anywhere: the Hub's stockpile.
 func total(r: int) -> float:
-	var t: float = stock[r]
-	for b: Building in buildings:
-		if b.built and (b.type == D.B_CACHE or D.is_generator(b.type)):
-			t += b.store[r]
-	return t
+	return stock[r]
 
 
 ## The relay a packet for `target` ends its trip at (the Hub is its own), or -1.
@@ -3189,41 +2073,22 @@ func _route(k: int, target: Building) -> Packet:
 	return p
 
 
-## The nearest source (by network distance) that holds `r` and has a packet to
-## send. `mode` 0: any source; 1: not a Cache (Cache top-ups); 2: only a
-## generator with more than it keeps for itself (surplus going to the Hub).
-func _best_source(target: Building, r: int, mode: int) -> int:
-	var e := _target_relay(target)
-	if e < 0:
+## The Hub's slot in `src_list` if it has a packet to send and holds `r`, else -1.
+func _best_source(target: Building, r: int) -> int:
+	if _target_relay(target) < 0:
 		return -1
-	var best := -1
-	var best_d := INF
 	for k in src_list.size():
 		var s: Building = src_list[k]
-		if s == target or s.dead or s.send_tokens < 1.0:
+		if s == target or s.dead or s.send_tokens < 1.0 or stock[r] < 1.0:
 			continue
-		if mode >= 1 and s.type == D.B_CACHE:
-			continue
-		if mode == 2 and (not D.is_generator(s.type) or s.store[r] < D.GEN_BUFFER * 0.5 + 1.0):
-			continue
-		if store_of(s)[r] < 1.0:
-			continue
-		var d: float = src_dist[k][e]
-		if d < best_d:
-			best_d = d
-			best = k
-	return best
+		return k
+	return -1
 
 
 func _dispatch() -> void:
 	var ready_n := 0
 	for s: Building in src_list:
-		var rate := D.HUB_PACKETS_PER_S
-		if s.type == D.B_CACHE:
-			rate = D.CACHE_PACKETS_PER_S
-		elif D.is_generator(s.type):
-			rate = D.GEN_PACKETS_PER_S
-		s.send_tokens = minf(s.send_tokens + rate * D.DT, 1.0)
+		s.send_tokens = minf(s.send_tokens + D.HUB_PACKETS_PER_S * D.DT, 1.0)
 		if s.send_tokens >= 1.0:
 			ready_n += 1
 	if cstate == 1:
@@ -3235,28 +2100,23 @@ func _dispatch() -> void:
 		return
 	if ready_n == 0:
 		return
-	# What the sources with a packet to send could send at all.
+	# What the Hub could send at all.
 	var avail := PackedByteArray()
 	avail.resize(D.NRES)
 	var any := false
-	for s: Building in src_list:
-		if s.send_tokens < 1.0:
-			continue
-		var st := store_of(s)
-		for r in D.NRES:
-			if st[r] >= 1.0:
-				avail[r] = 1
-				any = true
+	for r in D.NRES:
+		if stock[r] >= 1.0:
+			avail[r] = 1
+			any = true
 	var sent := 0
 	if any:
 		for rq: Array in _requests(avail):
 			var target: Building = rq[0]
 			var r: int = rq[1]
 			var want: int = rq[2]
-			var mode: int = rq[3]
-			var fix: int = rq[4]
+			var fix: int = rq[3]
 			while want > 0:
-				var k := _best_source(target, r, mode)
+				var k := _best_source(target, r)
 				if k < 0:
 					break
 				var p := _route(k, target)
@@ -3270,20 +2130,17 @@ func _dispatch() -> void:
 					target.repairing = true
 				elif fix >= 0:
 					link_fixes[fix] = true
-				store_of(src)[r] -= 1.0
+				stock[r] -= 1.0
 				src.send_tokens -= 1.0
 				if src.send_tokens < 1.0:
 					ready_n -= 1
-				if src == hub:
-					send_log.append(game_time)
+				send_log.append(game_time)
 				if target == crucible:
 					c_inflight[r] += 1
 					if r != D.R_POWER:
 						c_tokens -= 1.0
 				else:
 					target.inflight[r] += 1
-					if target.built and target.type == D.B_SPOUT and r == D.R_WATER:
-						target.tokens -= 1.0
 				packets.append(p)
 				sent += 1
 				want -= 1
@@ -3297,11 +2154,8 @@ func _dispatch() -> void:
 
 
 ## What the network is asked for, most urgent first, as [target, resource,
-## count, source mode (see _best_source), fix (see Packet.fix)]: the charging
-## Crucible, then power for the machines that hold back hazards, then repairs
-## (links, then buildings), then blueprints in the order they were placed, then
-## power and water for everything else, then Cache top-ups, then generators'
-## surplus back to the Hub.
+## count, fix (see Packet.fix)]: the charging Crucible, then repairs (links, then
+## buildings), then blueprints in the order they were placed.
 func _requests(avail: PackedByteArray) -> Array:
 	var out: Array = []
 	if cstate == 1 and crucible.connected and c_tokens >= 1.0:
@@ -3316,50 +2170,25 @@ func _requests(avail: PackedByteArray) -> Array:
 				best_frac = frac
 				best = r
 		if best >= 0:
-			out.append([crucible, best, 1, 0, -1])
-	# Its power draw goes ahead of every machine's.
+			out.append([crucible, best, 1, -1])
+	# Its power draw goes ahead of everything else.
 	if cstate == 1 and crucible.connected and avail[D.R_POWER] != 0:
 		var want := int(D.CRUCIBLE_POWER_RESERVE - c_power) - c_inflight[D.R_POWER]
 		if want > 0:
-			out.append([crucible, D.R_POWER, want, 0, -1])
-	# Power goes one packet at a time to whichever machine is emptiest, so a
-	# working machine isn't kept waiting while idle ones top up their reserves.
-	var urgent: Array = []
-	var later: Array = []
-	for b: Building in buildings:
-		if avail[D.R_POWER] == 0:
-			break
-		if not b.connected or not b.built or not D.uses_power(b.type):
-			continue
-		var have := b.power + b.inflight[D.R_POWER]
-		if have > reserve_cap(b) - 1.0:
-			continue
-		# Hoppers and Floodgates hold back hazards: when they're under half,
-		# they go ahead of blueprints.
-		if (b.type == D.B_HOPPER or b.type == D.B_FLOODGATE) and have < D.POWER_RESERVE * 0.5:
-			urgent.append([b, D.R_POWER, 1, 0, -1])
-		else:
-			later.append([b, D.R_POWER, 1, 0, -1])
-	var emptiest := func(a: Array, c: Array) -> bool:
-		var ba: Building = a[0]
-		var bc: Building = c[0]
-		return ba.power + ba.inflight[D.R_POWER] < bc.power + bc.inflight[D.R_POWER]
-	urgent.sort_custom(emptiest)
-	later.sort_custom(emptiest)
-	out.append_array(urgent)
+			out.append([crucible, D.R_POWER, want, -1])
 	# Repairs, a Stone each: broken links, worn ones, then damaged buildings.
 	if avail[D.R_STONE] != 0:
 		for key: int in broken_links:
 			if not link_fixes.has(key):
 				var t := _fix_target(key)
 				if t != null:
-					out.append([t, D.R_STONE, 1, 0, key])
+					out.append([t, D.R_STONE, 1, key])
 		for key: int in link_hp:
 			if link_fixes.has(key) or link_hp[key] > D.LINK_HP * D.LINK_REPAIR_BELOW:
 				continue
 			var t := _fix_target(key)
 			if t != null:
-				out.append([t, D.R_STONE, 1, 0, key])
+				out.append([t, D.R_STONE, 1, key])
 		# Only buildings that have been hurt, in the order they were first hurt.
 		for b: Building in damaged.keys():
 			if b.dead or b.hp >= b.max_hp * D.REPAIR_BELOW:
@@ -3368,7 +2197,7 @@ func _requests(avail: PackedByteArray) -> Array:
 				continue
 			if b.built and b.connected and not b.repairing \
 					and b.type != D.B_HUB and b.type != D.B_CRUCIBLE:
-				out.append([b, D.R_STONE, 1, 0, FIX_BUILDING])
+				out.append([b, D.R_STONE, 1, FIX_BUILDING])
 	for b: Building in buildings:
 		if b.built or not b.connected:
 			continue
@@ -3377,58 +2206,7 @@ func _requests(avail: PackedByteArray) -> Array:
 				continue
 			var need := b.still_needed(r)
 			if need > 0:
-				out.append([b, r, need, 0, -1])
-	# The current tech's materials go to a Lab, like construction.
-	if current_tech != "":
-		var lab := _research_lab()
-		if lab != null:
-			var want := tech_mats_needed(tech_step(current_tech))
-			var got := tech_mats_got(current_tech)
-			for r in D.NRES:
-				if want[r] <= 0 or avail[r] == 0:
-					continue
-				var flying := 0
-				for lb: Building in buildings:
-					if lb.type == D.B_LAB:
-						flying += lb.inflight[r]
-				var need := int(want[r] - got[r]) - flying
-				if need > 0:
-					out.append([lab, r, need, 0, -1])
-	out.append_array(later)
-	# Coolant Jackets fill up while they're on the network, so a Borer takes a full
-	# tank out past it.
-	if avail[D.R_WATER] != 0 and researched.has("coolant_jacket"):
-		for b: Building in buildings:
-			if (b.type == D.B_DRILL or b.type == D.B_BORER) and b.built and b.connected \
-					and b.coolant + b.inflight[D.R_WATER] <= D.COOLANT_CAP - 1.0:
-				out.append([b, D.R_WATER, 1, 0, -1])
-	var n := buildings.size() if avail[D.R_WATER] != 0 else 0
-	for k in n:
-		var b: Building = buildings[(spout_rr + k) % n]
-		if b.type != D.B_SPOUT or not b.built or not b.connected or not b.enabled:
-			continue
-		if b.tokens >= 1.0 and spout_can_pay(b):
-			spout_rr = (spout_rr + k + 1) % n
-			out.append([b, D.R_WATER, 1, 0, -1])
-			break
-	for b: Building in buildings:
-		if b.type != D.B_CACHE or not b.built or not b.connected:
-			continue
-		for r in D.NRES:
-			if avail[r] == 0:
-				continue
-			var need := int(D.CACHE_TOPUP[r] - b.store[r]) - b.inflight[r]
-			if need > 0:
-				out.append([b, r, need, 1, -1])
-	var surplus := 0
-	for s: Building in src_list:
-		if avail[D.R_POWER] == 0:
-			break
-		if D.is_generator(s.type):
-			surplus += maxi(int(s.store[D.R_POWER] - D.GEN_BUFFER * 0.5), 0)
-	surplus = mini(surplus, int(D.HUB_POWER_CAP - stock[D.R_POWER]) - hub.inflight[D.R_POWER])
-	if surplus > 0:
-		out.append([hub, D.R_POWER, surplus, 2, -1])
+				out.append([b, r, need, -1])
 	return out
 
 
@@ -3482,20 +2260,6 @@ func _deliver(p: Packet) -> void:
 		b.delivered[p.res] += 1.0
 		if b.fully_delivered():
 			_complete(b)
-	elif p.res == D.R_POWER and D.uses_power(b.type):
-		b.power += 1.0
-	elif b.type == D.B_SPOUT and p.res == D.R_WATER:
-		b.queue += int(D.CELLS_PER_UNIT)
-		var pay := minf(b.power, D.SPOUT_POWER_PER_PACKET)
-		b.power -= pay
-		used_acc += pay
-	elif (b.type == D.B_DRILL or b.type == D.B_BORER) and p.res == D.R_WATER:
-		b.coolant += 1.0
-	elif b.type == D.B_CACHE:
-		b.store[p.res] += 1.0
-		Goals.delivered(self, p.res, 1.0)
-	elif b.type == D.B_LAB:
-		_research_delivery(p.res)
 	else:
 		stock[p.res] += 1.0
 		Goals.delivered(self, p.res, 1.0)
@@ -3510,55 +2274,12 @@ func _fix_done(p: Packet) -> void:
 		link_fixes.erase(p.fix)
 
 
-func warren_colony() -> int:
-	return WR.colony_size(self)
-
-
-## How far a Warren's marker can sit from it.
-func warren_marker_range() -> float:
-	return WR.marker_range(WR.scale(self))
-
-
-func set_warren_marker(b: Building, at: Vector2i) -> void:
-	WR.set_marker(b, at)
-
-
-func clear_warren_marker(b: Building) -> void:
-	WR.set_marker(b, Vector2i(-1, -1))
-
-
-## What sensor mode is placing for the selected building: a sensor, or a Warren's marker.
-func pick_range() -> float:
-	if selected != null and selected.type == D.B_WARREN:
-		return warren_marker_range()
-	return D.SENSOR_RANGE
-
-
-## A building has just dug `c` out: the ground round it settles for a while
-## before weathering, erosion or loose fill can take it.
-func excavated(c: Vector2i) -> void:
-	sim.settle_around(c.x, c.y, D.SETTLE_RADIUS, int(D.SETTLE_S * D.TICKS_PER_S))
-
-
-## Where something dug or swallowed at `at` goes: the nearest Cache in reach
-## with room, else the Hub.
+## Where something dug or swallowed at `at` goes: into the Hub's stockpile.
 func _bank(at: Vector2, r: int, amount: float) -> void:
 	Goals.delivered(self, r, amount)
 	if r == D.R_GLIMMER and not tiers_open[2]:
 		discover(2, at)
-	var best: Building = null
-	var best_d := D.CACHE_BANK_RANGE
-	for c: Building in caches:
-		if c.dead or c.store[r] >= D.CACHE_CAP:
-			continue
-		var d := at.distance_to(c.center())
-		if d <= best_d:
-			best_d = d
-			best = c
-	if best != null:
-		best.store[r] += amount
-	else:
-		stock[r] += amount
+	stock[r] += amount
 
 
 ## Packets per second the Hub sent over the last second.
@@ -3683,66 +2404,9 @@ func level(id: String) -> int:
 	return 1 if researched.has(id) else 0
 
 
-func drill_speed() -> float:
-	return D.DRILL_SPEED * pow(D.DRILL_BIT_SPEED, level("drill_bit"))
-
-
-## Power a Drill spends on one cell of `m` at channel row `row`: dearer with
-## every Drill Bit level, and further down the shaft.
-func drill_power(m: int, row: int) -> float:
-	return D.power_per_cell(m) * pow(D.DRILL_BIT_POWER, level("drill_bit")) * (1.0 + row / D.DRILL_DEEP_ROWS)
-
-
-## How deep the fixed Drill reaches, in rows below it.
+## How deep the Winch's cable lets a rig go, in rows below the surface.
 func max_reach() -> int:
-	return D.DRILL_REACHES[mini(level("drill_shaft"), D.DRILL_REACHES.size() - 1)]
-
-
-func thump_power() -> int:
-	return D.THUMP_POWERS[level("thump_charge")]
-
-
-func thump_radius() -> float:
-	return D.THUMP_RADII[level("thump_radius")]
-
-
-func thump_cost() -> float:
-	return D.THUMP_COSTS[level("thump_efficiency")]
-
-
-func thump_interval() -> float:
-	return D.THUMP_INTERVALS[level("thump_rhythm")]
-
-
-## The most power a building holds in reserve.
-func reserve_cap(b: Building) -> float:
-	if b.type == D.B_BORER:
-		return D.BORER_RESERVES[level("borer_cells")]
-	return D.POWER_RESERVE
-
-
-## A Lab turns power from its reserve into progress on the current tech, up to
-## LAB_POWER_PER_S; it stops drawing once the tech has all the power it needs.
-func _lab(b: Building) -> void:
-	b.starved = false
-	if current_tech == "" or not b.enabled:
-		return
-	var st := tech_step(current_tech)
-	if st.is_empty():
-		return
-	var need: float = float(st["power"]) - tech_power.get(current_tech, 0.0)
-	if need <= 0.0:
-		return
-	var burn := minf(D.LAB_POWER_PER_S * D.DT, need)
-	if b.power < burn:
-		b.starved = true
-		burn = b.power
-	if burn <= 0.0:
-		return
-	b.power -= burn
-	used_acc += burn
-	research_acc += burn
-	tech_power[current_tech] = tech_power.get(current_tech, 0.0) + burn
+	return D.SHAFT_REACHES[mini(level("drill_shaft"), D.SHAFT_REACHES.size() - 1)]
 
 
 func _research_check() -> void:
@@ -3752,29 +2416,8 @@ func _research_check() -> void:
 		_finish_research(current_tech)
 
 
-## Materials arriving at a Lab go into the current tech, or back to the Hub if
-## it no longer needs them (the pick changed while they were on their way).
-func _research_delivery(r: int) -> void:
-	if current_tech != "":
-		var got := tech_mats_got(current_tech)
-		if got[r] < tech_mats_needed(tech_step(current_tech))[r]:
-			got[r] += 1.0
-			tech_mats[current_tech] = got
-			return
-	stock[r] += 1.0
-
-
-## The Lab that receives research materials: the first built, linked one.
-func _research_lab() -> Building:
-	for b: Building in buildings:
-		if b.type == D.B_LAB and b.built and b.connected:
-			return b
-	return null
-
-
 func _finish_research(id: String) -> void:
 	var t := tech(id)
-	var old_reach := max_reach()
 	researched[id] = true
 	var tname: String = t["name"]
 	if t.has("levels"):
@@ -3786,17 +2429,9 @@ func _finish_research(id: String) -> void:
 		current_tech = ""
 	_refresh_unlocks()
 	scan_dirty = true
-	var at := hub.center()
-	var lab := _research_lab()
-	if lab != null:
-		at = lab.center()
-	alert("research", "Research done: %s" % tname, at)
+	alert("research", "Research done: %s" % tname, MC.first_at(self, "lab", hub.center()))
 	mark("Researched %s" % tname, false)
 	show_banner("Research done: %s. %s" % [tname, t["text"]], 4.0)
-	if id == "drill_shaft" and drill != null and drill.reach_limit >= old_reach:
-		# The Drill carries on down to its new reach unless it was held short.
-		drill.reach_limit = max_reach()
-		drill.scan_from = 0
 
 
 func discover(tier: int, at: Vector2) -> void:
@@ -3905,19 +2540,9 @@ func _refresh_vision() -> void:
 		_rebuild_scan()
 	var lights := still_lights.duplicate()
 	var sights := still_sights.duplicate()
-	for b: Building in lit_list:
-		if b.dead or b.falling:
-			continue
-		if b.type == D.B_LAMP:
-			if b.enabled and b.power > 0.0:
-				_circle(lights, b.center(), D.LIGHT_LAMP)
-				_circle(sights, b.center(), D.LIGHT_LAMP)
-		elif D.is_mover(b.type):
-			_circle(lights, b.center(), D.LIGHT_PILOT)
-			_circle(sights, b.center(), D.SIGHT_MACHINE)
-		else:
-			_circle(lights, b.drill_head(), D.LIGHT_PILOT)
-			_circle(sights, b.drill_head(), D.LIGHT_PILOT + 2.0)
+	for l: Array in MC.lights(self):
+		_circle(lights, l[0], l[1])
+		_circle(sights, l[0], l[2])
 	var vr := view_rect(D.LIGHT_VIEW_PAD)
 	sim.set_light_view(vr.position.x, vr.position.y, vr.end.x, vr.end.y)
 	var maps: PackedByteArray = sim.light_update(lights, sights, D.SUN_LIGHT, known)
@@ -3980,13 +2605,11 @@ func _upload_tile(arr: Texture2DArray, which: int, t: int) -> void:
 	arr.update_layer(Image.create_from_data(TILE, TILE, false, Image.FORMAT_R8, sim.get_tile(which, t)), t)
 
 
+## The ground the modules that sense (the Cutter) feel hidden pockets in.
 func _refresh_sense() -> void:
 	var circles := PackedInt32Array()
-	for b: Building in buildings:
-		if (b.type != D.B_DRILL and b.type != D.B_BORER) or not b.built:
-			continue
-		for p: Vector2 in [b.center(), b.drill_head()]:
-			_circle(circles, p, D.SENSE_RADIUS)
+	for p: Vector2 in MC.sensing(self):
+		_circle(circles, p, D.SENSE_RADIUS)
 	var fresh: PackedByteArray = sim.block_circles(circles)
 	if fresh != sense:
 		sense = fresh
@@ -4013,10 +2636,6 @@ func alert(kind: String, text: String, at: Vector2) -> void:
 	alerts.append({"kind": kind, "text": text, "x": at.x, "y": at.y, "t": game_time, "n": 1})
 	if alerts.size() > 60:
 		alerts.pop_front()
-	if pause_on_breach and (kind == "water_breach" or kind == "lava_breach") and not seen_kinds.has(kind):
-		paused = true
-		show_banner("First %s. Paused: press Space to carry on." % ("water breach" if kind == "water_breach" else "lava breach"), 6.0)
-		_center_on(at.y, false, at.x)
 	seen_kinds[kind] = true
 	if hud:
 		hud.alerts_dirty = true
@@ -4144,11 +2763,17 @@ func to_screen(p: Vector2) -> Vector2:
 	return view_offset + p * zoom
 
 
-func deepest_building() -> Building:
-	var best: Building = hub
+## The bottom centre of the deepest thing built: a building or a module (the Hub's, to start).
+func deepest_point() -> Vector2:
+	var best := Vector2(hub.center().x, hub.y + hub.h)
 	for b: Building in buildings:
-		if b.type != D.B_CRUCIBLE and b.y + b.h > best.y + best.h:
-			best = b
+		if b.type != D.B_CRUCIBLE and b.y + b.h > best.y:
+			best = Vector2(b.center().x, b.y + b.h)
+	var m := MC.deepest_module(self)
+	if not m.is_empty():
+		var r := MC.bounds(m)
+		if r.end.y > best.y:
+			best = Vector2(r.position.x + r.size.x * 0.5, r.end.y)
 	return best
 
 
@@ -4166,40 +2791,20 @@ func select_tool(type: int) -> void:
 		return
 	tool_type = type
 	module_pick = ""
-	sensor_mode = false
 	brush_mode = false
 	selected = null
-	if type == D.B_DRILL:
-		show_banner("Drill: R turns it (down, left, right). Esc cancels.", 3.0)
-	elif type == D.B_BORER:
-		tool_dir = mini(tool_dir, 3)
-		show_banner("Borer: R turns it (down, left, right, up) before placing; turn it any time after. Esc cancels.", 3.5)
-	elif type == D.B_THUMPER:
-		show_banner("Thumper: once it's built, drag it to move it; let go mid-swing to throw it. Esc cancels.", 3.5)
-	elif type == D.B_FLOODGATE:
-		show_banner("Floodgate: R turns it on its side. Esc cancels.", 3.0)
-	elif type == D.B_BULKHEAD:
+	if type == D.B_BULKHEAD:
 		show_banner("Bulkhead: drag to lay a wall. Esc cancels.", 3.0)
-	elif type == D.B_STRUT:
-		show_banner("Strut: click in a gap to span it rock to rock; R turns it upright or flat. Esc cancels.", 3.5)
+	elif type == D.B_BRACE:
+		show_banner("Brace: click in a gap to span it rock to rock; R turns it upright or flat. Esc cancels.", 3.5)
+	elif type == D.B_NODE:
+		show_banner("Node: click to place, or drag to lay a line of them. Esc cancels.", 3.0)
 
 
 func cancel_tool() -> void:
 	tool_type = -1
 	module_pick = ""
 	drag_from = Vector2i(-1, -1)
-	sensor_mode = false
-
-
-func begin_sensor_move() -> void:
-	if selected != null and (selected.type == D.B_SPOUT or selected.type == D.B_FLOODGATE):
-		sensor_mode = true
-		tool_type = -1
-		show_banner("Click a cell within %d of the building to move its sensor. Esc cancels." % int(D.SENSOR_RANGE), 4.0)
-	elif selected != null and selected.type == D.B_WARREN:
-		sensor_mode = true
-		tool_type = -1
-		show_banner("Click where the mites should tunnel to, within %d cells. Esc cancels." % int(warren_marker_range()), 4.0)
 
 
 func toggle_pause() -> void:
@@ -4292,8 +2897,6 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
 		mouse_screen = event.position
 		hover = screen_to_cell(mouse_screen)
-		if grab != null and not grab.held and not grab.dead and (hover - grab_from).length_squared() >= 4 * D.S * D.S:
-			grab_thumper(grab, Vector2(hover) + Vector2(0.5, 0.5))
 		if panning:
 			cam_target -= (event.position.y - pan_last.y) / zoom
 			cam_y = cam_target
@@ -4341,14 +2944,14 @@ func _mouse_button(e: InputEventMouseButton) -> void:
 		if e.pressed:
 			if brush_mode:
 				painting = 2
-			elif tool_type >= 0 or sensor_mode:
+			elif tool_type >= 0:
 				cancel_tool()
 			elif plan_at(hover) >= 0 and building_at(hover) == null:
 				cut_plans(plan_at(hover))
 			else:
 				demolish_target = building_at(hover)
 				demolish_hold = 0.0
-				if demolish_target != null and (demolish_target.type == D.B_HUB or demolish_target.type == D.B_CRUCIBLE or demolish_target.fixed):
+				if demolish_target != null and (demolish_target.type == D.B_HUB or demolish_target.type == D.B_CRUCIBLE):
 					demolish_target = null
 		else:
 			painting = 0
@@ -4366,27 +2969,14 @@ func _left_press() -> void:
 			return
 		painting = 1
 		return
-	if sensor_mode and selected != null:
-		var pr := pick_range()
-		if selected.center().distance_to(Vector2(hover) + Vector2(0.5, 0.5)) <= pr \
-				and hover.x >= 2 and hover.x < D.W - 2 and hover.y >= 2 and hover.y < D.H - 2:
-			if selected.type == D.B_WARREN:
-				set_warren_marker(selected, hover)
-			else:
-				selected.sx = hover.x
-				selected.sy = hover.y
-			sensor_mode = false
-		else:
-			show_banner("Too far: it must be within %d cells." % int(pr), 2.0)
-		return
 	if tool_type == D.B_BULKHEAD:
 		drag_from = hover
 		return
-	if tool_type == D.B_STRUT:
-		var sr := strut_rect(hover, tool_horizontal)
-		var swhy := check_strut(sr)
+	if tool_type == D.B_BRACE:
+		var sr := brace_rect(hover, tool_horizontal)
+		var swhy := check_brace(sr)
 		if swhy == "":
-			place_strut(sr)
+			place_brace(sr)
 		else:
 			show_banner(swhy, 1.5)
 		return
@@ -4394,17 +2984,10 @@ func _left_press() -> void:
 		drag_from = hover     # placed on release: one where it was pressed, or a line
 		return
 	selected = building_at(hover)
-	# A built Thumper under the press gets dragged once the mouse moves off it a little.
-	if selected != null and selected.type == D.B_THUMPER and selected.built:
-		grab = selected
-		grab_from = hover
 
 
 func _left_release() -> void:
 	painting = 0 if painting == 1 else painting
-	if grab != null:
-		release_thumper(grab)
-		grab = null
 	if tool_type == D.B_BULKHEAD and drag_from.x >= 0:
 		var rects := bulkhead_line(drag_from, hover)
 		var ok := bulkhead_valid(rects)
@@ -4425,7 +3008,7 @@ func _left_release() -> void:
 		var r := snap_place(tool_type, a, tool_horizontal)
 		var why := check_place(tool_type, r)
 		if why == "":
-			place(tool_type, r, tool_dir, tool_horizontal)
+			place(tool_type, r, tool_horizontal)
 		else:
 			show_banner(why, 1.5)
 
@@ -4445,7 +3028,7 @@ func _key(e: InputEventKey) -> void:
 			hud.toggle_help()
 		elif hud.research_visible():
 			hud.toggle_research()
-		elif tool_type >= 0 or sensor_mode:
+		elif tool_type >= 0 or module_pick != "":
 			cancel_tool()
 		elif brush_mode:
 			brush_mode = false
@@ -4454,11 +3037,7 @@ func _key(e: InputEventKey) -> void:
 		else:
 			open_title()
 	elif k == KEY_R:
-		if tool_type == D.B_DRILL:
-			tool_dir = (tool_dir + 1) % 3
-		elif tool_type == D.B_BORER:
-			tool_dir = (tool_dir + 1) % 4
-		elif tool_type == D.B_FLOODGATE or tool_type == D.B_STRUT:
+		if tool_type == D.B_BRACE:
 			tool_horizontal = not tool_horizontal
 	elif k == KEY_SPACE:
 		toggle_pause()
@@ -4469,7 +3048,8 @@ func _key(e: InputEventKey) -> void:
 	elif k == KEY_HOME:
 		_center_on(hub.center().y, false, hub.center().x)
 	elif k == KEY_END:
-		_center_on(deepest_building().center().y, false, deepest_building().center().x)
+		var dp := deepest_point()
+		_center_on(dp.y, false, dp.x)
 	elif k == KEY_F1 or k == KEY_H:
 		hud.toggle_help()
 	elif k == KEY_F3:

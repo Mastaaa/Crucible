@@ -104,9 +104,9 @@ static func add(m: Dictionary, def: Dictionary, mat: int, n: int) -> int:
 
 # --- The network -----------------------------------------------------------------
 
-## Whether `m` is in reach of a connected Conduit or the Hub, the way a machine is.
+## Whether `m` is in reach of a connected Node or the Hub, the way a machine is.
 static func networked(g, m: Dictionary, def: Dictionary) -> bool:
-	return g.find_link(D.B_HOPPER, bounds(m, def), null) != null
+	return g.find_link(-1, bounds(m, def), null) != null
 
 
 ## Takes `amount` power from the Hub's stock if it's all there.

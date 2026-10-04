@@ -122,7 +122,7 @@ static func scan(g, m: Dictionary, def: Dictionary) -> void:
 			if got[mat] > 0:
 				MU.add(m, def, mat, got[mat])
 	if not m.get("powered", false):
-		m["state"] = "No power: the Winch has no Conduit or Hub in reach."
+		m["state"] = "No power: the Winch has no Node or Hub in reach."
 		return
 	var dug := 0
 	for _i in SLICES_PER_SCAN:

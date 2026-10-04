@@ -26,7 +26,6 @@ func _process(_d: float) -> bool:
 		game.title.visible = false
 		game.new_game(7)
 		game.reveal_all = true
-		game.drill.enabled = false
 		game.stock[D.R_POWER] = 90.0
 		MC.ensure_defs()
 		MC.place(game, "cutter", Vector2i(X0, SURFACE - 16), 0)
