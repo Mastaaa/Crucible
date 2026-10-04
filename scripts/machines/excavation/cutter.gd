@@ -13,7 +13,7 @@ const M = preload("res://scripts/materials.gd")
 const SLICES_PER_SCAN := 3
 const LOOK := 4                 # rows ahead checked for clearance and lava
 
-static var _soft := {}          # hardness threshold -> mask of what it digs
+static var _soft := {}          # hardness threshold and hot rock -> mask of what it digs
 static var _bad := PackedByteArray()
 
 
@@ -22,12 +22,14 @@ static func level(g) -> int:
 
 
 ## What an Excavator at hardness `lvl` digs: solid cells whose dig rate is at least the
-## level's threshold, bar what needs a tool the starter kit lacks.
+## level's threshold, bar Obsidian (the Laser's) and Hot rock until the bit is `hot_level`.
 static func soft_mask(def: Dictionary, lvl: int) -> PackedByteArray:
 	var hard: Array = def["params"]["hardness"]
 	var thr := float(hard[mini(lvl, hard.size() - 1)])
-	if _soft.has(thr):
-		return _soft[thr]
+	var hot: bool = lvl >= int(def["params"]["hot_level"])
+	var key := "%s/%s" % [thr, hot]
+	if _soft.has(key):
+		return _soft[key]
 	M.ensure()
 	var out := PackedByteArray()
 	out.resize(256)
@@ -35,10 +37,10 @@ static func soft_mask(def: Dictionary, lvl: int) -> PackedByteArray:
 		var k: int = M.kinds[mat]
 		var rate: float = M.dig_rates[mat]
 		var ok := (k == M.K_STATIC or k == M.K_POWDER) and rate > 0.0 and rate >= thr
-		if M.names[mat] == "Obsidian" or M.names[mat] == "Hot rock":
+		if M.names[mat] == "Obsidian" or (M.names[mat] == "Hot rock" and not hot):
 			ok = false
 		out[mat] = 1 if ok else 0
-	_soft[thr] = out
+	_soft[key] = out
 	return out
 
 
@@ -86,7 +88,7 @@ static func scan(g, m: Dictionary, def: Dictionary) -> void:
 	m["room"] = 0
 	m["work"] = minf(m.get("work", 0.0) + MU.SCAN_DT, 1.5)
 	if m.get("rig_of", 0) == 0:
-		m["state"] = "Hang it from a Winch (through a Tank) to work."
+		m["state"] = "Hang it from a Winch (through a Tank), or mount it on a Piston, Gantry or Turntable, to work."
 		return
 	var fo := front_of(g, m, def)
 	var pt: Vector2 = fo["p"]
@@ -122,7 +124,7 @@ static func scan(g, m: Dictionary, def: Dictionary) -> void:
 			if got[mat] > 0:
 				MU.add(m, def, mat, got[mat])
 	if not m.get("powered", false):
-		m["state"] = "No power: the Winch has no Node or Hub in reach."
+		m["state"] = "No power: what carries it has no Node or Hub in reach."
 		return
 	var dug := 0
 	for _i in SLICES_PER_SCAN:

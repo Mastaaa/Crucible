@@ -53,17 +53,20 @@ static func scan(g, m: Dictionary, def: Dictionary) -> void:
 		return
 	var rig := MU.rig(g, t, m["id"])
 	for id: int in m.get("rig", []):
-		if not rig.has(id) and g.modules.has(id):
+		if not rig.has(id) and g.modules.has(id) and g.modules[id].get("rig_of", 0) == m["id"]:
 			g.modules[id]["powered"] = false
+			g.modules[id]["rig_of"] = 0
 	m["rig"] = rig
 	for id: int in rig:
 		g.modules[id]["powered"] = m["net"]
+		g.modules[id]["rig_of"] = m["id"]
 
 
 static func _release(g, m: Dictionary) -> void:
 	for id: int in m.get("rig", []):
-		if g.modules.has(id):
+		if g.modules.has(id) and g.modules[id].get("rig_of", 0) == m["id"]:
 			g.modules[id]["powered"] = false
+			g.modules[id]["rig_of"] = 0
 	m["rig"] = []
 
 

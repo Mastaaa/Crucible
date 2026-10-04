@@ -4,6 +4,24 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A4 part: the full Cutter and the Laser Excavator
+
+Tests: sixteen scenarios and engine_compare end `FAILURES: 0`; scenario_excavators is new (Hot rock, a Cutter
+on a Piston, the Laser, its research gate). The engine did not change, so `bin/` is as it was.
+
+- Cutter: Hot rock opens at Drill Bit level 4 (it stopped the Cutter at every level before; Obsidian stays
+  the Laser's). The Cutter gained a mechanical face, `mount`, so it can ride a Piston, Gantry or Turntable as
+  well as a Winch rig; any mover that carries a module now sets `rig_of` and `powered` on it, so the Cutter
+  digs on its own (into its own hollow until it is full, or through a Tank above it). It digs along the nearest
+  axis of where it faces, so a Turntable aims it in quarter turns.
+- Laser Excavator (`scripts/machines/excavation/laser.gd`, Tier 2 research, 16 Stone and 6 Glimmer): a
+  one-pixel beam of 40 cells along its front. It takes the first solid cell the beam meets when that is ore
+  (worth 2 or more: Glimmer, Obsidian, Coal, Sulfur and the wave 1 ores) and leaves any other rock alone, saying
+  what it stopped on. With Filler on (click it) each cell it takes becomes Stone, paid from the Hub's stock, so
+  the wall keeps its shape and the beam stops there. 10 cells a second, six times the Cutter's power per cell,
+  into its own hollow and up into a Tank by its pixel face. It needs a carrier (a Winch rig does not descend for
+  it, only the Cutter drives that).
+
 ## A4 part: Turntable
 
 Tests: fifteen scenarios and engine_compare end `FAILURES: 0`; scenario_movers gains D (the Turntable, a

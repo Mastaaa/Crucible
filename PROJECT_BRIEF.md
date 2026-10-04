@@ -28,7 +28,7 @@ uncover elements, deposits and curios; exploit reactions or get blindsided by th
 - native/: C++ GDExtension sim (godot-cpp 4.5) in src/; bin/ holds the built .dll and .so. Session
   tooling: cloud_setup.sh (run by the SessionStart hook in .claude/), build.sh, run_tests.sh,
   lsp_check.py, cache/ (prebuilt godot-cpp).
-- tests/: scenario_* (power, research, chemistry, light, collapse, bodies, depth, run, goals, modules, quarry, movers,
+- tests/: scenario_* (power, research, chemistry, light, collapse, bodies, depth, run, goals, modules, quarry, movers, excavators,
   temperature, wave1, spawn), engine_compare, autoplay (the quarry bot, a pacing probe), bench, bench_net,
   mapdump, shot_* (screenshots; shot_help is the F1 panel, shot_title the title, win and loss screens).
 
@@ -122,7 +122,7 @@ materials with real chemistry, modular machines (Create-like), and biomes.
    structures; the tutorial is rewritten around the quarry; the bot is a quarry pacing probe).
    Left: Chute, Conveyor and Bus Hopper (logistics modules). The gaps the cut exposes are listed
    in claude/STATUS.md.
-4. A4, movers and excavators (Piston, Gantry and Turntable done): Gantry, Piston, Turntable, full Cutter, Laser Excavator, tethered
+4. A4, movers and excavators (Piston, Gantry, Turntable, full Cutter and Laser done): Gantry, Piston, Turntable, full Cutter, Laser Excavator, tethered
    Thumper, Macerator, Press, the Drone Cage; tests and the bot rewritten.
 5. A5, materials wave 2 (about 25 in all), processing chains, sensors, Mk I to IV upgrades,
    Vault cells; the bot completes a run again.

@@ -1,0 +1,199 @@
+extends SceneTree
+## A4 excavators on seed 7:
+##  A. the full Cutter: Hot rock stops it until Drill Bit level 4, then it goes through
+##  B. a Cutter mounted on a Piston (no Winch, no Tank) is carried, powered and digs the wall it is
+##     pushed into
+##  C. the Laser Excavator strips a vein of Glimmer along its beam, leaves rock that isn't ore, and
+##     with Filler on swaps the cell it took for Stone from the Hub's stock
+##  D. research: the Laser's Build button waits for its tech
+## Run: godot --headless --path . --script tests/scenario_excavators.gd
+
+const D = preload("res://scripts/defs.gd")
+const MC = preload("res://scripts/machines/machines.gd")
+const M = preload("res://scripts/materials.gd")
+var game: Node
+var f := 0
+var fails := 0
+const X0 := 290          # the rig's left edge (left of the Hub, so the Hub is its network)
+const SURFACE := 200     # ground level there (dirt from here down)
+const HOT := 34          # Hot rock
+
+
+func _initialize() -> void:
+	game = load("res://scenes/main.tscn").instantiate()
+	root.add_child(game)
+
+
+func _process(_d: float) -> bool:
+	f += 1
+	if f == 2:
+		if game.sim.get_script() != null:
+			print("  (the GDScript sim has no bodies: nothing to check)")
+			print("FAILURES: 0")
+			return true
+		scenario_a()
+		scenario_b()
+		scenario_c()
+		scenario_d()
+		print("FAILURES: %d" % fails)
+		return true
+	return false
+
+
+func check(ok: bool, what: String) -> void:
+	print("  %s %s" % ["ok  " if ok else "FAIL", what])
+	if not ok:
+		fails += 1
+
+
+func secs(s: float) -> void:
+	game.run_ticks(int(s * 60.0))
+
+
+func fill(r: Rect2i, m: int) -> void:
+	for y in range(r.position.y, r.end.y):
+		for x in range(r.position.x, r.end.x):
+			game.sim.set_cell(x, y, m)
+
+
+func fresh() -> void:
+	game.new_game(7)
+	game.paused = true
+	game.reveal_all = true
+	MC.ensure_defs()
+	fill(Rect2i(200, SURFACE - 120, 144, 120), D.AIR)
+	fill(Rect2i(200, SURFACE, 144, 160), 6)
+	fill(Rect2i(200, SURFACE + 160, 144, 40), D.BEDROCK)
+	game.stock[D.R_POWER] = 90.0
+
+
+func place(def: String, x: int, y: int, turns: int = 0) -> int:
+	var id := MC.place(game, def, Vector2i(x, y), turns)
+	if id == 0:
+		print("  !! can't place %s at %d,%d: %s" % [def, x, y, MC.check_place(game, def, Vector2i(x, y), turns)])
+	return id
+
+
+func until(cond: Callable, limit: float) -> bool:
+	for _i in int(limit):
+		if cond.call():
+			return true
+		secs(1.0)
+	return cond.call()
+
+
+func scenario_a() -> void:
+	print("A. Hot rock")
+	fresh()
+	fill(Rect2i(X0 - 30, SURFACE + 30, 110, 30), HOT)
+	var cut := place("cutter", X0, SURFACE - 16)
+	var tank := place("tank", X0, SURFACE - 16 - 30)
+	var fun := place("funnel", X0, SURFACE - 16 - 30 - 14)
+	var winch := place("winch", X0 + 14, SURFACE - 16 - 30 - 18)
+	secs(1.0)
+	var w: Dictionary = game.modules[winch]
+	game.levels["drill_bit"] = 3
+	check(until(func() -> bool: return w["halt"] != "" and w["state"] == "docked", 150.0), "at Drill Bit 3 a Hot rock seam stops the Cutter")
+	check("Hot rock" in w["halt"], "and says why: %s" % w["halt"])
+	game.levels["drill_bit"] = 4
+	check(until(func() -> bool: return w["state"] == "down", 10.0), "level 4 lifts the hold")
+	check(until(func() -> bool: return w["cable"] > 70.0 or w["halt"] != "", 200.0) and w["cable"] > 70.0, "and the Cutter goes through the seam (%.0f cells down)" % w["cable"])
+	var left := 0
+	for y in range(SURFACE + 31, SURFACE + 59):
+		for x in range(X0, X0 + 26):
+			if game.sim.get_cell(x, y) == HOT:
+				left += 1
+	check(left == 0, "leaving none of it in the shaft (%d cells)" % left)
+	game.levels["drill_bit"] = 0
+	check(game.modules.has(cut) and game.modules.has(tank) and game.modules.has(fun), "(the rig stands)")
+
+
+## A Piston lying on its side pushes a Cutter into a dirt wall.
+func scenario_b() -> void:
+	print("B. a Cutter on a Piston")
+	fresh()
+	fill(Rect2i(326, SURFACE - 100, 18, 100), 6)       # a dirt wall to the right
+	var pis := place("piston", 280, SURFACE - 42, 1)
+	var sn := MC.snap(game, "cutter", 3, Vector2i(314, SURFACE - 36))
+	var cut := MC.place(game, "cutter", sn["at"], 3)
+	check(sn["snapped"] and cut > 0, "the Cutter snaps onto the Piston's rod")
+	game.modules[pis]["mode"] = "out"
+	secs(1.0)
+	var m: Dictionary = game.modules[pis]
+	var c: Dictionary = game.modules[cut]
+	check(m["tether"] == cut and c["rig_of"] == pis, "and is the Piston's load, so it counts as carried")
+	check(until(func() -> bool: return m["pos"] > 8.0, 20.0), "the Piston pushes it out (%.1f)" % m["pos"])
+	secs(10.0)
+	check(c.get("dug", 0) > 60, "it digs what it is pushed into (%d cells)" % c.get("dug", 0))
+	check(MC.stored(c) > 60, "and holds it (%d units)" % MC.stored(c))
+	check("Full" in c["state"], "until it is full, and says so (%s)" % c["state"])
+	var gone := 0
+	for y in range(SURFACE - 60, SURFACE - 20):
+		for x in range(326, 343):
+			if game.sim.get_cell(x, y) == D.AIR:
+				gone += 1
+	check(gone > 60, "the wall has a hole in it (%d open cells)" % gone)
+
+
+## A Laser on a held Piston, its beam along a row that starts a vein of Glimmer in a dirt wall.
+func laser_rig(filler: bool) -> Dictionary:
+	fresh()
+	fill(Rect2i(326, SURFACE - 100, 18, 100), 6)
+	var pis := place("piston", 280, SURFACE - 42, 1)
+	var sn := MC.snap(game, "laser", 3, Vector2i(313, SURFACE - 36))
+	var las := MC.place(game, "laser", sn["at"], 3)
+	game.modules[pis]["mode"] = "back"
+	var l: Dictionary = game.modules[las]
+	l["filler"] = filler
+	secs(1.0)
+	var fo: Dictionary = MC.kinds["laser"].CUT.front_of(game, l, MC.defs["laser"])
+	var row := int(roundf(fo["p"].y))
+	for x in range(326, 336):
+		game.sim.set_cell(x, row, D.GLIMMER)
+	return {"piston": pis, "laser": las, "row": row, "snapped": sn["snapped"]}
+
+
+func glimmer_in(l: Dictionary) -> int:
+	return int(l["contents"].get(D.GLIMMER, 0))
+
+
+func scenario_c() -> void:
+	print("C. Laser")
+	var r := laser_rig(false)
+	var l: Dictionary = game.modules[r["laser"]]
+	check(r["snapped"] and l["rig_of"] == r["piston"], "the Laser sits on the Piston and counts as carried")
+	check(until(func() -> bool: return glimmer_in(l) >= 10, 20.0), "its beam strips the vein (%d cells of Glimmer)" % glimmer_in(l))
+	var open := 0
+	for x in range(326, 336):
+		if game.sim.get_cell(x, r["row"]) == D.AIR:
+			open += 1
+	check(open == 10 and game.sim.get_cell(336, r["row"]) == 6, "and nothing else: the row is open to the end of the vein, the dirt past it is still there")
+	secs(2.0)
+	check("not ore" in l["state"] and "Dirt" in l["state"], "the beam says what it stopped on (%s)" % l["state"])
+	check(glimmer_in(l) == 10 and MC.stored(l) == 10, "and the Laser holds just the ore (%d units)" % MC.stored(l))
+	# Filler on: the cell taken is swapped for Stone, and the beam stops there.
+	r = laser_rig(true)
+	l = game.modules[r["laser"]]
+	var stone0: float = game.stock[D.R_STONE]
+	check(until(func() -> bool: return glimmer_in(l) >= 1, 20.0), "with Filler on it takes the first cell")
+	secs(3.0)
+	check(glimmer_in(l) == 1 and game.sim.get_cell(326, r["row"]) == 2, "and leaves Stone in its place, the rest of the vein behind it")
+	check(game.stock[D.R_STONE] < stone0 and "not ore" in l["state"], "paid from the Hub's Stone, and the beam stops on the filler (%s)" % l["state"])
+	# A click switches Filler.
+	MC.kinds["laser"].use(game, l, MC.defs["laser"])
+	check(l["filler"] == false, "a click switches Filler off again")
+	# Without power it takes nothing.
+	r = laser_rig(false)
+	l = game.modules[r["laser"]]
+	for _i in 200:
+		game.stock[D.R_POWER] = 0.0
+		game.run_ticks(1)
+	check(glimmer_in(l) == 0, "with no power it takes nothing")
+
+
+func scenario_d() -> void:
+	print("D. research")
+	fresh()
+	check(not MC.unlocked(game, MC.defs["laser"]), "the Laser is locked at first")
+	game.researched["laser"] = true
+	check(MC.unlocked(game, MC.defs["laser"]), "and open once researched")
