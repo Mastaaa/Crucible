@@ -122,7 +122,7 @@ materials with real chemistry, modular machines (Create-like), and biomes.
    structures; the tutorial is rewritten around the quarry; the bot is a quarry pacing probe).
    Left: Bus Hopper (moved to A5 with Vault cells; Chute and Conveyor are in A4). The gaps the cut exposes are listed
    in claude/STATUS.md.
-4. A4, movers and excavators (Piston, Gantry, Turntable, full Cutter, Laser, Thumper, Macerator, Press, Chute and Conveyor done): Gantry, Piston, Turntable, full Cutter, Laser Excavator, tethered
+4. A4, movers and excavators (Piston, Gantry, Turntable, full Cutter, Laser, Thumper, Macerator, Press, Chute, Conveyor and Drone Cage done): Gantry, Piston, Turntable, full Cutter, Laser Excavator, tethered
    Thumper, Macerator, Press, the Drone Cage; tests and the bot rewritten.
 5. A5, materials wave 2 (about 25 in all), processing chains, sensors, Mk I to IV upgrades,
    Vault cells; the bot completes a run again.

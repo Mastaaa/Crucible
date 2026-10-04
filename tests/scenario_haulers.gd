@@ -112,10 +112,10 @@ func scenario_b() -> void:
 	print("B. the square")
 	var r := cage()
 	var tank: int = r["tank"]
-	var far := Rect2i(232, SURFACE - 6, 10, 6)       # 70 cells off: outside the middle square
+	var far := Rect2i(245, SURFACE - 6, 10, 6)       # 65 cells off: outside the middle square, inside the wide one
 	fill(far, SAND)
 	secs(10.0)
-	check(held(tank, SAND) == 0 and count_in(far, SAND) == 60, "powder outside the square is left alone")
+	check(held(tank, SAND) == 0 and count_in(Rect2i(200, SURFACE - 40, 144, 40), SAND) == 60, "powder outside the square is left alone")
 	MC.kinds["drone_cage"].use(game, game.modules[r["cage"]], MC.defs["drone_cage"])
 	check(until(func() -> bool: return held(tank, SAND) >= 60, 40.0), "a click widens the square and it is fetched (%d of 60)" % held(tank, SAND))
 
@@ -132,7 +132,7 @@ func scenario_c() -> void:
 	for _i in 900:
 		game.stock[D.R_POWER] = 0.0
 		game.run_ticks(1)
-	check(held(r["tank"], SAND) == 0 and count_in(Rect2i(268, SURFACE - 6, 10, 6), SAND) == 60, "with no power the drones stay home")
+	check(held(r["tank"], SAND) == 0 and count_in(Rect2i(200, SURFACE - 40, 144, 40), SAND) == 60, "with no power the drones stay home")
 
 
 func scenario_d() -> void:
