@@ -1,5 +1,5 @@
 {
-	"_about": "Module definitions for the movers group. See logistics.json for the shape.",
+	"_about": "Module definitions for the movers group. See logistics.json for the shape. `tech` names the research that unlocks the Build button; `tether` keeps a joined face hooked however far the load goes.",
 	"modules": [
 		{
 			"id": "winch", "name": "Winch", "kind": "winch", "size": [12, 18], "wall": 2,
@@ -9,6 +9,24 @@
 				{"type": "mech", "dir": "down", "at": 6, "w": 4, "name": "cable"}
 			],
 			"params": {"up": 0.15, "down": 0.1, "power": 0.03, "full": 0.97, "stall_ticks": 120}
+		},
+		{
+			"id": "piston", "name": "Piston", "kind": "slide", "size": [12, 26], "wall": 2, "tech": "piston",
+			"cost": [10, 0, 0, 0, 0], "anchored": true, "tether": true,
+			"blurb": "Bolted in place. Pushes whatever is joined to its mechanical face straight out along it and pulls it back. Click it to run, hold out or hold back. Draws power while it moves.",
+			"faces": [
+				{"type": "mech", "dir": "up", "at": 6, "w": 4, "name": "rod"}
+			],
+			"params": {"face": "rod", "axis": "face", "stroke": 20, "speed": 0.5, "power": 0.15, "dwell": 30, "stall_ticks": 30}
+		},
+		{
+			"id": "gantry", "name": "Gantry", "kind": "slide", "size": [100, 12], "wall": 2, "tech": "gantry",
+			"cost": [14, 0, 0, 0, 0], "anchored": true, "tether": true,
+			"blurb": "A bolted rail. Whatever is joined to its mechanical face rides along the rail, up to 80 cells from where it was mounted. Click it to run, hold out or hold back. Draws power while it moves.",
+			"faces": [
+				{"type": "mech", "dir": "down", "at": 8, "w": 4, "name": "carriage"}
+			],
+			"params": {"face": "carriage", "axis": "along", "stroke": 80, "speed": 0.2, "power": 0.1, "dwell": 60, "stall_ticks": 60}
 		}
 	]
 }

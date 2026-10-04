@@ -259,6 +259,10 @@ const TIER_FOUND := ["", "", "Glimmer", "Lava", "The Crucible"]
 const TECHS := [
 	{"id": "lamp", "name": "Lamp", "tier": 1, "needs": [], "power": 120, "module": "lamp",
 		"text": "A module that lights 200 cells round it for 0.1 power/s. Everywhere else underground stays dark."},
+	{"id": "piston", "name": "Piston", "tier": 1, "needs": [], "power": 150, "module": "piston",
+		"text": "A bolted module that pushes whatever is joined to its mechanical face 20 cells out along it, and back."},
+	{"id": "gantry", "name": "Gantry", "tier": 1, "needs": [], "power": 200, "module": "gantry",
+		"text": "A bolted rail that carries whatever is joined to its mechanical face up to 80 cells along it."},
 	{"id": "brace", "name": "Brace", "tier": 1, "needs": [], "power": 180, "building": B_BRACE,
 		"text": "A beam across a gap, rock to rock (up to 160 cells). It props what rests on it and holds rock within 50 cells of each end."},
 	{"id": "tremor_dampers", "name": "Tremor Dampers", "tier": 4, "needs": ["brace"], "power": 1200,

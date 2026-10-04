@@ -4,6 +4,26 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A4 part: Piston and Gantry
+
+Tests: fifteen scenarios and engine_compare end `FAILURES: 0`; scenario_movers is new (Piston, Gantry, a
+save, the research gates). The engine did not change, so `bin/` is as it was and Godot need not be closed
+before pulling.
+
+- Two movers on one behaviour (`scripts/machines/movers/slide.gd`). A bolted-down module holds a load at
+  its mechanical face and slides it in a straight line. The Piston pushes it out 20 cells along the face's
+  normal; the Gantry carries it up to 80 cells along its rail. Click a mover to cycle run (out and back
+  with a pause), out, back. Moving costs power, holding costs none, and a load that meets something solid
+  reports "Blocked." Both are researched (Piston and Gantry, Tier 1).
+- Movers add up: a module's drive is now the sum of what every mover asks (`MU.drive`), handed to the engine
+  once a tick, and `MU.rig` is the shared walk from a load to everything joined to it. The Winch uses both.
+- A module placed against a free face joins it at once instead of at the next scan, so a load put on a mover
+  is already hooked when the mover scans. (Hooking the Winch at placement instead moved the rig's resting
+  height by half a cell and the Cutter's front slice then read its own bottom wall as Obsidian ahead; the
+  slice's rounding against the body's stamped rows is a latent edge in cutter.gd, left alone.)
+- Nothing mounts on a mover's load yet (the Cutter, Tank and others only have the faces they had). A mover
+  on a mover waits for the Turntable's PR, which is also the one that changes the engine.
+
 ## A3 part: quarry rig jam fix
 
 Tests: fourteen scenarios and engine_compare end `FAILURES: 0`; scenario_quarry gains G (sand behind the

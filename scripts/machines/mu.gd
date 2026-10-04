@@ -78,6 +78,40 @@ static func bounds(m: Dictionary, def: Dictionary) -> Rect2i:
 	return Rect2i(int(round(c.x - size.x * 0.5)), int(round(c.y - size.y * 0.5)), size.x, size.y)
 
 
+# --- Rigs and drives ---------------------------------------------------------------
+
+## Ids of the modules a mover carries: `start` (the one it is tethered to) and whatever is
+## joined to it, walking through links but not back through `stop` (the mover itself) or
+## through bolted-down modules.
+static func rig(g, start: int, stop: int) -> Array:
+	var out: Array = []
+	if start == 0 or not g.modules.has(start):
+		return out
+	var queue: Array = [start]
+	var seen := {start: true, stop: true}
+	while not queue.is_empty():
+		var id: int = queue.pop_back()
+		out.append(id)
+		var mm: Dictionary = g.modules[id]
+		for f: Dictionary in mm["faces"]:
+			var o: int = f["link_m"]
+			if o == 0 or seen.has(o) or not g.modules.has(o):
+				continue
+			seen[o] = true
+			if defs[g.modules[o]["def"]].get("anchored", false):
+				continue
+			queue.append(o)
+	return out
+
+
+## Adds a velocity (cells a tick) to what module `m` is driven at this tick. Movers call it
+## from `step`; machines.gd hands the sum to the engine once every mover has run, so a Piston
+## on a Gantry carries its load along the rail and out along its own stroke at once. A
+## module nobody drives falls like any body.
+static func drive(m: Dictionary, v: Vector2) -> void:
+	m["dv"] = m.get("dv", Vector2.ZERO) + v
+
+
 # --- Contents --------------------------------------------------------------------
 
 ## Units the module holds at most: the cavity, or what its behaviour set as `cap`.
