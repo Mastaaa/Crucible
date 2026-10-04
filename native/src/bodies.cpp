@@ -516,10 +516,19 @@ bool CrucibleSim::body_tick(Body &b) {
 		shatter(b);
 		return false;
 	}
-	// Gravity, and liquid round a third of its edge slows it.
-	b.vy += body_g;
-	b.spin *= 0.995f;
-	{
+	// Gravity, and liquid round a third of its edge slows it. A driven body (a module on
+	// a winch) takes its velocity from the game instead.
+	bool driven = b.drive > 0;
+	if (driven) {
+		b.drive--;
+		b.vx = b.dvx;
+		b.vy = b.dvy;
+		b.spin = 0.0f;
+	} else {
+		b.vy += body_g;
+		b.spin *= 0.995f;
+	}
+	if (!driven) {
 		float cs = std::cos(b.a), sn = std::sin(b.a);
 		int wet = 0, looked = 0;
 		size_t every = std::max<size_t>(1, b.edge.size() / 16);

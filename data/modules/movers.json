@@ -1,0 +1,14 @@
+{
+	"_about": "Module definitions for the movers group. See logistics.json for the shape.",
+	"modules": [
+		{
+			"id": "winch", "name": "Winch", "kind": "winch", "size": [12, 18], "wall": 2,
+			"cost": [8, 0, 0, 0, 0], "anchored": true, "tether": true,
+			"blurb": "Bolted in place. Pays its cable out as the Cutter deepens the shaft and hauls the Tank back up when it is full, then lets it down again once the Funnel has emptied it. Drill Shaft research lengthens the cable.",
+			"faces": [
+				{"type": "mech", "dir": "down", "at": 6, "w": 4, "name": "cable"}
+			],
+			"params": {"up": 0.15, "down": 0.1, "power": 0.03, "full": 0.97, "stall_ticks": 120}
+		}
+	]
+}

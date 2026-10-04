@@ -17,25 +17,38 @@ const D = preload("res://scripts/defs.gd")
 const F = preload("res://scripts/machines/faces.gd")
 const CS = preload("res://scripts/machines/casing.gd")
 const TM = preload("res://scripts/machines/test_modules.gd")
+const MU = preload("res://scripts/machines/mu.gd")
+const MD = preload("res://scripts/machines/module_data.gd")
+# The module groups' behaviour scripts, by the `kind` a definition names. A group adds its own here.
+const K_TANK = preload("res://scripts/machines/logistics/tank.gd")
+const K_FUNNEL = preload("res://scripts/machines/logistics/funnel.gd")
+const K_CUTTER = preload("res://scripts/machines/excavation/cutter.gd")
+const K_WINCH = preload("res://scripts/machines/movers/winch.gd")
+const K_WINDMILL = preload("res://scripts/machines/power/windmill.gd")
 
-const SCAN := 6                 # ticks between scans
+const SCAN := MU.SCAN           # ticks between scans
 const CONNECT_DIST := 3.5       # faces this near (cells) and square on join
 const BREAK_DIST := 6.5         # ... and leave when they're this far apart
 const SQUARE := -0.99           # facing normals' dot product at most this
 const SPILL_SPEED := 30.0
 const WRECK_SPILL := 200        # particles a wreck throws at most
 
-static var defs := {}           # id -> definition
+static var defs := MU.defs      # id -> definition (shared with the behaviours, which can't preload this file)
+static var kinds := {}          # kind -> behaviour script: scan, step, info, draw (see tank.gd)
 
 
 static func register(def: Dictionary) -> void:
 	defs[def["id"]] = def
 
 
-## The throwaway test modules, registered once.
+## The module data files' definitions, then the throwaway test modules, registered once.
 static func ensure_defs() -> void:
 	if defs.is_empty():
+		kinds = {"tank": K_TANK, "funnel": K_FUNNEL, "cutter": K_CUTTER, "winch": K_WINCH, "windmill": K_WINDMILL}
+		for d: Dictionary in MD.defs():
+			register(d)
 		for d: Dictionary in TM.defs():
+			d["test"] = true
 			register(d)
 
 
@@ -116,14 +129,11 @@ static func remove(g, id: int) -> void:
 # --- Contents --------------------------------------------------------------------
 
 static func capacity(m: Dictionary) -> int:
-	return F.layout(defs[m["def"]], m["turns"])["cavity"]
+	return MU.capacity(m, defs[m["def"]])
 
 
 static func stored(m: Dictionary) -> int:
-	var n := 0
-	for k in m["contents"]:
-		n += m["contents"][k]
-	return n
+	return MU.stored(m)
 
 
 ## Puts up to n units of material `mat` in module `id`; returns how many fit.
@@ -131,16 +141,17 @@ static func add_contents(g, id: int, mat: int, n: int) -> int:
 	var m: Dictionary = g.modules.get(id, {})
 	if m.is_empty():
 		return 0
-	var put := clampi(capacity(m) - stored(m), 0, n)
-	if put > 0:
-		m["contents"][mat] = m["contents"].get(mat, 0) + put
-	return put
+	return MU.add(m, defs[m["def"]], mat, n)
 
 
 # --- The tick --------------------------------------------------------------------
 
 static func tick(g) -> void:
-	if g.modules.is_empty() or g.ticks % SCAN != 0:
+	if g.modules.is_empty():
+		return
+	ensure_defs()
+	_motion(g)
+	if g.ticks % SCAN != 0:
 		return
 	var live := {}
 	var bl: PackedInt32Array = g.sim.get_bodies()
@@ -167,27 +178,40 @@ static func tick(g) -> void:
 	_connections(g, frames)
 	for id: int in g.modules.keys():
 		_pass(g, g.modules[id])
+	for id: int in g.modules.keys():
+		var m: Dictionary = g.modules[id]
+		if m.get("rig_of", 0) != 0 and not g.modules.has(m["rig_of"]):
+			m["rig_of"] = 0          # its Winch is gone
+			m["powered"] = false
+		var kind: Variant = kinds.get(defs[m["def"]].get("kind", ""))
+		if kind != null:
+			kind.scan(g, m, defs[m["def"]])
+
+
+# Every tick: bolted-down modules hold still, and each behaviour moves what it moves.
+static func _motion(g) -> void:
+	for id: int in g.modules:
+		var m: Dictionary = g.modules[id]
+		var def: Dictionary = defs[m["def"]]
+		if def.get("anchored", false):
+			g.sim.drive_body(m["body"], 0.0, 0.0)
+		var kind: Variant = kinds.get(def.get("kind", ""))
+		if kind != null:
+			kind.step(g, m, def)
 
 
 # What the module's body looks like now: pose, centre of mass, layout.
 static func _frame(g, m: Dictionary) -> Dictionary:
-	return {"st": g.sim.body_state(m["body"]), "info": g.sim.body_info(m["body"]),
-			"lay": F.layout(defs[m["def"]], m["turns"])}
+	return MU.frame(g, m, defs[m["def"]])
 
 
 # A local pixel's place in the world.
 static func _world(fr: Dictionary, local: Vector2) -> Vector2:
-	var st: PackedFloat32Array = fr["st"]
-	var info: PackedFloat32Array = fr["info"]
-	var c := local - Vector2(info[2], info[3])
-	var cs := cos(st[2])
-	var sn := sin(st[2])
-	return Vector2(st[0] + cs * c.x - sn * c.y, st[1] + sn * c.x + cs * c.y)
+	return MU.world(fr, local)
 
 
 static func _turn(fr: Dictionary, d: Vector2) -> Vector2:
-	var a: float = fr["st"][2]
-	return Vector2(cos(a) * d.x - sin(a) * d.y, sin(a) * d.x + cos(a) * d.y)
+	return MU.turn(fr, d)
 
 
 # Integrity and breach from the body's bitmap.
@@ -273,6 +297,8 @@ static func _connections(g, frames: Dictionary) -> void:
 			if other.is_empty() or not frames.has(fs["link_m"]):
 				_leave(g, m, fi)
 				continue
+			if defs[m["def"]].get("tether", false) or defs[other["def"]].get("tether", false):
+				continue            # a cable stays hooked however far the rig goes
 			var a := _face_world(frames[id], fi)
 			var b := _face_world(frames[fs["link_m"]], fs["link_f"])
 			if a["p"].distance_to(b["p"]) > BREAK_DIST or a["n"].dot(b["n"]) > SQUARE:
@@ -389,34 +415,106 @@ static func knock_out(g, id: int, pixels: Array) -> void:
 	m["dirty"] = true
 
 
-# --- Build list and input (test modules only, until the real catalogue) ------------
+# --- Build list and input ---------------------------------------------------------
 
-## Adds a button per registered module under the HUD's Build list.
+const SNAP_DIST := 12.0         # a face this near (cells) to a free matching one snaps to it
+const COST_NAMES := ["Stone", "Glimmer", "Obsidian", "Water", "Power"]
+
+
+## "6 Stone, 2 Glimmer" for a cost array.
+static func cost_text(cost: Array) -> String:
+	var parts: Array = []
+	for r in cost.size():
+		if cost[r] > 0:
+			parts.append("%d %s" % [cost[r], COST_NAMES[r]])
+	return ", ".join(parts) if not parts.is_empty() else "free"
+
+
+static func affordable(g, def: Dictionary) -> bool:
+	var cost: Array = def.get("cost", [])
+	for r in cost.size():
+		if g.stock[r] < cost[r]:
+			return false
+	return true
+
+
+## Adds a button per registered module under the HUD's Build list (the catalogue first,
+## the framework's test modules after).
 static func add_build_buttons(hud, vb: VBoxContainer) -> void:
 	ensure_defs()
-	for id: String in defs:
-		var b: Button = hud._button("   %s (module)" % defs[id]["name"])
-		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		b.add_theme_font_size_override("font_size", 13)
-		b.tooltip_text = "A framework test module. R turns it before placing, Esc cancels."
-		b.pressed.connect(func() -> void:
-			hud.game.cancel_tool()
-			hud.game.module_pick = id
-			hud.game.show_banner("%s: click to place, R turns it, Esc cancels." % defs[id]["name"], 3.0))
-		vb.add_child(b)
+	for pass_test in [false, true]:
+		for id: String in defs:
+			var def: Dictionary = defs[id]
+			if def.get("test", false) != pass_test:
+				continue
+			var label := "   %s (module)" % def["name"] if pass_test else "   %s  [%s]" % [def["name"], cost_text(def.get("cost", []))]
+			var b: Button = hud._button(label)
+			b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+			b.add_theme_font_size_override("font_size", 13)
+			b.tooltip_text = "%s\nR turns it before placing, Esc cancels. It snaps onto a free matching face nearby." \
+					% def.get("blurb", "A framework test module.")
+			b.pressed.connect(func() -> void:
+				hud.game.cancel_tool()
+				hud.game.module_pick = id
+				hud.game.show_banner("%s: click to place, R turns it, Esc cancels." % defs[id]["name"], 3.0))
+			vb.add_child(b)
+
+
+## Where a module picked for placement goes with the cursor on `cell`: its top left, and
+## whether it snapped onto a free face (its own face meeting a matching one of a placed
+## module, within SNAP_DIST).
+static func snap(g, def_id: String, turns: int, cell: Vector2i) -> Dictionary:
+	var def: Dictionary = defs[def_id]
+	var lay := F.layout(def, turns)
+	var size: Vector2i = lay["size"]
+	var at := cell - Vector2i(size.x >> 1, size.y >> 1)
+	var best := SNAP_DIST
+	var delta := Vector2.ZERO
+	var hit := false
+	for id: int in g.modules:
+		var m: Dictionary = g.modules[id]
+		var fr := _frame(g, m)
+		for j in m["faces"].size():
+			if m["faces"][j]["link_m"] != 0:
+				continue
+			var wb := _face_world(fr, j)
+			var fb: Dictionary = fr["lay"]["faces"][j]
+			for f: Dictionary in lay["faces"]:
+				if not F.compatible(f["type"], f["w"], fb["type"], fb["w"]):
+					continue
+				if Vector2(f["dir"]).dot(wb["n"]) > SQUARE:
+					continue
+				# Walls touch: the two faces sit half a wall of each apart.
+				var gap := (float(def["wall"]) + float(defs[m["def"]]["wall"])) * 0.5
+				var goal: Vector2 = wb["p"] + wb["n"] * gap
+				var mine: Vector2 = Vector2(at) + f["centre"]
+				var d: float = mine.distance_to(goal)
+				if d < best:
+					best = d
+					delta = goal - mine
+					hit = true
+	if hit:
+		var moved := at + Vector2i(roundi(delta.x), roundi(delta.y))
+		if check_place(g, def_id, moved, turns) == "":
+			return {"at": moved, "snapped": true}
+	return {"at": at, "snapped": false}
 
 
 ## A left click while a module is picked places it centred on `cell`. True if handled.
 static func click(g, cell: Vector2i) -> bool:
 	if g.module_pick == "":
 		return false
-	var size: Vector2i = F.layout(defs[g.module_pick], g.module_turns)["size"]
-	var at := cell - Vector2i(size.x >> 1, size.y >> 1)
+	var def: Dictionary = defs[g.module_pick]
+	var at: Vector2i = snap(g, g.module_pick, g.module_turns, cell)["at"]
 	var why := check_place(g, g.module_pick, at, g.module_turns)
+	if why == "" and not affordable(g, def):
+		why = "Needs %s in the stockpile." % cost_text(def.get("cost", []))
 	if why != "":
 		g.show_banner(why, 2.0)
-	else:
-		place(g, g.module_pick, at, g.module_turns)
+	elif place(g, g.module_pick, at, g.module_turns) > 0:
+		var cost: Array = def.get("cost", [])
+		for r in cost.size():
+			g.stock[r] -= cost[r]
 	return true
 
 
@@ -431,3 +529,70 @@ static func key(g, k: int) -> bool:
 		g.module_pick = ""
 		return true
 	return false
+
+
+# --- Overlay and readings -----------------------------------------------------------
+
+## The module whose body owns world cell `c`, or {}.
+static func module_at(g, c: Vector2i) -> Dictionary:
+	if g.modules.is_empty() or c.x < 0 or c.y < 0 or c.x >= g.sim.get_width() or c.y >= g.sim.get_height():
+		return {}
+	var body: int = g.sim.get_owner(c.x, c.y)
+	if body == 0:
+		return {}
+	for id: int in g.modules:
+		if g.modules[id]["body"] == body:
+			return g.modules[id]
+	return {}
+
+
+## What the module's behaviour has to say about it ("" if nothing).
+static func info(g, m: Dictionary) -> String:
+	var def: Dictionary = defs[m["def"]]
+	var kind: Variant = kinds.get(def.get("kind", ""))
+	var s := "%s (%d%%)" % [def["name"], roundi(float(m["integrity"]) * 100.0)]
+	if kind != null:
+		s += "\n" + kind.info(g, m, def)
+	return s
+
+
+## Power a second the modules are making now (the Hub's figure adds it).
+static func generating(g) -> float:
+	var n := 0.0
+	for id: int in g.modules:
+		n += float(g.modules[id].get("flow", 0.0))
+	return n
+
+
+## The overlay's hook: each behaviour's drawing, the placement ghost, and a readout over
+## the module under the cursor.
+static func draw(ov, g, z: float) -> void:
+	if g.modules.is_empty() and g.module_pick == "":
+		return
+	ensure_defs()
+	for id: int in g.modules:
+		var m: Dictionary = g.modules[id]
+		var def: Dictionary = defs[m["def"]]
+		var kind: Variant = kinds.get(def.get("kind", ""))
+		if kind != null:
+			kind.draw(ov, g, m, def, z)
+	if g.module_pick != "":
+		var sn := snap(g, g.module_pick, g.module_turns, g.hover)
+		var size: Vector2i = F.layout(defs[g.module_pick], g.module_turns)["size"]
+		var at: Vector2i = sn["at"]
+		var why := check_place(g, g.module_pick, at, g.module_turns)
+		var col: Color = ov.OK_COL if why == "" else ov.BAD_COL
+		var a: Vector2 = g.to_screen(Vector2(at))
+		var b: Vector2 = g.to_screen(Vector2(at + size))
+		ov.draw_rect(Rect2(a, b - a), Color(col, 0.18))
+		ov.draw_rect(Rect2(a, b - a), col, false, 2.0 if sn["snapped"] else 1.0)
+	elif g.tool_type < 0 and not g.brush_mode:
+		var m := module_at(g, g.hover)
+		if not m.is_empty() and ov.font != null:
+			var lines := info(g, m).split("\n")
+			var pos: Vector2 = g.to_screen(Vector2(g.hover)) + Vector2(14.0, 14.0)
+			var y := 0.0
+			for line: String in lines:
+				ov.draw_string(ov.font, pos + Vector2(1, y + 1), line, HORIZONTAL_ALIGNMENT_LEFT, 360.0, 13, Color(0, 0, 0, 0.8))
+				ov.draw_string(ov.font, pos + Vector2(0, y), line, HORIZONTAL_ALIGNMENT_LEFT, 360.0, 13, Color(1, 1, 1, 0.95))
+				y += 16.0

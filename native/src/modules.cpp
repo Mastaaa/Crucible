@@ -20,6 +20,22 @@ bool CrucibleSim::set_module(int id, bool on) {
 	return false;
 }
 
+// Body `id` moves at (vx, vy) cells a tick for the next two ticks, without gravity (a
+// winch holding a rig, hauling it, letting it down). Call it every tick to keep it moving;
+// when the calls stop, gravity takes over. It still collides with ground and is pushed
+// out of it like any body. False if there's no such body.
+bool CrucibleSim::drive_body(int id, float vx, float vy) {
+	for (Body &b : bodies) {
+		if (b.id == id) {
+			b.drive = 2;
+			b.dvx = vx;
+			b.dvy = vy;
+			return true;
+		}
+	}
+	return false;
+}
+
 // Body `id`'s bitmap: [width, height, centre of mass x, centre of mass y, pixels]. The
 // centre is in bitmap cells (a pixel's middle is at +0.5), the same frame body_state's
 // pose uses. Empty if there's no such body.

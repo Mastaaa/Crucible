@@ -6,6 +6,7 @@ extends Node2D
 const D = preload("res://scripts/defs.gd")
 const Building = preload("res://scripts/building.gd")
 const WR = preload("res://scripts/warren.gd")
+const MC = preload("res://scripts/machines/machines.gd")
 const MITE_COL := Color(0.96, 0.9, 0.76)
 const MITE_LOAD_COL := Color(0.72, 0.55, 0.36)
 
@@ -44,6 +45,7 @@ func _draw() -> void:
 	_draw_packets(g, z)
 	_draw_plans(g, z)
 	_draw_sensors(g, z)
+	MC.draw(self, g, z)
 	if g.selected != null and not g.selected.dead:
 		var s: Building = g.selected
 		_draw_rect_outline(_brect(g, s, z).grow(2.0), SEL_COL, 2.0)

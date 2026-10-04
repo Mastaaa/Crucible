@@ -14,6 +14,21 @@ Claude adds a section at its top each phase and doesn't need to read the rest.
   Before it: A1, temperature and reactions (every cell has a temperature, reactions name
   families, the Lab Bench on the title screen paints any material and shows the field with F6,
   unseen ground is black); phase 10 and everything before it are in `main`.
+- A3 starter kit modules (branch claude/a3-starter-kit-w3pj8v): Cutter Excavator, Tank, Winch,
+  Funnel and Windmill, built from data/modules/*.json and a behaviour script each under
+  scripts/machines/{excavation,logistics,movers,power}/; scenario_quarry covers them. A rig is a Tank
+  hooked to a bolted-down Winch with a Cutter joined under it and a bolted Funnel above: the Cutter
+  cuts a 30-wide tunnel (soft ground; Drill Bit raises the hardness), the Winch lowers the rig as rows
+  open and hauls it up when the Tank is full, the Funnel banks what the Tank passes into the Hub.
+  Cable length is Drill Shaft's; Tank Size is a new upgrade. Modules draw power from the Hub's stock
+  while the Winch (or the module) has a Conduit or the Hub within reach (`MU.networked`); a Windmill
+  feeds the same stock. The legacy Drill still runs beside it. The engine changed (`drive_body`, a
+  body that takes its velocity from the game: `bin/` is rebuilt). Left for the cut and later:
+  Nodes as a module (the quarry uses the Conduit as it is), the tutorial rewrite and the bot
+  re-baseline (both wait on the Drill leaving), welding modules into one body (links are still
+  logical, the Winch moves each rig module at the same velocity instead), casing melting and
+  corrosion, a rig stuck behind a cave-in (it reports "jammed" and stops), power faces (power
+  moves through the stock), pacing (a full Tank is a few Stone, a trip at depth 100 takes ~20 s).
 - A3 machine framework core (PR #5): modules as rigid bodies with typed faces, casing
   integrity, breach and wreckage, in scripts/machines/ and native/src/modules.cpp. Test
   modules only; the module groups build on it. Casing melting and corrosion are still
@@ -47,8 +62,8 @@ Claude adds a section at its top each phase and doesn't need to read the rest.
   through hot rock lose Conduits to it; the bot relays them).
 
 ## Test baseline (all must hold before committing)
-- `bash native/run_tests.sh` (about 8 minutes): every scenario (fifteen, with
-  scenario_temperature, scenario_goals, scenario_spawn, scenario_wave1 and scenario_modules) and engine_compare end `FAILURES: 0`. Suites
+- `bash native/run_tests.sh` (about 8 minutes): every scenario (sixteen, with
+  scenario_temperature, scenario_goals, scenario_spawn, scenario_wave1, scenario_modules and scenario_quarry) and engine_compare end `FAILURES: 0`. Suites
   that build deep set-pieces fix their rows' ambient: scenario_depth's `keep_hot` (hot rock near the
   surface), scenario_bodies' `keep_cool` (a pool in the Magma band).
 - Temperature pass (A1): every 8 ticks, 150 to 200 of the map's 3840 chunks awake in a

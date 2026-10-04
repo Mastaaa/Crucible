@@ -2422,6 +2422,7 @@ func _power_stats() -> void:
 	for b: Building in buildings:
 		if D.is_generator(b.type) and b.built:
 			made += b.flow
+	made += MC.generating(self)
 	power_made = made
 	power_used = lerpf(power_used, used_acc / (30.0 * D.DT), 0.5)
 	used_acc = 0.0
