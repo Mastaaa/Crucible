@@ -19,25 +19,7 @@ const PLOW_AHEAD := 2           # rows above the rig's modules cleared of loose 
 ## Ids of the modules the Winch moves: the tethered one and whatever is joined to it,
 ## bolted-down modules (the Funnel) left out.
 static func rig_of(g, m: Dictionary) -> Array:
-	var out: Array = []
-	var t: int = m.get("tether", 0)
-	if t == 0 or not g.modules.has(t):
-		return out
-	var queue: Array = [t]
-	var seen := {t: true, m["id"]: true}
-	while not queue.is_empty():
-		var id: int = queue.pop_back()
-		out.append(id)
-		var mm: Dictionary = g.modules[id]
-		for f: Dictionary in mm["faces"]:
-			var o: int = f["link_m"]
-			if o == 0 or seen.has(o) or not g.modules.has(o):
-				continue
-			seen[o] = true
-			if MU.defs[g.modules[o]["def"]].get("anchored", false):
-				continue
-			queue.append(o)
-	return out
+	return MU.rig(g, m.get("tether", 0), m["id"])
 
 
 static func _release(g, m: Dictionary) -> void:
@@ -149,7 +131,7 @@ static func step(g, m: Dictionary, def: Dictionary) -> void:
 	for id: int in m["rig"]:
 		var mm: Dictionary = g.modules.get(id, {})
 		if not mm.is_empty():
-			g.sim.drive_body(mm["body"], 0.0, v)
+			MU.drive(mm, Vector2(0.0, v))
 	# A rig that is meant to move and doesn't (something solid in the way) is stuck.
 	if v != 0.0:
 		var last: float = m.get("last_cable", m["cable"])

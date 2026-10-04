@@ -24,6 +24,7 @@ const K_TANK = preload("res://scripts/machines/logistics/tank.gd")
 const K_FUNNEL = preload("res://scripts/machines/logistics/funnel.gd")
 const K_CUTTER = preload("res://scripts/machines/excavation/cutter.gd")
 const K_WINCH = preload("res://scripts/machines/movers/winch.gd")
+const K_SLIDE = preload("res://scripts/machines/movers/slide.gd")
 const K_WINDMILL = preload("res://scripts/machines/power/windmill.gd")
 const K_LAB = preload("res://scripts/machines/support/lab.gd")
 const K_LAMP = preload("res://scripts/machines/support/lamp.gd")
@@ -47,7 +48,7 @@ static func register(def: Dictionary) -> void:
 static func ensure_defs() -> void:
 	if defs.is_empty():
 		kinds = {"tank": K_TANK, "funnel": K_FUNNEL, "cutter": K_CUTTER, "winch": K_WINCH, "windmill": K_WINDMILL,
-				"lab": K_LAB, "lamp": K_LAMP}
+				"lab": K_LAB, "lamp": K_LAMP, "slide": K_SLIDE}
 		for d: Dictionary in MD.defs():
 			register(d)
 		for d: Dictionary in TM.defs():
@@ -112,7 +113,18 @@ static func place(g, def_id: String, at: Vector2i, turns: int) -> int:
 	if not g.firsts.has(def_id):
 		g.firsts[def_id] = true
 		g.mark("First %s built" % def["name"], false)
+	_attach(g, id)
 	return id
+
+
+# A module just placed joins the free faces it touches at once, instead of at the next scan, so a
+# load put against a mover is already hooked when the mover's own scan comes round.
+static func _attach(g, id: int) -> void:
+	var m: Dictionary = g.modules[id]
+	var fr := _frame(g, m)
+	for oid: int in g.modules:
+		if oid != id:
+			_try_pair(g, m, fr, g.modules[oid], _frame(g, g.modules[oid]))
 
 
 static func _clear_footprint(g, at: Vector2i, size: Vector2i, cells: PackedByteArray) -> void:
@@ -197,13 +209,20 @@ static func tick(g) -> void:
 # Every tick: bolted-down modules hold still, and each behaviour moves what it moves.
 static func _motion(g) -> void:
 	for id: int in g.modules:
+		g.modules[id].erase("dv")
+	for id: int in g.modules:
 		var m: Dictionary = g.modules[id]
 		var def: Dictionary = defs[m["def"]]
-		if def.get("anchored", false):
-			g.sim.drive_body(m["body"], 0.0, 0.0)
 		var kind: Variant = kinds.get(def.get("kind", ""))
 		if kind != null:
 			kind.step(g, m, def)
+	# What the movers added up (MU.drive) goes to the engine once.
+	for id: int in g.modules:
+		var m: Dictionary = g.modules[id]
+		if defs[m["def"]].get("anchored", false):
+			g.sim.drive_body(m["body"], 0.0, 0.0)
+		elif m.has("dv"):
+			g.sim.drive_body(m["body"], m["dv"].x, m["dv"].y)
 
 
 # What the module's body looks like now: pose, centre of mass, layout.
@@ -521,7 +540,7 @@ static func snap(g, def_id: String, turns: int, cell: Vector2i) -> Dictionary:
 ## A left click while a module is picked places it centred on `cell`. True if handled.
 static func click(g, cell: Vector2i) -> bool:
 	if g.module_pick == "":
-		return false
+		return use(g, cell)
 	var def: Dictionary = defs[g.module_pick]
 	if not unlocked(g, def):
 		g.module_pick = ""
@@ -536,6 +555,22 @@ static func click(g, cell: Vector2i) -> bool:
 		var cost: Array = def.get("cost", [])
 		for r in cost.size():
 			g.stock[r] -= cost[r]
+	return true
+
+
+## A click on a placed module whose behaviour takes clicks (`use`: a Piston's or Gantry's mode)
+## hands it over, when no tool or placing is active. True if one took it.
+static func use(g, cell: Vector2i) -> bool:
+	if g.tool_type >= 0 or g.brush_mode:
+		return false
+	var m := module_at(g, cell)
+	if m.is_empty():
+		return false
+	var def: Dictionary = defs[m["def"]]
+	var kind: Variant = kinds.get(def.get("kind", ""))
+	if kind == null or not kind.has_method("use"):
+		return false
+	kind.use(g, m, def)
 	return true
 
 

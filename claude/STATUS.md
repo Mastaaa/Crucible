@@ -6,7 +6,12 @@ history (what shipped when, old numbers, test notes) is the root STATUS.md:
 Claude adds a section at its top each phase and doesn't need to read the rest.
 
 ## Handoff
-- Last done: A3 legacy hard cut (branch claude/alpha-legacy-cut-v5z1ft). The Drill, Thumper, Borer,
+- Last done: A4 part 1, Piston and Gantry (`movers/slide.gd`; `MU.drive` sums the velocity every mover
+  asks of a module and machines.gd hands it to the engine once; `MU.rig` is the shared load walk; a placed
+  module joins free faces at once (its scan still waits: scanning the Winch at placement shifts the rig's rest
+  height and the Cutter's front slice can read its own wall, a latent edge in cutter.gd); clicking a mover cycles run / out / back; scenario_movers). A mover is bolted and
+  its load is the module at its mech face, so a mover carried by another mover waits for the Turntable PR
+  (the engine change for rotation). Before it: A3 legacy hard cut (branch claude/alpha-legacy-cut-v5z1ft). The Drill, Thumper, Borer,
   Hopper, Spout, Floodgate, Waterwheel, Steam Turbine, Cache, Relay Mast and Warren are gone from
   the code, the data and the save (VERSION 2). What stands: Hub and Crucible (fixed), Node (the old
   Conduit), Bulkhead and Brace (the old Strut) as structures in `scripts/building.gd`, and the Lab
@@ -48,7 +53,8 @@ Claude adds a section at its top each phase and doesn't need to read the rest.
     across a load); scenario_run allows 1.5.
   - The Node-as-module question (A3's plan) is settled the cheap way: Node stays a structure
     because the packet network, repairs and fog sight hang off it.
-- Next: A4 (the Drone Cage and the rest of the hauling modules); it waits for Alex's go.
+- Next: A4, in order: Turntable (engine), the excavators (full Cutter, Laser, tethered Thumper), Macerator and
+  Press, the Drone Cage with Chute and Conveyor, then the test and bot rewrite.
   Plan: claude/ALPHA_PLAN.md. The spawn-region system and the Spoil Heap are in `main` (PR #6).
   The wave 1 rows only place pockets and seams by depth band, with no placement relative to
   aquifers, lava or Sulfur (the table has none); A6's biomes can do better.
@@ -85,8 +91,8 @@ Claude adds a section at its top each phase and doesn't need to read the rest.
   rubble stops refilling it.
 
 ## Test baseline (all must hold before committing)
-- `bash native/run_tests.sh` (about 10 minutes): every scenario (fourteen: power, goals, research, chemistry,
-  light, collapse, bodies, modules, quarry, depth, temperature, wave1, run, spawn) and engine_compare end `FAILURES: 0`. Suites
+- `bash native/run_tests.sh` (about 10 minutes): every scenario (fifteen: power, goals, research, chemistry,
+  light, collapse, bodies, modules, quarry, movers, depth, temperature, wave1, run, spawn) and engine_compare end `FAILURES: 0`. Suites
   that build deep set-pieces fix their rows' ambient: scenario_depth's `keep_hot` (hot rock near the
   surface), scenario_bodies' `keep_cool` (a pool in the Magma band).
 - Temperature pass (A1): every 8 ticks, 150 to 200 of the map's 3840 chunks awake in a

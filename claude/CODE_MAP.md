@@ -76,12 +76,12 @@ index as [Stone, Glimmer, Obsidian, Water, Power].
 - `scripts/machines/` (A3 starter kit): `module_data.gd` loads `data/modules/{logistics,excavation,movers,power}.json`
   (one file per group, `FILES` lists them: logistics, excavation, movers, power, support) into definitions; a definition's `kind` names its behaviour
   script, registered in machines.gd (`kinds`), each with `scan` (every 6 ticks), `step` (every tick),
-  `info` and `draw`. `mu.gd` is what machines.gd and the behaviours share without a preload cycle:
+  `info` and `draw`. `mu.gd` is what machines.gd and the behaviours share without a preload cycle (`rig` walks a load's joined modules, `drive` adds to what a module is driven at this tick):
   `defs`, `frame`/`world`/`turn`, `front`, `partner`, `bounds`, `capacity`/`stored`/`add`, `networked`
   (a Node or the Hub in reach, via `find_link`), `take_power` (the Hub's stock). `logistics/tank.gd`
   (capacity from the hollow, `pack` and Tank Size; draws its fill), `logistics/funnel.gd` (banks what it
   holds through `_bank`), `excavation/cutter.gd` (`front_of`, `slice`, hardness masks from the Drill Bit
-  level, wobbling 30-wide window, `room` rows clear ahead), `movers/winch.gd` (the rig, states docked /
+  level, wobbling 30-wide window, `room` rows clear ahead), `movers/slide.gd` (Piston and Gantry: a load at a mech face slid along the face's normal or along the rail, modes run / out / back by `use`, `MU.drive` for the velocity), `movers/winch.gd` (the rig, states docked /
   down / up, `drive_body` on every rig module each tick, `_plow` clears loose powder off the rig's path
   on the way up, halt reasons keyed on Drill Bit and Drill Shaft), `power/windmill.gd` (gusts, open sky, network reach), `support/lab.gd` (A3 cut: power and goods
   from the Hub's stock into `game.current_tech`) and `support/lamp.gd` (`lit` while the stock pays).
@@ -90,7 +90,7 @@ index as [Stone, Glimmer, Obsidian, Water, Power].
   modules' pilot lights, lit Lamps and the Cutter's sense; `deepest`/`deepest_module` feed
   `game.deepest_point()` and `_track_depth`; `place` marks "First <name> built". machines.gd also has `snap` (a picked
   module snaps onto a free matching face within 12 cells), `click` (snaps, charges the definition's
-  `cost`), `module_at`, `info`, `generating`, `draw` (the overlay's hook: ghost, cable, readout) and
+  `cost`), `use` (a click on a placed module whose behaviour has `use`), `_attach` (a placed module joins free faces at once), `module_at`, `info`, `generating`, `draw` (the overlay's hook: ghost, cable, readout) and
   `_motion` (every tick: `anchored` modules hold still, behaviours step). A `tether` module's links
   never break by distance.
 - Session tooling in `native/`: `cloud_setup.sh` (run by `.claude/hooks/session-start.sh`),
