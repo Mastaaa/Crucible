@@ -185,4 +185,24 @@ func _report(final: bool) -> void:
 			for k: String in rig:
 				var md: Dictionary = game.modules.get(rig[k], {})
 				print("  %s: %s" % [k, str(md).left(700)])
+		if final and OS.get_cmdline_user_args().has("--dump") and rig.has("tank") and game.modules.has(rig["tank"]):
+			_look_above(game.modules[rig["tank"]])
 		print("%s  depth %d, Stone %d, power %d, tech %s, %s" % [_clock(t), depth, int(game.stock[D.R_STONE]), int(game.stock[D.R_POWER]), game.current_tech, why])
+
+
+## What sits in the shaft just above the Tank: loose bodies, and the solid cells by material.
+func _look_above(tank: Dictionary) -> void:
+	var at: Vector2 = tank["at"]
+	var mods := {}
+	for id: int in game.modules:
+		mods[game.modules[id]["body"]] = true
+	var bl: PackedInt32Array = game.sim.get_bodies()
+	for k in range(0, bl.size(), 7):
+		if not mods.has(bl[k]) and bl[k + 4] > at.y - 60 and bl[k + 2] < at.y + 20 and bl[k + 3] > at.x - 60 and bl[k + 1] < at.x + 60:
+			print("  body %d box (%d,%d)-(%d,%d) %d cells, speed %d" % [bl[k], bl[k + 1], bl[k + 2], bl[k + 3], bl[k + 4], bl[k + 6], bl[k + 5]])
+	for dy in [-8, -16, -24, -32, -48]:
+		var row := ""
+		for dx in range(-24, 25, 2):
+			var c: int = game.sim.get_cell(int(at.x) + dx, int(at.y) + dy)
+			row += "." if c == 0 else str(c % 10)
+		print("  y%+d %s" % [dy, row])

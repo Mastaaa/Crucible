@@ -4,6 +4,32 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A4 end: the bot, and what it found
+
+Tests: nineteen scenarios and engine_compare end `FAILURES: 0` (this part changes only tests/autoplay.gd and
+docs). Alex chose both bot modes on the decision card: a cheated bot that tests what the machines can dig, and
+the fair-pace bot as a probe that only reports depth and time.
+
+- `tests/autoplay.gd` gains `--cheat` (Drill Bit 5, Drill Shaft 8, Tank Size 3 from the start, the Hub's power
+  held at 100), alert printing (every non-info alert, once), and under `--dump` a look at the shaft above the
+  Tank (loose bodies and rows of cells). It still builds the rig, a Lab and a Windmill and picks research;
+  the new machines do not help it dig down a shaft, so it does not build them.
+- Fair pace, seed 7, rig left of the Hub: Drill Bit at 4:26, depth 500 at 23:20, about 640 by 55:00 (Stone 12,
+  power 0 all the way), Weft appears at 61:00 and a run of cave-ins climbs the shaft from depth 600 at 62:00
+  to 390 at 68:00; the Cutter is lost at 67:00 and the rig is a Tank on a cable from then on. Nowhere near the
+  Magma band (row 3000) in 90 game minutes.
+- Cheated, seed 7: the rig reaches depth 803 (about 20 minutes in), where the Cutter halts on "Slick ahead"
+  (oil: every liquid but the stockpile's water stops it). It climbs to unload with a Tank full of Water (the
+  aquifers it drank), and stalls on the way up at about depth 770: the shaft above the Tank is plugged with
+  static Dirt and Stone from cave-ins (at depths 411 and 393 in this run) and flooded between. The plow only
+  clears loose powder, so it never gets through; the run sits there with the winch in "up" for the rest of
+  the clock.
+- So the A4 goal (the bot digs from the surface to the Magma band) is not met, and the cause is not a machine
+  gap. What stops the rig is shaft hazards the Cutter rig cannot answer: a flooded or caved-in shaft above it,
+  and oil or other liquids in its path. Candidates for what answers them (none built): a Pump or Water Jet to
+  drain a flooded shaft, an up-facing Excavator or a Thumper carried above the Tank to open a plug, and a rule
+  for when the Winch gives up on a plug. See claude/STATUS.md.
+
 ## A4 part: Drone Cage
 
 Tests: nineteen scenarios and engine_compare end `FAILURES: 0`; scenario_haulers is new (the Drone Cage and
