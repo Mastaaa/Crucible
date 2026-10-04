@@ -4,6 +4,25 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A4 part: Turntable
+
+Tests: fifteen scenarios and engine_compare end `FAILURES: 0`; scenario_movers gains D (the Turntable, a
+save of it) and E (the research gates). **The engine changed** (`drive_body` takes a spin), so `bin/` is
+rebuilt: close Godot before pulling and restart it after.
+
+- The Turntable (`scripts/machines/movers/turntable.gd`) is a pinned 14 x 14 hub with a mechanical face on
+  each side. It turns about its own middle and swings whatever is joined to its faces (and what those are
+  joined to) round with it, as one rigid arm. Click it to cycle hold (rests at the nearest quarter turn),
+  step (a quarter turn, a pause, another) and spin (clockwise, a revolution in about 5 s). Turning costs
+  power. Unlocked by Turntable research (Tier 1, needs Piston).
+- A swing holds each joined module on the pose its place in the hub's frame asks for, so an arm that was
+  held back catches up once the obstruction goes. When something solid keeps an arm more than 3 cells off
+  its pose the hub stops turning that way and says "Blocked."; the other way stays open.
+- Engine: `drive_body(id, vx, vy, spin)`. A driven body turns at `spin` radians a tick (it used to be
+  held at zero spin). Old three-argument calls keep working.
+- Movers still only drive what is joined to their faces; a Piston or Gantry carried by a Turntable (or a
+  Turntable on a Gantry) needs a bolted module that rides a rig, which none of them does yet.
+
 ## A4 part: Piston and Gantry
 
 Tests: fifteen scenarios and engine_compare end `FAILURES: 0`; scenario_movers is new (Piston, Gantry, a

@@ -263,6 +263,8 @@ const TECHS := [
 		"text": "A bolted module that pushes whatever is joined to its mechanical face 20 cells out along it, and back."},
 	{"id": "gantry", "name": "Gantry", "tier": 1, "needs": [], "power": 200, "module": "gantry",
 		"text": "A bolted rail that carries whatever is joined to its mechanical face up to 80 cells along it."},
+	{"id": "turntable", "name": "Turntable", "tier": 1, "needs": ["piston"], "power": 260, "module": "turntable",
+		"text": "A pinned hub that swings whatever is joined to its mechanical faces round, a quarter turn at a time or without stopping."},
 	{"id": "brace", "name": "Brace", "tier": 1, "needs": [], "power": 180, "building": B_BRACE,
 		"text": "A beam across a gap, rock to rock (up to 160 cells). It props what rests on it and holds rock within 50 cells of each end."},
 	{"id": "tremor_dampers", "name": "Tremor Dampers", "tier": 4, "needs": ["brace"], "power": 1200,

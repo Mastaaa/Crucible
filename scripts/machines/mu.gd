@@ -104,12 +104,13 @@ static func rig(g, start: int, stop: int) -> Array:
 	return out
 
 
-## Adds a velocity (cells a tick) to what module `m` is driven at this tick. Movers call it
-## from `step`; machines.gd hands the sum to the engine once every mover has run, so a Piston
-## on a Gantry carries its load along the rail and out along its own stroke at once. A
-## module nobody drives falls like any body.
-static func drive(m: Dictionary, v: Vector2) -> void:
+## Adds a velocity (cells a tick) and a turn (radians a tick) to what module `m` is driven at this
+## tick. Movers call it from `step`; machines.gd hands the sums to the engine once every mover has
+## run, so a Piston on a Gantry carries its load along the rail and out along its own stroke at
+## once. A module nobody drives falls like any body.
+static func drive(m: Dictionary, v: Vector2, spin := 0.0) -> void:
 	m["dv"] = m.get("dv", Vector2.ZERO) + v
+	m["dspin"] = m.get("dspin", 0.0) + spin
 
 
 # --- Contents --------------------------------------------------------------------

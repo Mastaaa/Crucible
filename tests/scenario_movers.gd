@@ -4,7 +4,10 @@ extends SceneTree
 ##     clicked, costs power, stops without power or network, and reports a solid in its way
 ##  B. Gantry: a load hung under the rail rides along it, 80 cells at most, and comes back
 ##  C. a save keeps a Piston's mode and mount, and it goes on after loading
-##  D. research: the Build buttons wait for their techs
+##  D. Turntable: a hub swings what is joined to its faces round (a quarter turn at a time, or
+##     spinning), the arm keeps its length and turns with the hub, hold rests on a quarter, and a
+##     solid in the way blocks it
+##  E. research: the Build buttons wait for their techs
 ## Run: godot --headless --path . --script tests/scenario_movers.gd
 
 const D = preload("res://scripts/defs.gd")
@@ -34,6 +37,7 @@ func _process(_d: float) -> bool:
 		scenario_b()
 		scenario_c()
 		scenario_d()
+		scenario_e()
 		print("FAILURES: %d" % fails)
 		return true
 	return false
@@ -210,10 +214,104 @@ func scenario_c() -> void:
 	check(until(func() -> bool: return m2["pos"] > 19.5, 20.0), "and finishes the stroke (%.1f)" % m2["pos"])
 
 
+## The Turntable with a Tank joined to its west face (an arm to its left).
+func build_turntable() -> Dictionary:
+	var hub := place("turntable", 296, 133)
+	var sn := MC.snap(game, "tank", 1, Vector2i(281, 140))
+	var tank := MC.place(game, "tank", sn["at"], 1)
+	secs(1.0)
+	return {"mover": hub, "load": tank, "snapped": sn["snapped"]}
+
+
+## A click on the hub, once it has turned away from where the casing was.
+func click_hub(m: Dictionary) -> void:
+	MC.kinds["turntable"].use(game, m, MC.defs["turntable"])
+
+
+func com_of(id: int) -> Vector2:
+	var st: PackedFloat32Array = game.sim.body_state(game.modules[id]["body"])
+	return Vector2(st[0], st[1])
+
+
 func scenario_d() -> void:
-	print("D. research")
+	print("D. Turntable")
 	fresh()
-	for id: String in ["piston", "gantry"]:
+	var r := build_turntable()
+	var m: Dictionary = game.modules[r["mover"]]
+	var tank: Dictionary = game.modules[r["load"]]
+	check(r["snapped"] and m["faces"][3]["link_m"] == r["load"] and m["rig"] == [r["load"]], "a Tank joins the hub's west face and is its load")
+	var pivot := com_of(r["mover"])
+	var arm0 := com_of(r["load"]) - pivot
+	check(arm0.x < -15.0 and absf(arm0.y) < 3.0, "to its left (%.1f, %.1f)" % [arm0.x, arm0.y])
+	var u := MC.use(game, Vector2i(297, 140))
+	check(u and m["mode"] == "step", "a click on the hub switches it to step")
+	check(until(func() -> bool: return m["ang"] > 1.5, 20.0), "it turns a quarter (%.2f rad)" % m["ang"])
+	check(until(func() -> bool: return m["wait"] > 0 or absf(m["ang"] - PI * 0.5) < 0.02, 10.0), "and pauses")
+	var arm1 := com_of(r["load"]) - pivot
+	var want := arm0.rotated(PI * 0.5)
+	check(arm1.distance_to(want) < 2.5, "the arm swung through a quarter turn (%.1f, %.1f, wanted %.1f, %.1f)" % [arm1.x, arm1.y, want.x, want.y])
+	var tst: PackedFloat32Array = game.sim.body_state(tank["body"])
+	var hst: PackedFloat32Array = game.sim.body_state(m["body"])
+	check(absf(tst[2] - hst[2]) < 0.05, "and the Tank turned the same angle as the hub (%.2f, %.2f)" % [tst[2], hst[2]])
+	check(m["faces"][3]["link_m"] == r["load"], "still joined")
+	check(until(func() -> bool: return m["ang"] > PI - 0.05, 20.0), "the next step comes (%.2f)" % m["ang"])
+	click_hub(m)
+	check(m["mode"] == "spin", "the next click spins it")
+	var a0: float = m["ang"]
+	secs(6.0)
+	check(m["ang"] - a0 > 6.0, "and it goes round and round (%.1f rad in 6 s)" % (m["ang"] - a0))
+	check(absf((com_of(r["load"]) - pivot).length() - arm0.length()) < 1.5, "the arm keeps its length (%.1f, was %.1f)" % [(com_of(r["load"]) - pivot).length(), arm0.length()])
+	click_hub(m)
+	check(m["mode"] == "hold", "one more click holds it")
+	secs(5.0)
+	var q: float = m["ang"] / (PI * 0.5)
+	check(absf(q - roundf(q)) < 0.03, "at a quarter turn (%.2f quarters)" % q)
+	var held: float = m["ang"]
+	secs(3.0)
+	check(absf(m["ang"] - held) < 0.01, "and stays there")
+	# Without power it stays put.
+	click_hub(m)
+	for _i in 36:
+		game.stock[D.R_POWER] = 0.0
+		game.run_ticks(1)
+	var stuck: float = m["ang"]
+	for _i in 240:
+		game.stock[D.R_POWER] = 0.0
+		game.run_ticks(1)
+	check(absf(m["ang"] - stuck) < 0.02 and m["why"] == "Waiting for power.", "with no power it waits (%.2f)" % m["ang"])
+	# A slab over the arm blocks the swing.
+	fresh()
+	fill(Rect2i(250, 112, 50, 4), D.BEDROCK)
+	r = build_turntable()
+	m = game.modules[r["mover"]]
+	click_hub(m)
+	click_hub(m)
+	check(m["mode"] == "spin", "(spinning)")
+	check(until(func() -> bool: return m["why"] == "Blocked.", 20.0), "a slab over the arm blocks it and the hub says so")
+	check(m["ang"] < 0.7, "short of a turn (%.2f rad)" % m["ang"])
+	# A save keeps the swing.
+	fresh()
+	r = build_turntable()
+	m = game.modules[r["mover"]]
+	click_hub(m)
+	click_hub(m)
+	secs(2.0)
+	var path := "user://movers_turn.save"
+	Save.write(game, path)
+	game.continue_run(path)
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	game.paused = true
+	var m2: Dictionary = game.modules[r["mover"]]
+	var a2: float = m2["ang"]
+	check(m2["mode"] == "spin" and m2["rig"] == [r["load"]] and m2["pose"].has(r["load"]), "the hub loads back spinning with its arm (%.2f rad)" % a2)
+	secs(2.0)
+	check(m2["ang"] > a2 + 1.5 and absf((com_of(r["load"]) - com_of(r["mover"])).length() - 22.0) < 2.0, "and goes on turning it (%.2f rad)" % m2["ang"])
+
+
+func scenario_e() -> void:
+	print("E. research")
+	fresh()
+	for id: String in ["piston", "gantry", "turntable"]:
 		check(not MC.unlocked(game, MC.defs[id]), "the %s is locked at first" % id)
 		game.researched[id] = true
 		check(MC.unlocked(game, MC.defs[id]), "and open once researched")
