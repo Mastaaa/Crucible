@@ -175,7 +175,7 @@ func get_cell(x: int, y: int) -> int:
 	return cells[y * W + x]
 
 
-## Write a cell from game code (drills, hoppers, buildings). Wakes the area and
+## Write a cell from game code (machines, buildings). Wakes the area and
 ## lets any dirt that was leaning on this cell come loose.
 func set_cell(x: int, y: int, m: int) -> void:
 	if x < 0 or y < 0 or x >= W or y >= H:
@@ -446,7 +446,7 @@ func _steam(i: int, x: int, y: int, m: int, d: int) -> void:
 
 
 ## Diagonal moves need the cell beside to be open: nothing squeezes between two
-## solid cells that only meet at a corner (a sealed drill channel stays sealed).
+## solid cells that only meet at a corner (a sealed tunnel stays sealed).
 func _open(j: int) -> bool:
 	var t := cells[j]
 	return _yields(t)
@@ -670,7 +670,7 @@ func weather(_samples: int) -> int:
 
 
 ## Collapse, holds and tremor shields need the C++ sim: here ceilings only
-## erode, and Struts prop what rests on them but hold nothing round their ends.
+## erode, and Braces prop what rests on them but hold nothing round their ends.
 func collapse(_rows: int) -> int:
 	return 0
 

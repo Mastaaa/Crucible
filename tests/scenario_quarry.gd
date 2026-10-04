@@ -6,7 +6,7 @@ extends SceneTree
 ##     open, hauls up when the Tank is full, empties through the Funnel into the Hub's
 ##     stock, and goes down again
 ##  C. limits: Stone stops the Excavator until Drill Bit lifts its hardness; the cable
-##     length is Drill Shaft's; no power or no Conduit or Hub in reach holds the rig
+##     length is Drill Shaft's; no power or no Node or Hub in reach holds the rig
 ##  D. the Windmill makes power in open sky (and not under a roof or out of network reach)
 ##  E. placement: the Build list's click snaps onto a free face and charges the cost
 ##  F. a save keeps the rig, and it goes on after loading
@@ -68,7 +68,6 @@ func fresh() -> void:
 	game.new_game(7)
 	game.paused = true
 	game.reveal_all = true
-	game.drill.enabled = false
 	MC.ensure_defs()
 	# Open sky over a column of dirt 160 deep, then bedrock.
 	fill(Rect2i(X0 - 30, SURFACE - 120, 110, 120), D.AIR)
@@ -177,10 +176,10 @@ func scenario_c() -> void:
 	check(until(func() -> bool: return w["state"] == "down", 5.0), "Drill Bit lifts the hold")
 	check(until(func() -> bool: return w["cable"] > 70.0 or w["halt"] != "", 120.0), "and the Cutter goes through the seam")
 	check(w["cable"] > 70.0, "to %.0f cells down" % w["cable"])
-	check(w["limit"] == D.DRILL_REACHES[0], "the cable is Drill Shaft's length (%d)" % w["limit"])
+	check(w["limit"] == D.SHAFT_REACHES[0], "the cable is Drill Shaft's length (%d)" % w["limit"])
 	game.levels["drill_shaft"] = 1
 	secs(1.0)
-	check(w["limit"] == D.DRILL_REACHES[1], "and a level longer: %d" % w["limit"])
+	check(w["limit"] == D.SHAFT_REACHES[1], "and a level longer: %d" % w["limit"])
 	game.levels["drill_bit"] = 0
 	game.levels["drill_shaft"] = 0
 	# Out of the network's reach: nothing moves.
@@ -194,7 +193,7 @@ func scenario_c() -> void:
 	far["winch"] = MC.place(game, "winch", Vector2i(634, SURFACE - 64), 0)
 	secs(5.0)
 	var fw := winch_of(far)
-	check(not fw["net"] and fw["cable"] < 2.0 and "reach" in fw["why"], "a rig with no Conduit or Hub in reach holds still (%s)" % fw["why"])
+	check(not fw["net"] and fw["cable"] < 2.0 and "reach" in fw["why"], "a rig with no Node or Hub in reach holds still (%s)" % fw["why"])
 
 
 func scenario_d() -> void:

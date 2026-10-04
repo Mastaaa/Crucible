@@ -10,6 +10,7 @@ extends SceneTree
 
 const D = preload("res://scripts/defs.gd")
 const Goals = preload("res://scripts/goals.gd")
+const MC = preload("res://scripts/machines/machines.gd")
 const Save = preload("res://scripts/save.gd")
 var game: Node
 var f := 0
@@ -52,30 +53,42 @@ func scenario_a() -> void:
 	fresh()
 	game.run_ticks(60)
 	check(game.goals["mode"] == "tutorial", "the tutorial is on")
-	check(game.goals["cur"].get("n", 0) == 1 and game.goals["cur"]["text"] == "Build a Lab.", "Instruction 1 is on the board")
+	check(game.goals["cur"].get("n", 0) == 1 and game.goals["cur"]["text"] == "Build a Cutter Excavator, a Tank, a Funnel and a Winch.", "Instruction 1 is on the board")
 	check(is_equal_approx(D.HUB_POWER_PER_S, 0.2), "the Hub trickle is 0.2 power/s")
 
 
 func scenario_b() -> void:
 	print("B. tutorial steps pay out")
 	fresh()
+	MC.ensure_defs()
+	# Open sky over dirt, so the starter rig can stand on it.
+	for y in range(80, 400):
+		for x in range(250, 370):
+			game.sim.set_cell(x, y, D.AIR if y < 200 else 6)
 	game.stock[D.R_POWER] = 0.0
 	game.run_ticks(60)
-	var lab = game.place(D.B_LAB, Rect2i(game.hub.x + 4 * D.S, game.hub.y + game.hub.h - 3 * D.S, 4 * D.S, 3 * D.S))
-	for _i in 600:
-		if lab.built:
-			break
-		game.run_ticks(1)
+	for part: Array in [["cutter", 290, 184], ["tank", 290, 154], ["funnel", 290, 140]]:
+		MC.place(game, part[0], Vector2i(part[1], part[2]), 0)
 	game.run_ticks(60)
-	check(game.goals["step"] == 1, "building a Lab completes Instruction 1")
-	check(game.stock[D.R_POWER] >= 90.0, "it paid about 100 power into the Hub (%.1f)" % game.stock[D.R_POWER])
+	check(game.goals["step"] == 0, "three of the four rig parts do not complete Instruction 1")
+	MC.place(game, "winch", Vector2i(304, 136), 0)
+	game.run_ticks(60)
+	check(game.goals["step"] == 1, "the whole rig completes Instruction 1")
+	check(game.stock[D.R_POWER] >= 35.0, "it paid about 40 power into the Hub (%.1f)" % game.stock[D.R_POWER])
 	check(game.goals["cur"].get("n", 0) == 2, "Instruction 2 follows")
+	game._bank(game.hub.center(), D.R_STONE, 30.0)
+	game.run_ticks(60)
+	check(game.goals["cur"]["text"] == "Build a Lab.", "the Lab is the third order")
+	var lab_id := MC.place(game, "lab", Vector2i(330, 170), 0)
+	check(lab_id != 0, "the Lab is placed (%s)" % MC.check_place(game, "lab", Vector2i(330, 170), 0))
+	game.run_ticks(60)
+	check(game.goals["step"] == 3, "a Lab module completes Instruction 3")
 
 
 func scenario_c() -> void:
 	print("C. delivery orders")
 	fresh()
-	game.goals["step"] = 2
+	game.goals["step"] = 1
 	game.run_ticks(60)
 	check(game.goals["cur"]["text"] == "Deliver 30 Stone to the Hub.", "the Stone order is up")
 	game._bank(game.hub.center(), D.R_STONE, 10.0)
@@ -86,7 +99,7 @@ func scenario_c() -> void:
 	check(Goals.progress(game) == "10 / 30", "Glimmer doesn't count toward Stone")
 	game._bank(game.hub.center(), D.R_STONE, 25.0)
 	game.run_ticks(60)
-	check(game.goals["step"] == 3, "35 banked finishes it")
+	check(game.goals["step"] == 2, "35 banked finishes it")
 
 
 func scenario_d() -> void:
@@ -121,8 +134,8 @@ func scenario_f() -> void:
 	print("F. research goods and the save")
 	fresh()
 	check(game.tech_mats_needed(game.tech_step("lamp"))[D.R_STONE] == 10, "a tier 1 tech wants 10 Stone")
-	var fg: Array = game.tech_mats_needed(game.tech_step("floodgate"))
-	check(fg[D.R_STONE] == 20 and fg[D.R_GLIMMER] == 10, "Floodgate wants 20 Stone and its 10 Glimmer")
+	var td: Array = game.tech_mats_needed(game.tech_step("tremor_dampers"))
+	check(td[D.R_STONE] == 0 and td[D.R_OBSIDIAN] == 20, "a tier 4 tech wants only its own 20 Obsidian (%s)" % str(td))
 	check(Save.GAME_VARS.has("goals"), "goals are in the save")
 	var enc: Variant = Save._enc(game.goals)
 	check(enc != null, "the goal state encodes")

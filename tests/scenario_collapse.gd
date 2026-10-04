@@ -4,11 +4,11 @@ extends SceneTree
 ##     middle into an arch and stops; stone spans further; water holds nothing up;
 ##     freshly dug ground holds for its settling time first; the cave-in is called out
 ##  B. worldgen: the map starts out standing (nothing left for the rule to take)
-##  C. Struts: the gap under the cursor, rock to rock; flat under a ceiling it props
-##     it; upright in the middle it splits the span; too wide or no rock, no Strut;
+##  C. Braces: the gap under the cursor, rock to rock; flat under a ceiling it props
+##     it; upright in the middle it splits the span; too wide or no rock, no Brace;
 ##     its ends hold the rock round them against weathering; losing an anchor snaps it
 ##  D. a building on a thin roof falls when the roof caves in
-##  E. Tremor Dampers: tremors spare stone near a Strut
+##  E. Tremor Dampers: tremors spare stone near a Brace
 ##  F. ground: packed dirt spans far, gravel hardly at all and fast, glimmer
 ##     never gives; a stone lump held only by dirt comes down; water wears stone
 ##     to dirt, dirt to sand and sand away, and leaves gravel and clay alone
@@ -50,9 +50,8 @@ func fresh() -> void:
 	game.new_game(7)
 	game.paused = true
 	game.reveal_all = true
-	game.drill.enabled = false
 	game.stock[D.R_STONE] = 200.0
-	game.researched["strut"] = true
+	game.researched["brace"] = true
 	game._refresh_unlocks()
 
 
@@ -180,14 +179,14 @@ func scenario_b() -> void:
 
 
 func scenario_c() -> void:
-	print("C. Struts")
+	print("C. Braces")
 	fresh()
 	room(X, Y1, 12 * S, 5 * S, D.DIRT)
 	room(X, Y2, 12 * S, 5 * S, D.DIRT)
-	var r: Rect2i = game.strut_rect(Vector2i(X + 5 * S, Y1), true)
-	print("  flat under the ceiling: %s, %s" % [r, game.check_strut(r)])
-	check(r == Rect2i(X, Y1, 12 * S, D.STRUT_THICK) and game.check_strut(r) == "", "it spans the gap under the cursor, rock to rock, %d thick" % D.STRUT_THICK)
-	var s = game.place_strut(r)
+	var r: Rect2i = game.brace_rect(Vector2i(X + 5 * S, Y1), true)
+	print("  flat under the ceiling: %s, %s" % [r, game.check_brace(r)])
+	check(r == Rect2i(X, Y1, 12 * S, D.BRACE_THICK) and game.check_brace(r) == "", "it spans the gap under the cursor, rock to rock, %d thick" % D.BRACE_THICK)
+	var s = game.place_brace(r)
 	check(s.built and game.sim.get_cell(X + 5 * S, Y1) == D.BUILDING and game.stock[D.R_STONE] == 198.0, "built at once for 2 Stone")
 	check(game.sim.get_held(X - 1, Y1) > 0 and game.sim.get_held(X - 1, Y1 + 5 * S) > 0 and game.sim.get_held(X - 1, Y1 + 7 * S) == 0, "the rock round its ends is held")
 	secs(10.0 * S)
@@ -199,36 +198,36 @@ func scenario_c() -> void:
 
 	fresh()
 	room(X, Y1, 20 * S, 5 * S, D.DIRT)
-	check(game.check_strut(game.strut_rect(Vector2i(X + 5 * S, Y1), true)).begins_with("Too wide"), "a gap of 200 is too wide")
+	check(game.check_brace(game.brace_rect(Vector2i(X + 5 * S, Y1), true)).begins_with("Too wide"), "a gap of 200 is too wide")
 	room(X, Y2, 14 * S, 5 * S, D.DIRT)
-	var up: Rect2i = game.strut_rect(Vector2i(X + 7 * S, Y2 + 2 * S), false)
-	check(up == Rect2i(X + 7 * S, Y2, D.STRUT_THICK, 5 * S) and game.check_strut(up) == "", "upright, it spans floor to ceiling")
-	var su = game.place_strut(up)
+	var up: Rect2i = game.brace_rect(Vector2i(X + 7 * S, Y2 + 2 * S), false)
+	check(up == Rect2i(X + 7 * S, Y2, D.BRACE_THICK, 5 * S) and game.check_brace(up) == "", "upright, it spans floor to ceiling")
+	var su = game.place_brace(up)
 	secs(10.0 * S)
 	var roof := count(Rect2i(X, Y2 - 1, 14 * S, 1), D.DIRT)
 	check(roof >= 10 * S and count(Rect2i(X, Y2 - 2 * S, 14 * S, 1), D.DIRT) == 14 * S and not su.dead,
 			"in the middle of a room 140 wide it splits the span in two, and it stands (roof %d / 140)" % roof)
-	check(game.check_strut(game.strut_rect(Vector2i(X, 60), true)) != "", "out in the open sky there's nothing to span")
+	check(game.check_brace(game.brace_rect(Vector2i(X, 60), true)) != "", "out in the open sky there's nothing to span")
 	room(X, 2200, 7 * S, 1 * S, D.DIRT)
 	fill(Rect2i(X + 6 * S, 2200, S, S), D.WATER)
-	check(game.check_strut(game.strut_rect(Vector2i(X + 2 * S, 2200), true)) == "", "water in the gap is fine")
+	check(game.check_brace(game.brace_rect(Vector2i(X + 2 * S, 2200), true)) == "", "water in the gap is fine")
 
-	# Held rock doesn't weather: two rooms 70 wide, one with an upright Strut in it.
+	# Held rock doesn't weather: two rooms 70 wide, one with an upright Brace in it.
 	fresh()
 	room(X, Y1, 7 * S, 5 * S, D.DIRT)
 	room(X, Y2, 7 * S, 5 * S, D.DIRT)
-	game.place_strut(game.strut_rect(Vector2i(X + 3 * S, Y1 + 2 * S), false))
+	game.place_brace(game.brace_rect(Vector2i(X + 3 * S, Y1 + 2 * S), false))
 	for _i in 40:
 		game.sim.weather(300000)
 		secs(0.25)
 	var kept := count(Rect2i(X, Y1 - 1, 7 * S, 1), D.DIRT)
 	var worn := count(Rect2i(X, Y2 - 1, 7 * S, 1), D.DIRT)
-	print("  under heavy weathering: ceiling by the Strut %d / 70, without %d / 70" % [kept, worn])
-	check(kept == 7 * S and worn < 7 * S, "rock within %d cells of its ends doesn't weather" % D.STRUT_HOLD)
+	print("  under heavy weathering: ceiling by the Brace %d / 70, without %d / 70" % [kept, worn])
+	check(kept == 7 * S and worn < 7 * S, "rock within %d cells of its ends doesn't weather" % D.BRACE_HOLD)
 
 	fresh()
 	room(X, Y1, 12 * S, 5 * S, D.DIRT)
-	var sn = game.place_strut(game.strut_rect(Vector2i(X + 5 * S, Y1), true))
+	var sn = game.place_brace(game.brace_rect(Vector2i(X + 5 * S, Y1), true))
 	game.sim.set_cell(sn.anchor_b.x, sn.anchor_b.y, D.AIR)
 	secs(0.5)
 	check(sn.dead and game.sim.get_held(X - 1, Y1) == 0, "dig out an anchor and it snaps, letting go of the rock at the other end too")
@@ -242,7 +241,7 @@ func scenario_d() -> void:
 	fill(Rect2i(x0, y0, 40 * S, 34 * S), D.DIRT)
 	fill(Rect2i(x0 + 17 * S, y0 + 6 * S, 6 * S, 8 * S), D.AIR)      # a pocket over the roof, narrow enough to stand
 	fill(Rect2i(x0 + 12 * S, y0 + 16 * S, 16 * S, 6 * S), D.AIR)
-	var b = game.place(D.B_CONDUIT, Rect2i(x0 + 19 * S, y0 + 12 * S, 2 * S, 2 * S))
+	var b = game.place(D.B_NODE, Rect2i(x0 + 19 * S, y0 + 12 * S, 2 * S, 2 * S))
 	b.built = true
 	game.scan_dirty = true    # built by hand: the anchoring scan picks it up
 	var by0: int = b.y
@@ -264,18 +263,18 @@ func scenario_e() -> void:
 	fill(Rect2i(X, y, 400, 10), D.AIR)
 	for k in [100, 200, 300]:
 		fill(Rect2i(X + k, y, 10, 10), D.STONE)
-	var s = game.place_strut(game.strut_rect(Vector2i(X + 50, y), true))
-	check(s != null and s.anchor_a == Vector2i(X - 1, y) and s.anchor_b == Vector2i(X + 100, y), "a Strut in a slot in stone")
+	var s = game.place_brace(game.brace_rect(Vector2i(X + 50, y), true))
+	check(s != null and s.anchor_a == Vector2i(X - 1, y) and s.anchor_b == Vector2i(X + 100, y), "a Brace in a slot in stone")
 	game.researched["tremor_dampers"] = true
 	game.scan_dirty = true
 	game.run_ticks(6)
 	for _i in 30:
 		game.sim.tremor(40000, y - 10, y + 20)
-	var reach := int(D.STRUT_DAMP_R)
+	var reach := int(D.BRACE_DAMP_R)
 	var near := count(Rect2i(X - 100, y - 100, 100 + 100 + reach - 110, 200), D.RUBBLE)
 	var far := count(Rect2i(X + 100 + reach + 30, y - 100, 150, 200), D.RUBBLE)
-	print("  rubble shaken loose within reach of the Strut %d, beyond it %d" % [near, far])
-	check(near == 0 and far > 0, "tremors spare stone within %d cells of a Strut" % reach)
+	print("  rubble shaken loose within reach of the Brace %d, beyond it %d" % [near, far])
+	check(near == 0 and far > 0, "tremors spare stone within %d cells of a Brace" % reach)
 
 
 func scenario_f() -> void:

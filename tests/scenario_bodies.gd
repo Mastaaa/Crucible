@@ -5,17 +5,12 @@ extends SceneTree
 ##  B. a dirt ceiling 400 wide caves in as pieces, which break up on the floor
 ##  C. a slab dropped into a pool sinks slowly and lands whole; the water stays
 ##  D. a blast shoves a body
-##  E. crushing: a heavy slab wrecks the Conduit it lands on, a pebble barely marks
-##     one; a slab falling through a link wears it; mites can't live in a body
+##  E. crushing: a heavy slab wrecks the Node it lands on, a pebble barely marks
+##     one; a slab falling through a link wears it
 ##  F. a building falling far is hurt, a short way or into water it isn't
-##  G. Thumper collisions: thrown hard into a wall or up into a ceiling it's hurt,
-##     launched at a blast's speed it isn't
-##  H. mites as bodies (8d): one that loses its grip falls, lands and walks again;
-##     one that falls far dies; a slab crushes one; a blast throws one
 ## Run: godot --headless --path . --script tests/scenario_bodies.gd
 
 const D = preload("res://scripts/defs.gd")
-const WR = preload("res://scripts/warren.gd")
 const S := D.S
 var game: Node
 var f := 0
@@ -40,8 +35,6 @@ func _process(_d: float) -> bool:
 		scenario_d()
 		scenario_e()
 		scenario_f()
-		scenario_g()
-		scenario_h()
 		print("FAILURES: %d" % fails)
 		return true
 	return false
@@ -51,7 +44,6 @@ func fresh() -> void:
 	game.new_game(7)
 	game.paused = true
 	game.reveal_all = true
-	game.drill.enabled = false
 
 
 func fill(r: Rect2i, m: int) -> void:
@@ -76,7 +68,7 @@ func arena(r: Rect2i) -> void:
 
 
 ## A1: a pool this deep warms off the Magma band's walls and boils, and the steam
-## scalds a Conduit. Rows around `r` get the surface's ambient and the world starts
+## scalds a Node. Rows around `r` get the surface's ambient and the world starts
 ## over at it. Call it once the arena is built: a placed cell keeps the temperature
 ## of what it replaced, and seed 7 has lava here.
 func keep_cool(r: Rect2i) -> void:
@@ -228,19 +220,19 @@ func scenario_e() -> void:
 	fresh()
 	var room := Rect2i(200, 3000, 300, 300)
 	arena(room)
-	var big = put_built(D.B_CONDUIT, Rect2i(260, 3280, 2 * S, 2 * S))
-	var small = put_built(D.B_CONDUIT, Rect2i(420, 3280, 2 * S, 2 * S))
+	var big = put_built(D.B_NODE, Rect2i(260, 3280, 2 * S, 2 * S))
+	var small = put_built(D.B_NODE, Rect2i(420, 3280, 2 * S, 2 * S))
 	game.run_ticks(6)
 	slab(Rect2i(230, 3100, 80, 20), D.STONE)
 	slab(Rect2i(428, 3100, 4, 4), D.STONE)
 	secs(2.0)
-	print("  Conduit under a 1600-cell slab: dead=%s; under a 16-cell pebble: %.0f / %.0f HP" % [big.dead, small.hp, small.max_hp])
-	check(big.dead, "a heavy slab dropped on a Conduit wrecks it")
+	print("  Node under a 1600-cell slab: dead=%s; under a 16-cell pebble: %.0f / %.0f HP" % [big.dead, small.hp, small.max_hp])
+	check(big.dead, "a heavy slab dropped on a Node wrecks it")
 	check(not small.dead and small.hp < small.max_hp and small.hp > small.max_hp * 0.8, "a pebble barely marks one")
 
-	# A link: the Hub's own Conduit, and a slab dropped through the line between them.
+	# A link: the Hub's own Node, and a slab dropped through the line between them.
 	fresh()
-	var c = game.place(D.B_CONDUIT, Rect2i(game.hub.x - 12 * S, game.hub.y + game.hub.h - 2 * S, 2 * S, 2 * S))
+	var c = game.place(D.B_NODE, Rect2i(game.hub.x - 12 * S, game.hub.y + game.hub.h - 2 * S, 2 * S, 2 * S))
 	c.built = true
 	game.net_dirty = true
 	game.scan_dirty = true
@@ -250,15 +242,8 @@ func scenario_e() -> void:
 	slab(Rect2i(int(mid.x) - 20, int(mid.y) - 90, 40, 12), D.STONE)
 	secs(1.5)
 	var after: float = game.link_health(c, game.hub)
-	print("  link to %s: %.2f -> %.2f (Hub %s, Conduit %s)" % [c.link.title() if c.link else "nothing", before, after, game.hub.rect(), c.rect()])
+	print("  link to %s: %.2f -> %.2f (Hub %s, Node %s)" % [c.link.title() if c.link else "nothing", before, after, game.hub.rect(), c.rect()])
 	check(c.link == game.hub and after < before, "a slab falling through a link wears it")
-
-	fresh()
-	arena(room)
-	var id := slab(Rect2i(300, 3100, 40, 12), D.STONE)
-	var st: PackedFloat32Array = game.sim.body_state(id)
-	var mt := WR.new_mite(WR.bite_of(Vector2i(int(st[0]), int(st[1]))))
-	check(WR._hazards(game, mt) == "crushed", "a mite where a body is is crushed")
 
 
 func scenario_f() -> void:
@@ -266,119 +251,18 @@ func scenario_f() -> void:
 	fresh()
 	var room := Rect2i(200, 3600, 300, 400)
 	arena(room)
-	var high = put_built(D.B_CONDUIT, Rect2i(240, 3620, 2 * S, 2 * S))
-	var low = put_built(D.B_CONDUIT, Rect2i(400, 3960, 2 * S, 2 * S))
+	var high = put_built(D.B_NODE, Rect2i(240, 3620, 2 * S, 2 * S))
+	var low = put_built(D.B_NODE, Rect2i(400, 3960, 2 * S, 2 * S))
 	secs(4.0)
 	print("  fell %d: %.0f / %.0f HP; fell %d: %.0f HP" % [high.fell, high.hp, high.max_hp, low.fell, low.hp])
-	check(not high.falling and high.fell > 300 and high.hp < high.max_hp * 0.5 and not high.dead, "a Conduit falling 360 cells lands hurt")
+	check(not high.falling and high.fell > 300 and high.hp < high.max_hp * 0.5 and not high.dead, "a Node falling 360 cells lands hurt")
 	check(not low.falling and low.fell > 0 and low.hp == low.max_hp, "one falling a few cells is fine")
 
 	fresh()
 	arena(room)
 	keep_cool(room)
 	fill(Rect2i(200, 3850, 300, 150), D.WATER)
-	var wet = put_built(D.B_CONDUIT, Rect2i(240, 3620, 2 * S, 2 * S))
+	var wet = put_built(D.B_NODE, Rect2i(240, 3620, 2 * S, 2 * S))
 	secs(6.0)
 	print("  into a pool: fell %d, %.0f / %.0f HP" % [wet.fell, wet.hp, wet.max_hp])
 	check(not wet.falling and wet.fell > 300 and wet.hp == wet.max_hp, "one falling into a pool lands soft")
-
-
-func scenario_g() -> void:
-	print("G. Thumper collisions")
-	fresh()
-	var room := Rect2i(200, 4300, 300, 300)
-	arena(room)
-	var t = put_built(D.B_THUMPER, Rect2i(420, 4580, 2 * S, 2 * S))
-	game.run_ticks(2)
-	game.launch(t, 450.0, -100.0)
-	secs(1.5)
-	print("  thrown at a wall at 450: %.0f / %.0f HP" % [t.hp, t.max_hp])
-	check(t.hp < t.max_hp and not t.dead, "thrown hard into a wall it's hurt")
-
-	fresh()
-	arena(Rect2i(200, 4300, 300, 60))
-	t = put_built(D.B_THUMPER, Rect2i(300, 4340, 2 * S, 2 * S))
-	game.run_ticks(2)
-	game.launch(t, 0.0, -(D.THUMP_LAUNCH + 2.0 * game.thump_power()))
-	secs(1.5)
-	var soft: float = t.hp
-	game.launch(t, 0.0, -450.0)
-	secs(1.5)
-	print("  launched into a ceiling 40 up: at a blast's speed %.0f HP, at 450 %.0f HP" % [soft, t.hp])
-	check(soft == t.max_hp, "a blast's launch into a low ceiling doesn't hurt it")
-	check(t.hp < soft, "a hard one does")
-
-
-## A Warren on the floor of a bedrock room (nothing it can dig, so its mites idle
-## on the doorstep), and its first mite put in bite `q`.
-func mite_room(room: Rect2i, q: Vector2i) -> Array:
-	fresh()
-	arena(room)
-	var sz: Vector2i = D.B_SIZES[D.B_WARREN]
-	var w = put_built(D.B_WARREN, Rect2i(room.position.x + 10, room.end.y - sz.y, sz.x, sz.y))
-	game.run_ticks(3)
-	if w.mites.is_empty():
-		print("  !! no mites bred")
-		fails += 1
-		return [w, {}]
-	var mt: Dictionary = w.mites[0]
-	mt.p = q
-	mt.state = WR.S_HOME
-	return [w, mt]
-
-
-## Run until mite `mt` is walking again (not a body), dead, or `limit` seconds pass;
-## the fastest it went sideways as a body.
-func until_down(w, mt: Dictionary, limit: float) -> float:
-	var vx := 0.0
-	for _i in int(limit * 60.0):
-		game.run_ticks(1)
-		if mt.body != 0:
-			var st: PackedFloat32Array = game.sim.body_state(mt.body)
-			if st.size() > 0:
-				vx = maxf(vx, absf(st[3]))
-		if not w.mites.has(mt) or (mt.body == 0 and game.ticks > 10):
-			break
-	return vx
-
-
-func scenario_h() -> void:
-	print("H. mites as bodies")
-	var room := Rect2i(200, 4700, 300, 300)
-	var floor_y := room.end.y
-	var pair := mite_room(room, WR.bite_of(Vector2i(400, floor_y - 30)))
-	var w = pair[0]
-	var mt: Dictionary = pair[1]
-	game.run_ticks(2)
-	var was_body: bool = mt.body != 0
-	until_down(w, mt, 3.0)
-	print("  let go 30 up: became a body %s; now at bite %s (floor at bite row %d), a body %s, alive %s" % [was_body,
-			mt.p, (floor_y >> WR.BSHIFT) - 1, mt.body != 0, w.mites.has(mt)])
-	check(was_body and w.mites.has(mt) and mt.body == 0 and mt.p.y >= (floor_y >> WR.BSHIFT) - 2,
-			"a mite with nothing to cling to falls as a body, lands, and walks again")
-
-	pair = mite_room(room, WR.bite_of(Vector2i(400, room.position.y + 10)))
-	w = pair[0]
-	mt = pair[1]
-	until_down(w, mt, 4.0)
-	print("  let go 290 up: alive %s, last loss '%s'" % [w.mites.has(mt), w.last_loss])
-	check(not w.mites.has(mt) and w.last_loss == "fell", "one that falls far dies of it")
-
-	pair = mite_room(room, WR.bite_of(Vector2i(400, floor_y - 2)))
-	w = pair[0]
-	mt = pair[1]
-	game.run_ticks(5)
-	var clinging: bool = mt.body == 0 and w.mites.has(mt)
-	slab(Rect2i(380, room.position.y + 10, 40, 12), D.STONE)
-	secs(3.0)
-	print("  on the floor under a falling slab: clinging first %s, alive %s, last loss '%s'" % [clinging, w.mites.has(mt), w.last_loss])
-	check(clinging and not w.mites.has(mt) and w.last_loss == "crushed", "a slab landing on a mite crushes it")
-
-	pair = mite_room(room, WR.bite_of(Vector2i(400, floor_y - 2)))
-	w = pair[0]
-	mt = pair[1]
-	game.run_ticks(5)
-	game.blast(Vector2i(380, floor_y - 3), 40.0, 3)
-	var thrown := until_down(w, mt, 4.0)
-	print("  a blast 20 off: thrown at up to %.0f cells/s sideways; alive %s, walking again %s" % [thrown, w.mites.has(mt), mt.body == 0])
-	check(thrown > 60.0 and w.mites.has(mt) and mt.body == 0, "a blast throws a mite, and it lands and walks on")

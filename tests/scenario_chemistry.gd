@@ -8,16 +8,16 @@ extends SceneTree
 ##   E. every seed has coal and sulfur, none of it touching lava
 ##   F. a big coal fire and a string of blasts stay cheap
 ##  In the game (seed 7, by the Hub):
-##   G. digging coal banks Stone and Power
-##   H. sulfur corrodes a Conduit; a Stone patches it up
+##   G. coal paid into the Hub through a Funnel banks Stone and Power
+##   H. sulfur corrodes a Node; a Stone patches it up
 ##   I. burning coal under a link breaks it; once the fire's out a Stone mends it
-##   J. a blast's debris falls into a Hopper, which also swallows ash
 ## Run: godot --headless --path . --script tests/scenario_chemistry.gd
 
 const D = preload("res://scripts/defs.gd")
 const Mats = preload("res://scripts/materials.gd")
 const SimFactory = preload("res://scripts/sim_factory.gd")
 const WorldGen = preload("res://scripts/worldgen.gd")
+const MC = preload("res://scripts/machines/machines.gd")
 
 var game: Node
 var f := 0
@@ -45,7 +45,6 @@ func _process(_d: float) -> bool:
 		scenario_g()
 		scenario_h()
 		scenario_i()
-		scenario_j()
 		print("FAILURES: %d" % fails)
 		return true
 	return false
@@ -302,7 +301,6 @@ func fresh() -> void:
 			game.sim.set_cell(x, y, D.AIR)
 	game.paused = true
 	game.reveal_all = true
-	game.drill.enabled = false    # the fixed Drill's banking would muddy the stock checks
 
 
 ## Loose powder that eroded down into a spot (a few cells at the new scale) is
@@ -349,32 +347,32 @@ func secs(s: float) -> void:
 # --- Game scenarios -----------------------------------------------------------------
 
 func scenario_g() -> void:
-	print("G. digging coal banks Stone and Power")
+	print("G. coal paid into the Hub banks Stone and Power")
 	fresh()
-	var dr = game.drill
-	gfill(Rect2i(dr.x, D.GROUND_Y, dr.w, 14 * D.S), D.COAL)
-	dr.enabled = true
-	game.set_reach_limit(dr, D.DRILL_REACH)
-	game.levels["drill_bit"] = 2   # the plain fixed Drill is slow; this only wants the banking
+	MC.ensure_defs()
+	var hub: Rect2i = game.hub.rect()
+	var ground := hub.end.y
+	for x in range(hub.end.x, hub.end.x + 60):
+		for y in range(ground - 40, ground):
+			game.sim.set_cell(x, y, D.AIR)
+		for y in range(ground, ground + 10):
+			game.sim.set_cell(x, y, D.DIRT)
+	var fun := MC.place(game, "funnel", Vector2i(hub.end.x + 6, ground - 14), 0)
+	check(fun != 0, "a Funnel stands beside the Hub")
 	var stone0: float = game.stock[D.R_STONE]
-	# Let the Hub's store sit at its cap, where it stops making power: anything
-	# above it came out of the coal.
+	# The Hub's store at its cap, where it stops making power: anything above it came out of the coal.
 	game.stock[D.R_POWER] = D.HUB_POWER_CAP
-	for _i in 60:
-		secs(1.0)
-		if dr.cells_bored >= dr.w * D.DRILL_REACH:
-			break
-	secs(1.0)
-	print("  drill bored %d coal cells; Stone %.1f -> %.1f, Power %.1f (cap %d)" % [dr.cells_bored, stone0, game.stock[D.R_STONE], game.stock[D.R_POWER], int(D.HUB_POWER_CAP)])
-	check(dr.cells_bored >= dr.w * D.DRILL_REACH, "the drill cut its channel through the coal")
+	game.modules[fun]["contents"][D.COAL] = int(8.0 * D.CELLS_PER_UNIT)    # a Tank's worth, emptied into the Funnel
+	secs(10.0)
+	print("  Stone %.1f -> %.1f, Power %.1f (cap %d)" % [stone0, game.stock[D.R_STONE], game.stock[D.R_POWER], int(D.HUB_POWER_CAP)])
 	check(game.stock[D.R_STONE] >= stone0 + 5.0, "Stone banked")
 	check(game.stock[D.R_POWER] > D.HUB_POWER_CAP + 1.5, "Power banked on top of the Hub's cap: coal pays for its digging")
 
 
 func scenario_h() -> void:
-	print("H. sulfur corrodes a Conduit, and a Stone patches it up")
+	print("H. sulfur corrodes a Node, and a Stone patches it up")
 	fresh()
-	var c = build(D.B_CONDUIT, R(140, 38, 2, 2))
+	var c = build(D.B_NODE, R(140, 38, 2, 2))
 	if c == null:
 		return
 	gfill(R(136, 40, 10, 3), D.SULFUR)
@@ -399,11 +397,11 @@ func scenario_h() -> void:
 func scenario_i() -> void:
 	print("I. a fire under a link: patched while there's Stone, broken when there isn't, mended after")
 	fresh()
-	var c1 = build(D.B_CONDUIT, R(136, 38, 2, 2))
-	var c2 = build(D.B_CONDUIT, R(149, 38, 2, 2))
+	var c1 = build(D.B_NODE, R(136, 38, 2, 2))
+	var c2 = build(D.B_NODE, R(149, 38, 2, 2))
 	if c1 == null or c2 == null:
 		return
-	check(c2.connected and c2.link == c1, "the second Conduit links through the first")
+	check(c2.connected and c2.link == c1, "the second Node links through the first")
 	# A row of coal along the line between them, alight.
 	var seam := R(140, 39, 8, 1)
 	gfill(seam, D.COAL)
@@ -433,7 +431,7 @@ func scenario_i() -> void:
 			break
 	check(broke_at >= 0.0, "with none, it broke (after %.1f s)" % broke_at)
 	game.run_ticks(4)
-	check(not c2.connected, "and the far Conduit is cut off")
+	check(not c2.connected, "and the far Node is cut off")
 	# Put the fire out and bring Stone back.
 	gfill(seam, D.AIR)
 	game.stock[D.R_STONE] = 10.0
@@ -443,41 +441,4 @@ func scenario_i() -> void:
 		if not game.broken_links.has(key) and c2.connected:
 			mended = i * 0.1
 			break
-	check(mended >= 0.0, "a Stone mended it (%.1f s later) and the far Conduit is back" % mended)
-
-
-func scenario_j() -> void:
-	print("J. a blast's debris falls into a Hopper")
-	fresh()
-	var shaft := R(150, 40, 11, 30)
-	gfill(R(147, 40, 17, 33), D.DIRT)   # plain dirt walls: none of the seed's sand pours in
-	gfill(shaft, D.AIR)
-	var c1 = build(D.B_CONDUIT, R(142, 38, 2, 2))
-	var c2 = build(D.B_CONDUIT, R(150, 48, 2, 2))
-	var c3 = build(D.B_CONDUIT, R(150, 62, 2, 2))
-	var hop = build(D.B_HOPPER, R(154, 68, 3, 2))
-	if c1 == null or c2 == null or c3 == null or hop == null:
-		return
-	# A stone funnel down to the Hopper's mouth, and a stone plug up the shaft.
-	for k in 4:
-		gfill(R(150, 67 - k, 4 - k, 1), D.STONE)
-		gfill(R(157 + k, 67 - k, 4 - k, 1), D.STONE)
-	gfill(R(150, 68, 4, 2), D.STONE)
-	gfill(R(157, 68, 4, 2), D.STONE)
-	gfill(R(152, 50, 9, 6), D.STONE)
-	var stone0: float = game.stock[D.R_STONE]
-	var taken0: int = hop.cells_taken
-	var broke: int = game.blast(P(156, 53), D.BLAST_RADIUS, D.BLAST_POWER)
-	var flying: int = game.sim.particle_count()
-	secs(12.0)
-	print("  blast broke %d cells, %d flew; the Hopper took %d; Stone %.1f -> %.1f" % [broke, flying, hop.cells_taken - taken0, stone0, game.stock[D.R_STONE]])
-	check(broke > 30 * D.S * D.S, "the blast broke the shaft wall")
-	check(flying > 0, "debris flew")
-	check(hop.cells_taken - taken0 >= 15 * D.S * D.S, "the Hopper swallowed the debris")
-	# Ash is worth nothing, but a Hopper still clears it.
-	var taken1: int = hop.cells_taken
-	var stone1: float = game.stock[D.R_STONE]
-	gfill(R(154, 60, 3, 3), D.ASH)
-	secs(3.0)
-	check(hop.cells_taken - taken1 >= 7 * D.S * D.S, "and clears ash (%d cells), for nothing" % (hop.cells_taken - taken1))
-	check(game.stock[D.R_STONE] - stone1 < 0.9, "ash banks nothing")
+	check(mended >= 0.0, "a Stone mended it (%.1f s later) and the far Node is back" % mended)

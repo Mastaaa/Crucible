@@ -1,17 +1,17 @@
 extends SceneTree
 ## Light and anchoring scenarios (seed 7, by the Hub).
 ##  Light:
-##   A. a sealed cave stays dark by a Conduit; a lit Lamp explores it; switched off,
+##   A. a sealed cave stays dark by a Node; a lit Lamp module explores it; switched off,
 ##      it's remembered but no longer live
 ##   B. rock casts shadows: a cave behind a 6-cell wall stays dark beside the Lamp
 ##   C. sunlight falls straight down an open shaft and spills a little way sideways
-##   D. lava lights itself: a Conduit sees a lava pool without a Lamp (and Tier 3
-##      opens); with the Conduit gone, the explored pool still shows live
+##   D. lava lights itself: a Node sees a lava pool without a Lamp (and Tier 3
+##      opens); with the Node gone, the explored pool still shows live
 ##  Anchoring:
-##   E. a Conduit whose ledge is dug away falls, lands, and links up again
+##   E. a Node whose ledge is dug away falls, lands, and links up again
 ##   F. one dropped into a pool sinks to the floor, and the water ends up above it
 ##   G. a row of Bulkheads hangs off a wall by its end; cut that and the row falls
-##   H. a Drill boring straight down from the surface rests on the lip of its shaft
+##   H. a Lamp module lights and draws power only with a Node or the Hub in reach
 ##   I. the placement ghost snaps: down onto a floor, out of rock, onto a wall; not
 ##      when the spot is fine or nothing's near
 ## Phase 8b: v2's layouts scaled by D.S. Beside the Hub they're placed about the
@@ -21,6 +21,7 @@ extends SceneTree
 
 const D = preload("res://scripts/defs.gd")
 const SimFactory = preload("res://scripts/sim_factory.gd")
+const MC = preload("res://scripts/machines/machines.gd")
 
 var game: Node
 var f := 0
@@ -175,12 +176,15 @@ func scenario_a_b() -> void:
 	gfill(cave_l, D.AIR)
 	gfill(cave_r, D.AIR)
 	var inner_l := cave_l.grow(-D.S)
-	drop_in(D.B_CONDUIT, Q(155, 86))
+	drop_in(D.B_NODE, Q(155, 86))
 	game._refresh_vision()
-	print("  by a Conduit alone: %.0f%% of the cave explored" % (share(game.known, inner_l) * 100.0))
-	check(share(game.known, inner_l) == 0.0, "a Conduit sees nothing in the dark")
-	var lamp = drop_in(D.B_LAMP, Q(162, 86))
-	lamp.power = D.POWER_RESERVE
+	print("  by a Node alone: %.0f%% of the cave explored" % (share(game.known, inner_l) * 100.0))
+	check(share(game.known, inner_l) == 0.0, "a Node sees nothing in the dark")
+	MC.ensure_defs()
+	var lamp_id := MC.place(game, "lamp", Q(162, 80), 0)
+	check(lamp_id != 0, "the Lamp module is placed in the cave (%s)" % MC.check_place(game, "lamp", Q(162, 80), 0))
+	var lamp: Dictionary = game.modules[lamp_id]
+	lamp["lit"] = true
 	game._refresh_vision()
 	print("  with a lit Lamp: %.0f%% explored, %.0f%% live" % [share(game.known, inner_l) * 100.0, share(game.vis, inner_l) * 100.0])
 	check(share(game.known, inner_l) == 1.0, "the Lamp lights the cave and it's explored")
@@ -190,7 +194,7 @@ func scenario_a_b() -> void:
 	print("  far cave: %.0f%% explored; light on its near edge %d" % [share(game.known, inner_r) * 100.0, light_at(Q(177, 84))])
 	check(share(game.known, inner_r) == 0.0 and light_at(Q(177, 84)) == 0, "the wall's shadow keeps it dark, though the Lamp watches that far")
 	check(light_at(Q(170, 84)) > 0, "the light still reaches the wall's face and a little way in")
-	lamp.power = 0.0
+	lamp["lit"] = false
 	game._refresh_vision()
 	var far_end := QR(154, 80, 4, 8)
 	print("  Lamp out: far end %.0f%% explored, %.0f%% live" % [share(game.known, far_end) * 100.0, share(game.vis, far_end) * 100.0])
@@ -222,17 +226,17 @@ func scenario_d() -> void:
 	gfill(QR(56, 116, 28, 16), D.STONE)
 	gfill(QR(60, 120, 20, 8), D.AIR)
 	gfill(QR(70, 126, 10, 2), D.LAVA)
-	var c = drop_in(D.B_CONDUIT, Q(61, 126))
+	var c = drop_in(D.B_NODE, Q(61, 126))
 	check(not game.tiers_open[3], "Tier 3 isn't open yet")
 	game._refresh_vision()
-	var pool := QR(70, 124, 3, 4)       # the end of it within the Conduit's sight
+	var pool := QR(70, 124, 3, 4)       # the end of it within the Node's sight
 	game._center_on(pool.get_center().y, true, pool.get_center().x)
 	print("  over the pool: %.0f%% explored, %.0f%% live" % [share(game.known, pool) * 100.0, share(game.vis, pool) * 100.0])
-	check(share(game.known, pool) == 1.0, "a Conduit sees the glowing pool without a Lamp")
+	check(share(game.known, pool) == 1.0, "a Node sees the glowing pool without a Lamp")
 	check(game.tiers_open[3], "and the lava opens Tier 3")
 	game.demolish(c)
 	game._refresh_vision()
-	print("  Conduit gone: %.0f%% live" % (share(game.vis, pool) * 100.0))
+	print("  Node gone: %.0f%% live" % (share(game.vis, pool) * 100.0))
 	check(share(game.vis, pool) == 1.0, "explored and still lit, it shows live with nothing watching")
 
 
@@ -260,10 +264,10 @@ func fall_until_landed(b, limit_s: float) -> bool:
 
 
 func scenario_e() -> void:
-	print("E. a Conduit loses its ledge")
+	print("E. a Node loses its ledge")
 	fresh()
 	pit()
-	var c = build(D.B_CONDUIT, R(137, 41, 2, 2))
+	var c = build(D.B_NODE, R(137, 41, 2, 2))
 	if c == null:
 		return
 	secs(1.0)
@@ -278,12 +282,12 @@ func scenario_e() -> void:
 
 
 func scenario_f() -> void:
-	print("F. a Conduit falls into a pool")
+	print("F. a Node falls into a pool")
 	fresh()
 	pit()
 	gfill(R(134, 46, 8, 4), D.WATER)
 	var water0 := count_in(R(132, 30, 14, 26), D.WATER)
-	var c = build(D.B_CONDUIT, R(137, 41, 2, 2))
+	var c = build(D.B_NODE, R(137, 41, 2, 2))
 	if c == null:
 		return
 	gfill(R(136, 43, 4, 2), D.AIR)
@@ -320,19 +324,30 @@ func scenario_g() -> void:
 
 
 func scenario_h() -> void:
-	print("H. a Drill rests on the lip of its own shaft")
+	print("H. a Lamp module draws from the Hub's stock, within reach")
 	fresh()
-	gfill(R(132, 40, 10, 30), D.STONE)
-	var dr = build(D.B_DRILL, R(135, 37, 3, 3))
-	if dr == null:
-		return
-	for _i in 40:
+	MC.ensure_defs()
+	var hub: Rect2i = game.hub.rect()
+	var ground := hub.end.y
+	for x in range(hub.end.x, hub.end.x + 60):
+		for y in range(ground - 40, ground):
+			game.sim.set_cell(x, y, D.AIR)
+		for y in range(ground, ground + 10):
+			game.sim.set_cell(x, y, D.DIRT)
+	var id := MC.place(game, "lamp", Vector2i(hub.end.x + 6, ground - 16), 0)
+	check(id != 0, "the Lamp is placed beside the Hub")
+	game.stock[D.R_POWER] = 50.0
+	secs(1.0)
+	check(game.modules[id].get("lit", false), "lit with power in the Hub's stock")
+	game.stock[D.R_POWER] = 50.0
+	secs(10.0)
+	var gain: float = game.stock[D.R_POWER] - 50.0
+	check(gain < 10.0 * D.HUB_POWER_PER_S - 0.5, "it draws from the stock: gained %.2f of the trickle's %.1f in 10 s" % [gain, 10.0 * D.HUB_POWER_PER_S])
+	var far := MC.place(game, "lamp", Vector2i(hub.end.x + 6 + 300, ground - 16), 0)
+	if far != 0:
+		game.stock[D.R_POWER] = 50.0
 		secs(1.0)
-		if dr.reach >= D.DRILL_REACH:
-			break
-	print("  channel %d / %d, drill at row %d" % [dr.reach, D.DRILL_REACH, dr.y])
-	check(dr.reach >= 6 * D.S, "it bored a channel")
-	check(dr.y == P(0, 37).y and not dr.falling, "and stayed where it was put")
+		check(not game.modules[far].get("lit", true), "and dark out of reach of every Node (%s)" % game.modules[far].get("why", ""))
 
 
 func scenario_i() -> void:
@@ -341,27 +356,27 @@ func scenario_i() -> void:
 	# A stone room beside the Hub: rows 44-51, floor at row 52, walls at columns 131 and 147.
 	gfill(R(128, 40, 24, 20), D.STONE)
 	gfill(R(132, 44, 15, 8), D.AIR)   # 15 wide: stone spans 15
-	build(D.B_CONDUIT, R(140, 38, 2, 2))
-	build(D.B_CONDUIT, R(136, 50, 2, 2))
+	build(D.B_NODE, R(140, 38, 2, 2))
+	build(D.B_NODE, R(136, 50, 2, 2))
 	# Snapped spots, worked out from the footprint under the cursor: the floor is
 	# at v2 row 52, the left wall's face at v2 column 132.
 	var floor_y := P(0, 52).y
-	var foot: Rect2i = game.footprint(D.B_DRILL, P(142, 49), false)
+	var foot: Rect2i = game.footprint(D.B_NODE, P(142, 49), false)
 	var on_floor := Rect2i(foot.position.x, floor_y - foot.size.y, foot.size.x, foot.size.y)
-	var drill_r: Rect2i = game.snap_place(D.B_DRILL, P(142, 49), false)
-	print("  Drill, cursor 10 above the floor: %s" % drill_r)
-	check(drill_r == on_floor, "a floating Drill drops onto the floor below it")
-	var in_rock: Rect2i = game.snap_place(D.B_DRILL, P(142, 53), false)
-	print("  Drill, cursor in the floor: %s" % in_rock)
+	var drill_r: Rect2i = game.snap_place(D.B_NODE, P(142, 49), false)
+	print("  Node, cursor 10 above the floor: %s" % drill_r)
+	check(drill_r == on_floor, "a floating Node drops onto the floor below it")
+	var in_rock: Rect2i = game.snap_place(D.B_NODE, P(142, 53), false)
+	print("  Node, cursor in the floor: %s" % in_rock)
 	check(in_rock == on_floor, "one poking into the floor comes up onto it")
-	var wall: Rect2i = game.snap_place(D.B_LAMP, P(134, 47), false)
-	print("  Lamp, cursor 10 off the wall: %s" % wall)
-	check(wall.position.x == P(132, 0).x and game.check_place(D.B_LAMP, wall) == "", "a Lamp near a wall goes onto the wall")
-	var fine: Rect2i = game.snap_place(D.B_CONDUIT, P(145, 51), false)
-	check(fine == game.footprint(D.B_CONDUIT, P(145, 51), false), "a spot that's already fine stays put")
+	var wall: Rect2i = game.snap_place(D.B_NODE, P(134, 47), false)
+	print("  Node, cursor 10 off the wall: %s" % wall)
+	check(wall.position.x == P(132, 0).x and game.check_place(D.B_NODE, wall) == "", "a Node near a wall goes onto the wall")
+	var fine: Rect2i = game.snap_place(D.B_NODE, P(145, 51), false)
+	check(fine == game.footprint(D.B_NODE, P(145, 51), false), "a spot that's already fine stays put")
 	var high := Vector2i(P(150, 0).x, D.GROUND_Y - 14 * D.S)
-	var sky: Rect2i = game.snap_place(D.B_CONDUIT, high, false)
-	check(sky == game.footprint(D.B_CONDUIT, high, false) and game.check_place(D.B_CONDUIT, sky) == "Must touch rock",
+	var sky: Rect2i = game.snap_place(D.B_NODE, high, false)
+	check(sky == game.footprint(D.B_NODE, high, false) and game.check_place(D.B_NODE, sky) == "Must touch rock",
 			"high in the sky, nothing near enough: it stays under the cursor and says why")
 	var bh: Rect2i = game.snap_place(D.B_BULKHEAD, P(142, 49), false)
 	check(bh == game.footprint(D.B_BULKHEAD, P(142, 49), false), "Bulkheads never snap")

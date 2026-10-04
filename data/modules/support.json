@@ -1,0 +1,19 @@
+{
+	"_about": "Module definitions for the support group (A3 survivors of the cut: Lab, Lamp). See logistics.json for the shape. `tech` names the research that opens it for the Build list.",
+	"modules": [
+		{
+			"id": "lab", "name": "Lab", "kind": "lab", "size": [40, 30], "wall": 2,
+			"cost": [8, 0, 0, 0, 0],
+			"blurb": "Turns power from the Hub's stockpile into progress on the tech picked in the Research tab (T), and takes the goods that tech wants out of it too. Each Lab adds up to 2 power/s. Needs a Node or the Hub within reach.",
+			"faces": [],
+			"params": {"goods_per_s": 5.0}
+		},
+		{
+			"id": "lamp", "name": "Lamp", "kind": "lamp", "size": [16, 16], "wall": 2, "tech": "lamp",
+			"cost": [2, 0, 0, 0, 0],
+			"blurb": "Lights 200 cells round it while it has power (0.1/s from the Hub's stockpile; it needs a Node or the Hub within reach). Rock casts shadows.",
+			"faces": [],
+			"params": {}
+		}
+	]
+}

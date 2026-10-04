@@ -37,7 +37,6 @@ func _process(_d: float) -> bool:
 		game.new_game(7)
 		game.paused = true
 		game.reveal_all = true
-		game.drill.enabled = false
 		fill(Rect2i(120, 900, 528, 400), D.DIRT)
 		fill(Rect2i(120, 1200, 528, 100), D.STONE)
 		fill(Rect2i(184, 1000, 400, 200), D.AIR)

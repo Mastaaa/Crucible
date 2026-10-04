@@ -50,7 +50,6 @@ func fresh() -> void:
 	game.new_game(7)
 	game.paused = true
 	game.reveal_all = true
-	game.drill.enabled = false
 	fill(room.grow(20), D.BEDROCK)
 	fill(room, D.AIR)
 

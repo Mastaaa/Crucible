@@ -6,64 +6,84 @@ history (what shipped when, old numbers, test notes) is the root STATUS.md:
 Claude adds a section at its top each phase and doesn't need to read the rest.
 
 ## Handoff
-- Last done: A2 wave 1 materials (branch claude/alpha-wave1-materials-uszm2d): twelve new
-  materials and seven made by reactions (ids 35 to 53; claude/WAVE1_MATERIALS.md says what each
-  does, and "Built as" there lists where the build differs from the table), the engine's
-  setting, blast, swell, growth, heat-mass and body-forging extensions, spawn rows for all of
-  them, and scenario_wave1 (the twelve bench demonstrations). The engine changed (`bin/`).
-  Before it: A1, temperature and reactions (every cell has a temperature, reactions name
-  families, the Lab Bench on the title screen paints any material and shows the field with F6,
-  unseen ground is black); phase 10 and everything before it are in `main`.
-- A3 starter kit modules (branch claude/a3-starter-kit-w3pj8v): Cutter Excavator, Tank, Winch,
-  Funnel and Windmill, built from data/modules/*.json and a behaviour script each under
+- Last done: A3 legacy hard cut (branch claude/alpha-legacy-cut-v5z1ft). The Drill, Thumper, Borer,
+  Hopper, Spout, Floodgate, Waterwheel, Steam Turbine, Cache, Relay Mast and Warren are gone from
+  the code, the data and the save (VERSION 2). What stands: Hub and Crucible (fixed), Node (the old
+  Conduit), Bulkhead and Brace (the old Strut) as structures in `scripts/building.gd`, and the Lab
+  and the Lamp as modules (data/modules/support.json, scripts/machines/support/). The Warren returns in
+  A4 as the Drone Cage. The tutorial in data/instructions.json is written around the quarry (rig,
+  30 Stone, Lab, one research, depth 500, 20 Water). Machines draw power from the Hub's stock while
+  a Node or the Hub is in reach (`MU.networked`); the packet network is Hub-only and still carries
+  blueprints, repairs and the Crucible's goods and power. Modules now see and glow
+  (`D.LIGHT_PILOT`, `D.SIGHT_MACHINE`, a lit Lamp `D.LIGHT_LAMP`, the Cutter senses pockets) because
+  the Drill used to be what lit the descent. Retired tests: scenario_digging, scenario_warren,
+  descent, smoke_v2, and the shots of removed buildings. scenario_power, scenario_research,
+  scenario_light, scenario_bodies, scenario_depth, scenario_run, scenario_chemistry and scenario_goals
+  were cut down or rewritten to what is left. tests/autoplay.gd is a small quarry bot now. No engine
+  change: `bin/` is untouched.
+- Gaps the cut exposes (written down, none fixed here):
+  - Pacing. The Hub trickles 0.2 power/s and a Lab eats 2/s, so research starves until Windmills
+    land; the quarry's first Tank is a few Stone; a rig hits Stone at about row 200 on seed 7 and
+    waits on Drill Bit (see the bot baseline below). Tuning belongs to the end of Alpha.
+  - A rig stalls "jammed on the way up" with a full Tank (seed 7, left of the Hub, at about row 450; it
+    does on main too) with no way to recover it, so the bot never finishes Instruction 2 (30 Stone).
+    A rig behind a cave-in stops "jammed" the same way. This wants fixing before the tutorial is
+    trusted.
+  - Tiers 2 and 3 have no techs of their own (only upgrade levels), so discovering Glimmer and
+    lava opens nothing new until A5.
+  - The Crucible draws 4 power/s from a 100-power Hub store: the Caches that used to bank it are
+    gone, so lighting it wants far more Windmills than the starter kit supplies (a battery or
+    Vault module is the fix; A5).
+  - No breach alerts or pause (water or lava breaks into a tunnel) and no cells-drilled stat.
+    The jacket, Saw, Homing, Ember Brood, Sounding, Thumper Charge and Steam Turbine techs went
+    with their buildings.
+  - Water and lava have no machine that handles them but the Cutter's Tank and the Funnel; the
+    Funnel only banks, nothing pumps or pours.
+  - The framework's three test modules (Box, Plug, Cap) still sit at the bottom of the Build list.
+  - The quarry bot (below) is a pacing probe, not a run: the full bot returns at the end of A4.
+  - A save keeps modules' positions to within a cell (the Funnel and Winch drift by one cell
+    across a load); scenario_run allows 1.5.
+  - The Node-as-module question (A3's plan) is settled the cheap way: Node stays a structure
+    because the packet network, repairs and fog sight hang off it.
+- Next: A4 (the Drone Cage and the rest of the hauling modules); it waits for Alex's go.
+  Plan: claude/ALPHA_PLAN.md. The spawn-region system and the Spoil Heap are in `main` (PR #6).
+  The wave 1 rows only place pockets and seams by depth band, with no placement relative to
+  aquifers, lava or Sulfur (the table has none); A6's biomes can do better.
+- A3 starter kit modules (PR #9): Cutter Excavator, Tank, Winch, Funnel and Windmill, built from
+  data/modules/*.json and a behaviour script each under
   scripts/machines/{excavation,logistics,movers,power}/; scenario_quarry covers them. A rig is a Tank
   hooked to a bolted-down Winch with a Cutter joined under it and a bolted Funnel above: the Cutter
   cuts a 30-wide tunnel (soft ground; Drill Bit raises the hardness), the Winch lowers the rig as rows
   open and hauls it up when the Tank is full, the Funnel banks what the Tank passes into the Hub.
-  Cable length is Drill Shaft's; Tank Size is a new upgrade. Modules draw power from the Hub's stock
-  while the Winch (or the module) has a Conduit or the Hub within reach (`MU.networked`); a Windmill
-  feeds the same stock. The legacy Drill still runs beside it. The engine changed (`drive_body`, a
-  body that takes its velocity from the game: `bin/` is rebuilt). Left for the cut and later:
-  Nodes as a module (the quarry uses the Conduit as it is), the tutorial rewrite and the bot
-  re-baseline (both wait on the Drill leaving), welding modules into one body (links are still
-  logical, the Winch moves each rig module at the same velocity instead), casing melting and
-  corrosion, a rig stuck behind a cave-in (it reports "jammed" and stops), power faces (power
-  moves through the stock), pacing (a full Tank is a few Stone, a trip at depth 100 takes ~20 s).
+  Cable length is Drill Shaft's; Tank Size is a new upgrade. The engine changed there
+  (`drive_body`, a body that takes its velocity from the game). Still open: welding modules into one
+  body (links are logical, the Winch moves each rig module at the same velocity), casing melting
+  and corrosion, power faces (power moves through the stock).
+- Before the cut: A2 wave 1 materials (twelve new materials and seven made by reactions, ids 35
+  to 53; claude/WAVE1_MATERIALS.md says what each does, and "Built as" there lists where the build
+  differs from the table, plus spawn rows for all of them and scenario_wave1; the engine changed),
+  and A1, temperature and reactions (every cell has a temperature, reactions name families, the
+  Lab Bench on the title screen paints any material and shows the field with F6, unseen ground is
+  black). Phase 10 and everything before it are in `main`.
 - A3 machine framework core (PR #5): modules as rigid bodies with typed faces, casing
   integrity, breach and wreckage, in scripts/machines/ and native/src/modules.cpp. Test
   modules only; the module groups build on it. Casing melting and corrosion are still
   TODO (casing.gd), now that A1's temperature field exists.
 - A3 goal layer v1 (in `main`, PR #4): `scripts/goals.gd` + `data/instructions.json`
   (Hub orders, skippable tutorial, chapters, per-tier research goods), `scripts/goals_panel.gd`,
-  Hub trickle 2 -> 0.2 power/s, `game.goals` in the save. Tutorial steps are written against
-  today's buildings (each flagged "legacy" in the data). The descent probe and the bot baselines
-  below predate the trickle cut: the probe now reaches depth 500 in ~1800 s (was 1.5 min) because
-  nothing but instruction rewards feeds the Drill until the Windmills of the starter quarry land.
-  The bot was not re-run (an hour a seed); re-baseline it once the quarry exists.
-- Next: A3 (the machine framework, then the starter kit and the legacy cut). Plan:
-  claude/ALPHA_PLAN.md. The spawn-region system and the Spoil Heap are in `main` (PR #6).
-  The wave 1 rows only place pockets and seams by depth band, with no placement relative to
-  aquifers, lava or Sulfur (the table has none); A6's biomes can do better.
-- Placeholder: A3 cuts the current buildings (Hub, Crucible, Conduits, Lab, Lamp, Strut and
-  Bulkhead stay; the Warren becomes the Drone Cage). Phase 10's jacket rules (lava shield,
-  quenching, drinking), the tuning numbers tied to Borers and research, and the bot's Borer
-  and Conduit logistics go with it; don't polish them. The run shell (title, save slot,
-  speeds, win and lose, milestones) and the bot's harness (checkpoints, dumps, milestone
-  timeline) should carry over.
-- Settled in phase 10 (tuned with the bot): mites at v2's pace against the buildings;
-  the Turbine's 4/s now reachable (0.4 a cell, as fast as a room of steam rises); water
-  still quenches hot rock slowly (a staged steam room would die otherwise) and condensing
-  steam loses half, so the jacket's steam stops cycling in a finished tunnel.
-- Known rough edges: the screenshot scripts (bar shot_bodies and shot_title), smoke_v2,
-  flow and scenario_water* still use v2 coordinates; the top bar clips the Help button
-  when the depth label shows; a network rebuild on a dense 380-building network takes
-  ~34 ms; an aquifer's spring buried by rubble stops refilling it; a jacket's steam
-  still scalds the Conduit line behind it on the way down (Borers that bore down
-  through hot rock lose Conduits to it; the bot relays them).
+  Hub trickle 2 -> 0.2 power/s, `game.goals` in the save. The tutorial steps were rewritten
+  around the quarry in the A3 cut.
+- Settled in phase 10: water still quenches hot rock slowly (a staged steam room would die
+  otherwise) and condensing steam loses half, so a boil cycle in a finished tunnel dies away.
+- Known rough edges: the screenshot scripts that remain (shot_bodies, shot_chemistry,
+  shot_quarry, shot_goals, shot_help, shot_title, shot_temperature), flow and scenario_water* may
+  still use v2 coordinates; the top bar clips the Help button when the depth label shows; a
+  network rebuild on a dense 380-building network takes ~34 ms; an aquifer's spring buried by
+  rubble stops refilling it.
 
 ## Test baseline (all must hold before committing)
-- `bash native/run_tests.sh` (about 8 minutes): every scenario (sixteen, with
-  scenario_temperature, scenario_goals, scenario_spawn, scenario_wave1, scenario_modules and scenario_quarry) and engine_compare end `FAILURES: 0`. Suites
+- `bash native/run_tests.sh` (about 10 minutes): every scenario (fourteen: power, goals, research, chemistry,
+  light, collapse, bodies, modules, quarry, depth, temperature, wave1, run, spawn) and engine_compare end `FAILURES: 0`. Suites
   that build deep set-pieces fix their rows' ambient: scenario_depth's `keep_hot` (hot rock near the
   surface), scenario_bodies' `keep_cool` (a pool in the Magma band).
 - Temperature pass (A1): every 8 ticks, 150 to 200 of the map's 3840 chunks awake in a
@@ -71,24 +91,19 @@ Claude adds a section at its top each phase and doesn't need to read the rest.
   pockets). It costs about 0.2 ms a tick: a fresh game's bare `sim.step` went from about
   0.1 to 0.3 ms, measured against main on the same container. A loaded run steps exactly
   as the saved one (the pass's awake chunks are saved too).
-- Descent probe (tests/descent.gd, seed 7): head at 500 at 1.5 min, 700 at 5.5, 1000 at
-  13.5, 1400 at 19.5 (research is the clock early on).
-- Autoplay bot (tests/autoplay.gd): on every seed tried (5, 7, 11, 23) the Stone band
-  at ~20-21 min, Tier 2 ~21-22, Tier 3 ~26-28, bedrock ~51-52, Tier 4 ~53-54; lit at
-  1:00:01 (7), 58:39 (11), 59:07 (23). A run takes about an hour of real time;
-  `--save`/`--load` checkpoints and `--threads=1` (three seeds side by side) help.
-  Its logistics (water, Stone, lines through steam) still stall some runs: see the
-  root STATUS's phase 10 section.
-- Network bench (tests/bench_net.gd): about 2.5 ms a tick once its floors cave in (4.1 at
-  60 s on the slower container, same as main there).
+- Quarry bot (tests/autoplay.gd, seed 7, rig left of the Hub): Drill Bit at 4:26, depth 210 at 5:00,
+  306 at 10:00, 452 at 14:00, then the rig stalls on the way up with a full Tank and stays there
+  (the same stall on main 0a6bcb8 with the same rig); 11 techs by 1:03. About 7 minutes of real time
+  for 90 of game time. Built right of the Hub the rig reaches about 265 and crawls.
+- Network bench (tests/bench_net.gd, Nodes and Bulkheads only since the cut): 368 buildings, a rebuild in
+  about 22 ms and 3.5 to 6.5 ms a tick over the first minute on this container.
 - `tests/prof_scale.gd`: a fresh game ticks in about 0.7 ms (1.3 ms on a slower
   container, where main measured the same; compare against main on the same machine).
   A1: 1.55 ms against main's 1.40 on the same container (the sim's share 0.11 to 0.39).
   A2 (wave 1 spawn rows in the world): 2.92 ms against main's 2.47 on this container, the
   sim's share 1.29 against 0.58 right after worldgen. Bisected: no single material owns it;
   Sourwater, Quickmire, Weft and Wisp pockets keep the most chunks awake. It settles to
-  about 1.0 ms of sim (37 chunks awake against 13) after 3000 ticks. `scenario_digging`'s
-  "long channel stays cheap" (< 2.0 ms) already fails on main on this container (2.3 ms).
+  about 1.0 ms of sim (37 chunks awake against 13) after 3000 ticks.
 - `tests/bench_bodies.gd`: 100 slabs falling at once, about 3.5 ms a tick (worst 14).
 - Saving (phase 10): a 45-minute run writes in about 80 ms (sim snapshot ~30 ms, 47 MB
   raw, ~480 KB on disk) and loads in about 50-100 ms.
@@ -99,7 +114,7 @@ Claude adds a section at its top each phase and doesn't need to read the rest.
   amounts counted in cells S * S times. World layout 3x across, 5x down, features 4x.
 - Tests lay v2 set-pieces out with P(x, y) / R(x, y, w, h), scaling about the Hub's pad
   (see any scenario_*.gd); pieces too far out for that get their own origin.
-- Mites work in 4 x 4 bites (warren.gd); light, fog and sense in 4 x 4 blocks.
+- Light, fog and sense work in 4 x 4 blocks.
 
 ## The game now
 World: 768 x 5120 cells, seed-generated. Layers: surface (sky to row 200), Topsoil (dirt
@@ -166,15 +181,15 @@ the row); hot rock is stone's kin, so the two hang from each other.
 
 Rigid bodies (engine, bodies.cpp): a piece keeps its own bitmap and pose, and sits in
 the grid as ordinary cells tagged with its id (powder piles on it, water flows round it,
-buildings rest on it; the slow passes leave it alone). It falls like everything else
+buildings and modules rest on it; the slow passes leave it alone). It falls like everything else
 (900 cells/s^2, up to 600), turns, bounces a little, slides and tips over edges, sinks
 through liquid at up to 96 cells/s (pushing the liquid up), and is shoved by blasts. An
 impact faster than its toughness (90 cells/s + 20 per point of durability: dirt 130, a
 drop of about 9 cells; stone 190, about 20) shatters it into what its ground crumbles
 into (mostly powder falling on, an eighth thrown as debris); a gentler one leaves it
 lying, and after half a second still it's ground again. Cells knocked off it (blasts,
-drills, burning) are lost from it; under 12 cells left and it crumbles.
-Settling holds freshly dug ground 20 s. Strut holds are permanent. Worldgen runs
+burning) are lost from it; under 12 cells left and it crumbles.
+Settling holds freshly dug ground 20 s. Brace holds are permanent. Worldgen runs
 `stabilize` so the map starts standing.
 
 Ground (spans): gravel 40 (fast, water-proof), dirt 70 (weathers; water turns it to sand),
@@ -186,79 +201,64 @@ powder that water carries off.
 
 Heat (phase 9, on the temperature field since A1): hot rock is the Magma band's stone,
 held hot by its 550-degree ambient; dug up and carried shallow it cools to stone within
-half a minute. Water boils on it at about the old rate. The machines still read the
-material, not the degrees: hot rock stops the Drill and Borers until the Coolant Jacket; then each
-cuts it for 1 Water per 2000 cells from a 4-Water tank the network fills (a Borer
-charging up waits for it while there's water), and the water goes up as steam from the
-cut (a Borer steps past it, so it leaves by its tail). Mites dig it with Ember Brood;
-Thumpers break it like stone. Phase 10: Borers stop short of lava ("Lava ahead");
-with the jacket a Drill or Borer facing lava quenches it to obsidian from its tank
-(a cell of water a cell) and cuts it with the Saw; a jacketed Borer touching lava or
-flames boils 0.05 water/s instead of burning; water that lands on or against a
-jacketed Borer goes into its tank. Condensing steam: half becomes water, half is lost
-(Steam's expires_alt/alt_chance), so a boil cycle in a finished tunnel dies away.
+half a minute. Water boils on it at about the old rate, and enough of it cools the face
+under 250 back to stone. The Cutter reads the material, not the degrees: hot rock and lava
+are past what Drill Bit opens (the jacket and Saw techs went with the Borer). Condensing
+steam: half becomes water, half is lost (Steam's expires_alt/alt_chance), so a boil cycle in
+a finished tunnel dies away.
 
 Resources: Stone, Glimmer, Obsidian, Water, Power. A unit is 600 cells (CELLS_PER_UNIT).
 Coal pays Stone + Power, sulfur Stone + Glimmer. Deposits are worth more a cell (data
 "worth": glimmer, obsidian, coal, sulfur and their shards 6x; `D.cell_units(m)`).
 
-Network: the Hub sends packets along Conduits (relays, 160) and Relay Masts (280); every
-other building links to a relay within 80. Blueprints fill by packet. Machines hold a
-10-power reserve refilled by packet from the nearest Hub, Cache or generator with stock.
-Links have HP (fire, sulfur, lava wear them); broken links and hurt buildings ask for a
-Stone. Struts need no link. Dragging with a build tool lays a line (relays 0.75 of
-their range apart, Lamps a light apart, the rest side by side, 40 at most); what can't
-go down yet is a plan that goes down once the network reaches it; right-click cuts it.
+Network: the Hub sends packets along Nodes (relays, 160 apart); a blueprint or a repair links to
+a relay within 80. Blueprints fill by packet, and so do the Crucible's goods and power. Modules
+need no link of their own: they draw power from the Hub's stock (cap 100, 0.2/s trickle, plus
+Windmills) while a Node or the Hub is within 80 (`MU.networked`). Links have HP (fire, sulfur,
+lava wear them); broken links and hurt buildings ask for a Stone. A Brace needs no link. Dragging
+with a build tool lays a line (Nodes 0.75 of their range apart, Bulkheads side by side, 40 at
+most); what can't go down yet is a plan that goes down once the network reaches it; right-click
+cuts it.
 
-Buildings (key): Hub; fixed Drill (right of the Hub, 3-wide shaft straight down; Drill
-Bit / Drill Shaft upgrades; 30 wide); Conduit 1; Thumper 2 (timed blasts, thrown by them,
-draggable); Hopper 3; Bulkhead 4 (drag a wall); Lab 5; Spout 6; Floodgate 7; Waterwheel
-8; Cache 9; Lamp 0; Borer B (points four ways; Homing; digs at 0.3 of full pace since phase 10); Relay Mast M; Steam Turbine U
-(steam rising into its bottom leaves by its top; 0.4 power a v2 cell up to 4/s, about
-the 1000 cells a second a room of steam pushes through its core); Warren G (mites
-nibble a chamber in 4x4 bites, then tunnel to a marker and dig a circle); Strut X
-(instant beam rock to rock, up to 160 long and 10 thick, props and holds rock within 50
-of each end; snaps without its anchors). Everything but the Hub and Crucible must stay
-anchored (rock, resting powder under it, or a held-up building touching; corners count)
-or it falls straight down (600 cells/s^2, up to 400; through liquid at most 100) and
-relinks where it lands; past 200 cells/s it's hurt, up to 75% of its HP at 400, and so
-is a building it lands on. Placement ghosts snap to legal spots within 50.
+Buildings (key): Hub; Node 1; Bulkhead 2 (drag a wall); Brace 3 (instant beam rock to rock, up
+to 160 long and 10 thick, props and holds rock within 50 of each end; snaps without its anchors;
+needs the Brace tech). Everything but the Hub and Crucible must stay anchored (rock, resting
+powder under it, or a held-up building touching; corners count) or it falls straight down (600
+cells/s^2, up to 400; through liquid at most 100) and relinks where it lands; past 200 cells/s
+it's hurt, up to 75% of its HP at 400, and so is a building it lands on. Placement ghosts snap
+to legal spots within 50.
 
-Mites (8d): a mite walks and clings on its own (warren.gd), at v2's pace against the
-buildings since phase 10 (MITE_SPEED 4, MITE_MOVE_PER_S 20 S); when it has nothing within two
-bites to cling to, or a blast reaches it, it becomes a 3x3 body of material Mite (a
-creature body: it never turns into ground) that falls, tumbles and piles up, and once
-it's lain still a third of a second it walks again from the bite it's in (heading home).
-A landing faster than 480 cells/s (a fall of about 130 cells) kills it; on contact it
-grips (no rolling); a body moving into it with
-3000 or more (cells x cells/s) crushes it, less squeezes it into an open bite beside.
+Modules (Build list buttons, no keys): Cutter Excavator, Tank, Funnel, Winch and Windmill (the
+starter kit, from the start), Lab (from the start) and Lamp (the Lamp tech). The Lab turns up to 2
+power/s of the Hub's stock into research and takes the goods the tech wants out of it too; a Lamp
+lights 200 cells while the stock pays its 0.1/s. Every module glows a little (30 cells) and watches
+its surroundings, so a quarry is never dark; the Cutter also senses hidden pockets. A module placed
+for the first time is a minor milestone.
 
-Hazards: water drowns Conduits, lava destroys them, steam scalds them; fire, corrosion
+Hazards: water drowns Nodes, lava destroys them, steam scalds them; fire, corrosion
 (sulfur) and lava hurt buildings; blasts hurt nearby buildings and links; falling rock
 hurts a building it hits (6e-4 HP per cell of it per cell/s: an 800-cell slab at 300
-does 144) and a link it falls through (1e-4 the same way, once), and kills mites; a
-flying Thumper hitting rock or a building sideways or upward past 300 cells/s is hurt,
-and so is the building (0.25 HP per cell/s over); aquifer
-breaches (pause on the first); weathering and cave-ins; Crucible tremors (Tremor Dampers:
-none within 120 of a Strut).
+does 144) and a link it falls through (1e-4 the same way, once); weathering and cave-ins;
+Crucible tremors (Tremor Dampers: none within 120 of a Brace). There are no breach alerts
+since the Drill left.
 
-Research: Labs turn power (and Glimmer/Obsidian for later tiers) into the picked tech
-(T). Tiers open by discovery: 2 at the first Glimmer mined, 3 at the first lava seen,
-4 when the Crucible is in view. Plain techs by tier plus an Upgrades column with levels.
-Phase 10 costs: v2's power x3 at Tier 1 and x4 from Tier 2 (Borer 450, Coolant Jacket
-and Obsidian Saw 1000 each), Glimmer x2; a Lab turns at most 2 power/s into research.
+Research: Labs turn power (and Stone, Glimmer, Obsidian or Water for later tiers) into the picked
+tech (T). Tiers open by discovery: 2 at the first Glimmer banked, 3 at the first lava seen, 4 when
+the Crucible is in view. The techs are the Lamp, the Brace and Tremor Dampers (tier 4), plus the
+Upgrades column with levels: Drill Bit (the Cutter's hardness and speed), Drill Shaft (the Winch's
+cable) and Tank Size. A Lab turns at most 2 power/s into research.
 
 Fog and light: underground is dark; a block is explored when it's lit and within sight
 of a building; explored ground shows live while lit, as last seen (dimmed) when not.
 Since A1, ground never seen is black, bedrock and the chamber shell included; the
-glimmer glints and lava glow that showed through the fog are gone. The Drill's sense
+glimmer glints and lava glow that showed through the fog are gone. A Cutter's sense
 outline still shows.
 
 Crucible: 32 Glimmer, 48 Obsidian, 64 Water delivered while charging (1.5 packets a
 second: about 1.6 min), and 4 power/s drawn from a 20-power reserve (filled ahead of
 every machine); the charge drains if packets stop for 5 s or it's out of power for 5 s;
-tremors every 15 s while charging. The Hub's packets take ~10 s to get down there, so
-it needs Caches nearby to hold its power.
+tremors every 15 s while charging. The Hub's packets take ~10 s to get down there. With the
+Caches gone its power has to come out of the Hub's 100-power store: see the gaps.
 
 A run (phase 10): the Hub can be destroyed (it patches itself with its own Stone every
 10 s at most under 60% HP, warns under 35%); then the run is lost and its save erased.
@@ -276,7 +276,10 @@ Title screen (Continue, Start Run with an optional seed, Quit; Esc), one save sl
 - A cell set from outside keeps the temperature of what it replaced: a test room carved
   over the Magma band's lava is full of 1100-degree air. Set the rows' ambient with
   `sim.set_ambient(rows)` and call `sim.reset_temps()` once the room is built.
-- The autoplay bot (tests/autoplay.gd) plays a whole run on the map it knows, on the
-  Hub's power alone (the aquifer it taps drains in a minute, so a Waterwheel there
-  pays little). It measures the pace; it isn't a test and isn't in run_tests.sh.
+- The quarry bot (tests/autoplay.gd) builds the rig, a Lab and a Windmill on a strip it
+  flattens beside the Hub and researches in a fixed order. It measures the pace; it isn't a
+  test and isn't in run_tests.sh.
+- A test that places a module hands it ground to stand on: a module that falls far enough
+  shatters or settles (the engine drops it from the registry), so tests flatten a strip and
+  place on it.
 - Not yet: sound.

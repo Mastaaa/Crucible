@@ -29,7 +29,6 @@ func _process(_d: float) -> bool:
 		return false
 	game.new_game(7)
 	game.paused = true
-	game.drill.enabled = false
 	var room := Rect2i(40, 1000, 688, 1400)
 	fill(room.grow(20), D.BEDROCK)
 	fill(room, D.AIR)

@@ -1,6 +1,6 @@
 extends SceneTree
-## Network benchmark: a big built network (Conduits, Drills, Hoppers, Caches,
-## Lamps) made directly, then timed per tick. Run headless.
+## Network benchmark: a big built network (Nodes with a Bulkhead beside every other one)
+## made directly, then timed per tick. Run headless.
 
 const D = preload("res://scripts/defs.gd")
 var game: Node
@@ -47,20 +47,12 @@ func _process(_d: float) -> bool:
 			# the network, not a map's worth of weathering.
 			for xx in range(x - 2, x + 58):
 				game.sim.set_cell(xx, y - 9, D.BEDROCK)
-			add(D.B_CONDUIT, x, y)
-			match (floori(y / 40.0) + col) % 6:
-				0:
-					add(D.B_DRILL, x + 25, y)
-				1:
-					add(D.B_HOPPER, x + 25, y + 10)
-				2:
-					add(D.B_LAMP, x + 25, y)
-				3:
-					if col % 3 == 0:
-						add(D.B_CACHE, x + 25, y)
+			add(D.B_NODE, x, y)
+			if (floori(y / 40.0) + col) % 2 == 0:
+				add(D.B_BULKHEAD, x + 25, y)
 	# Tie the columns together along the top.
 	for x in range(20, D.W - 40, 120):
-		add(D.B_CONDUIT, x, D.GROUND_Y - 20)
+		add(D.B_NODE, x, D.GROUND_Y - 20)
 	game.net_dirty = true
 	var t0 := Time.get_ticks_usec()
 	game._rebuild_network()

@@ -9,6 +9,7 @@ extends RefCounted
 ## also eats goods: `research_mats` adds a per-tier cost to a tech's own materials.
 
 const D = preload("res://scripts/defs.gd")
+const MC = preload("res://scripts/machines/machines.gd")
 const PATH := "res://data/instructions.json"
 const CHECK_EVERY := 30             # ticks between checks
 
@@ -114,11 +115,12 @@ static func _complete(game) -> void:
 static func _met(game, chk: Dictionary, g: Dictionary) -> bool:
 	match chk["kind"]:
 		"built":
+			# A structure (Node, Bulkhead, Brace) or a module, by name.
 			var type := D.B_NAMES.find(chk["building"])
 			for b in game.buildings:
 				if b.type == type and b.built and not b.dead:
 					return true
-			return false
+			return MC.count_named(game, chk["building"]) > 0
 		"researched":
 			return game.researched.size() >= int(chk["count"])
 		"deliver":

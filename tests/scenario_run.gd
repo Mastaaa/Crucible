@@ -5,13 +5,14 @@ extends SceneTree
 ##  B. milestones: tiers, depth bands, first buildings, research, the Crucible
 ##  C. save and Continue: a run saved mid-play and loaded carries on exactly as the
 ##     original does (same cells, stock, buildings and packets after 20 s)
-##  D. dragged lines: a Conduit chain down a shaft goes down one after another as
-##     the network reaches, linked all the way; a row of Hoppers side by side;
+##  D. dragged lines: a Node chain down a shaft goes down one after another as
+##     the network reaches, linked all the way; a row of Bulkheads side by side;
 ##     right-click cuts a line's plans
 ## Run: godot --headless --path . --script tests/scenario_run.gd
 
 const D = preload("res://scripts/defs.gd")
 const Save = preload("res://scripts/save.gd")
+const MC = preload("res://scripts/machines/machines.gd")
 const S := D.S
 var game: Node
 var f := 0
@@ -40,7 +41,6 @@ func fresh() -> void:
 	game.new_game(7)
 	game.paused = true
 	game.reveal_all = true
-	game.drill.enabled = false
 	game.stock[D.R_STONE] = 200.0
 
 
@@ -91,7 +91,7 @@ func scenario_a() -> void:
 	var t: float = game.game_time
 	secs(1)
 	check(game.game_time == t, "ticks do nothing after the loss")
-	check(game.cells_drilled >= 0 and game.buildings_lost == 0, "the Hub isn't counted among buildings lost")
+	check(game.buildings_lost == 0, "the Hub isn't counted among buildings lost")
 	fresh()
 	check(not game.run_lost and not game.hub.dead and game.milestones.is_empty(), "a new game starts clean")
 
@@ -101,19 +101,21 @@ func scenario_b() -> void:
 	fresh()
 	game.discover(2, Vector2(game.hub.center()))
 	check(has_mark("Tier 2 open: the first Glimmer mined"), "a tier opening is a milestone")
-	var d = game.drill
-	var keep: int = d.reach
-	d.reach = 1500
+	var node = game._make_building(D.B_NODE, Rect2i(game.hub.x - 60, 1620, 20, 20))
+	node.built = true
 	game._track_depth()
-	d.reach = keep
-	check(has_mark("Reached the Stone band"), "the Drill's head in the Stone band is a milestone")
+	check(has_mark("Reached the Stone band"), "a building in the Stone band is a milestone")
 	check(not has_mark("Reached the Magma band"), "... and not the Magma band")
-	var lab = game.place(D.B_LAB, Rect2i((D.W >> 1) - 10 * S, D.GROUND_Y - D.B_SIZES[D.B_LAB].y, D.B_SIZES[D.B_LAB].x, D.B_SIZES[D.B_LAB].y))
-	var n := 0
-	while lab != null and not lab.built and n < 60:
-		secs(1)
-		n += 1
-	check(lab != null and lab.built and has_mark("First Lab built"), "the first Lab built is a major milestone")
+	MC.ensure_defs()
+	var hub = game.hub
+	var ground: int = hub.y + hub.h
+	for x in range(hub.x - 100, hub.x):
+		for y in range(ground - 60, ground):
+			game.sim.set_cell(x, y, D.AIR)
+		for y in range(ground, ground + 10):
+			game.sim.set_cell(x, y, D.DIRT)
+	var lab_id := MC.place(game, "lab", Vector2i(hub.x - 44, ground - 30), 0)
+	check(lab_id != 0 and has_mark("First Lab built"), "the first Lab placed is a milestone")
 	game._finish_research("lamp")
 	var minor := false
 	for m: Dictionary in game.milestones:
@@ -156,48 +158,43 @@ func build(type: int, r: Rect2i) -> Object:
 func snapshot() -> Dictionary:
 	var blds: Array = []
 	for b in game.buildings:
-		blds.append([b.id, b.type, b.x, b.y, snappedf(b.hp, 0.01), b.built, snappedf(b.power, 0.01)])
-	var mites := 0
-	for b in game.buildings:
-		mites += b.mites.size()
+		blds.append([b.id, b.type, b.x, b.y, snappedf(b.hp, 0.01), b.built])
+	var mods: Array = []
+	for id: int in game.modules:
+		var m: Dictionary = game.modules[id]
+		mods.append([id, m["def"], str(m["contents"])])
 	return {"cells": game.sim.checksum(), "t": game.game_time, "stock": game.stock, "buildings": blds,
-			"packets": game.packets.size(), "bodies": game.sim.body_count(), "mites": mites,
+			"packets": game.packets.size(), "bodies": game.sim.body_count(), "modules": mods,
 			"research": game.tech_power.duplicate(), "marks": game.milestones.size()}
 
 
 func scenario_c() -> void:
 	print("C. save and Continue")
 	fresh()
-	game.drill.enabled = true
-	for id in ["thumper", "warren", "borer"]:
-		game.researched[id] = true
-	game._refresh_unlocks()
-	# A dirt pad left of the Hub (as scenario_warren's) with a Conduit, a Lab and a
-	# Warren on it; right of the Drill, a Thumper between two Conduits.
+	MC.ensure_defs()
+	# A dirt pad left of the Hub with a Node, a Lab and the starter rig on it.
 	var hub = game.hub
 	var top: int = hub.y + hub.h
 	fill(Rect2i(hub.x - 300, hub.y - 140, 300, top - hub.y + 140), D.AIR)
 	fill(Rect2i(hub.x - 300, top, 300, 400), D.DIRT)
-	build(D.B_CONDUIT, Rect2i(hub.x - 120, top - 20, 20, 20))
-	var lab = build(D.B_LAB, Rect2i(hub.x - 200, top - 30, 40, 30))
+	build(D.B_NODE, Rect2i(hub.x - 60, top - 20, 20, 20))
+	var lab_id := MC.place(game, "lab", Vector2i(hub.x - 100, top - 30), 0)
 	game.pick_research("lamp")
-	build(D.B_WARREN, Rect2i(hub.x - 90, top - 30, 50, 30))
-	fill(Rect2i(P(136, 40), Vector2i(400, 400)).intersection(Rect2i(2, 2, D.W - 4, D.H - 4)), D.DIRT)
-	build(D.B_CONDUIT, Rect2i(P(140, 38), Vector2i(20, 20)))
-	build(D.B_THUMPER, Rect2i(P(146, 38), Vector2i(20, 20)))
-	build(D.B_CONDUIT, Rect2i(P(149, 38), Vector2i(20, 20)))
+	var x0: int = hub.x - 220
+	MC.place(game, "cutter", Vector2i(x0, top - 16), 0)
+	MC.place(game, "tank", Vector2i(x0, top - 46), 0)
+	MC.place(game, "funnel", Vector2i(x0, top - 60), 0)
+	MC.place(game, "winch", Vector2i(x0 + 14, top - 64), 0)
+	game.stock[D.R_POWER] = 90.0
 	secs(45)
-	# Caught mid-flight: a blueprint's Stone on its way, a slab of dirt falling.
-	game.place(D.B_CONDUIT, Rect2i(hub.x - 250, top - 20, 20, 20))
+	# Caught mid-flight: a blueprint waiting, a slab of dirt falling.
+	game.place(D.B_NODE, Rect2i(hub.x - 250, top - 20, 20, 20))
 	fill(Rect2i(hub.x - 280, top - 130, 40, 10), D.DIRT)
 	game.sim.make_body(hub.x - 280, top - 130, 40, 10, 0.0, 0.0, 0.0)
 	game.run_ticks(20)
-	var mites := 0
-	for w in game.buildings:
-		mites += w.mites.size()
-	check(lab != null and lab.built and game.packets.size() > 0 and game.sim.body_count() > 0,
-			"a Lab, a Thumper and a Warren at work (%d buildings, %d mites, %d packets, %d bodies)" % [
-			game.buildings.size(), mites, game.packets.size(), game.sim.body_count()])
+	check(lab_id != 0 and game.modules.size() == 5 and game.sim.body_count() > 0,
+			"a Lab and the rig at work (%d buildings, %d modules, %d bodies)" % [
+			game.buildings.size(), game.modules.size(), game.sim.body_count()])
 	game.live_run = true
 	var headless_was: bool = game.headless
 	game.headless = false
@@ -211,17 +208,23 @@ func scenario_c() -> void:
 	var saved_t: float = game.game_time
 	secs(20)
 	var a := snapshot()
+	var at_before := {}
+	for id: int in game.modules:
+		at_before[id] = game.modules[id]["at"]
 	t0 = Time.get_ticks_msec()
 	ok = game.continue_run()
 	took = Time.get_ticks_msec() - t0
 	check(ok and is_equal_approx(game.game_time, saved_t), "Continue loads it (%d ms), back at %.1f s" % [took, game.game_time])
-	check(game.hub != null and game.drill != null and game.buildings.has(game.hub) and game.buildings.has(game.drill),
-			"the Hub and the Drill are the loaded ones")
+	check(game.hub != null and game.buildings.has(game.hub) and game.modules.size() == 5, "the Hub and the five modules are the loaded ones")
 	game.paused = true
 	secs(20)
 	var b := snapshot()
 	for k: String in a:
 		check(str(a[k]) == str(b[k]), "20 s on, %s match%s" % [k, "" if str(a[k]) == str(b[k]) else ": %s vs %s" % [str(a[k]).left(160), str(b[k]).left(160)]])
+	var drift := 0.0
+	for id: int in game.modules:
+		drift = maxf(drift, (game.modules[id]["at"] - at_before[id]).length())
+	check(drift <= 1.5, "the modules sit where they did, to within a cell and a half (%.2f)" % drift)
 	Save.erase()
 	check(not Save.exists(), "erased")
 
@@ -238,9 +241,9 @@ func scenario_d() -> void:
 	fill(Rect2i(x0, top, 30, 700), D.AIR)
 	var a := Vector2i(x0 + 15, top + 12)
 	var b := Vector2i(x0 + 15, top + 690)
-	var pts: Array = game.line_points(D.B_CONDUIT, a, b)
-	var now: int = game.lay_line(D.B_CONDUIT, a, b)
-	check(pts.size() >= 5 and now >= 1 and now < pts.size(), "a Conduit line down it: %d laid out, %d at once, %d planned" % [
+	var pts: Array = game.line_points(D.B_NODE, a, b)
+	var now: int = game.lay_line(D.B_NODE, a, b)
+	check(pts.size() >= 5 and now >= 1 and now < pts.size(), "a Node line down it: %d laid out, %d at once, %d planned" % [
 			pts.size(), now, game.plans.size()])
 	var chain: Array = []
 	var linked := false
@@ -250,7 +253,7 @@ func scenario_d() -> void:
 		n += 1
 		chain.clear()
 		for bb in game.buildings:
-			if bb.type == D.B_CONDUIT and bb.x >= x0 - 20 and bb.x < x0 + 40:
+			if bb.type == D.B_NODE and bb.x >= x0 - 20 and bb.x < x0 + 40:
 				chain.append(bb)
 		linked = game.plans.is_empty() and chain.size() == pts.size()
 		for bb in chain:
@@ -260,27 +263,27 @@ func scenario_d() -> void:
 	for bb in chain:
 		deep = maxi(deep, bb.y)
 	check(deep > top + 560, "the chain reaches the bottom (depth %d of %d)" % [deep, top + 700])
-	# A row of Hoppers along the ground right of the Drill.
+	# A row of Bulkheads along the ground right of the Hub.
 	fill(Rect2i(P(136, 40), Vector2i(300, 60)).intersection(Rect2i(2, 2, D.W - 4, D.H - 4)), D.DIRT)
-	build(D.B_CONDUIT, Rect2i(P(140, 38), Vector2i(20, 20)))
+	build(D.B_NODE, Rect2i(P(140, 38), Vector2i(20, 20)))
 	var h0 := Vector2i(P(143, 39).x, D.GROUND_Y - 10)
-	var hp: Array = game.line_points(D.B_HOPPER, h0, h0 + Vector2i(100, 0))
+	var hp: Array = game.line_points(D.B_BULKHEAD, h0, h0 + Vector2i(100, 0))
 	var before: int = game.buildings.size()
-	game.lay_line(D.B_HOPPER, h0, h0 + Vector2i(100, 0))
-	var hoppers: Array = []
+	game.lay_line(D.B_BULKHEAD, h0, h0 + Vector2i(100, 0))
+	var walls: Array = []
 	for bb in game.buildings.slice(before):
-		if bb.type == D.B_HOPPER:
-			hoppers.append(bb)
+		if bb.type == D.B_BULKHEAD:
+			walls.append(bb)
 	var apart := true
-	for i in hoppers.size():
-		for j in range(i + 1, hoppers.size()):
-			apart = apart and not hoppers[i].rect().intersects(hoppers[j].rect())
-	check(hp.size() == 4 and hoppers.size() == hp.size() and apart, "a row of %d Hoppers side by side, none overlapping (%d laid)" % [hp.size(), hoppers.size()])
+	for i in walls.size():
+		for j in range(i + 1, walls.size()):
+			apart = apart and not walls[i].rect().intersects(walls[j].rect())
+	check(hp.size() >= 4 and walls.size() >= 2 and apart, "a row of %d Bulkheads side by side, none overlapping (%d laid)" % [hp.size(), walls.size()])
 	# Out into the unexplored: all plans; right-click the third cuts it and the rest.
 	game.reveal_all = false
 	var c0 := Vector2i(D.W - 60, top + 1200)
 	var old: int = game.plans.size()
-	game.lay_line(D.B_CONDUIT, c0, c0 + Vector2i(0, 800))
+	game.lay_line(D.B_NODE, c0, c0 + Vector2i(0, 800))
 	var planned: int = game.plans.size() - old
 	var k: int = game.plan_at(c0 + Vector2i(0, 240))
 	if k >= 0:

@@ -7,15 +7,14 @@
 		"4": [0, 0, 0, 0, 0]
 	},
 	"tutorial": [
-		{"text": "Build a Lab.", "check": {"kind": "built", "building": "Lab"}, "reward": {"power": 100},
-			"legacy": "Lab survives the A3 cut."},
-		{"text": "Complete one research.", "check": {"kind": "researched", "count": 1}, "reward": {"power": 60},
-			"legacy": "Tech list is rebuilt around goods at A3."},
-		{"text": "Deliver 30 Stone to the Hub.", "check": {"kind": "deliver", "res": "Stone", "amount": 30}, "reward": {"power": 40},
-			"legacy": "The Drill that supplies it retires at A3; the starter quarry replaces it."},
+		{"text": "Build a Cutter Excavator, a Tank, a Funnel and a Winch.", "check": {"kind": "all", "of": [
+			{"kind": "built", "building": "Cutter Excavator"}, {"kind": "built", "building": "Tank"},
+			{"kind": "built", "building": "Funnel"}, {"kind": "built", "building": "Winch"}]}, "reward": {"power": 40}},
+		{"text": "Deliver 30 Stone to the Hub.", "check": {"kind": "deliver", "res": "Stone", "amount": 30}, "reward": {"power": 40}},
+		{"text": "Build a Lab.", "check": {"kind": "built", "building": "Lab"}, "reward": {"power": 100}},
+		{"text": "Complete one research.", "check": {"kind": "researched", "count": 1}, "reward": {"power": 60}},
 		{"text": "Reach depth 500.", "check": {"kind": "depth", "value": 500}, "reward": {"power": 60}},
-		{"text": "Deliver 20 Water to the Hub.", "check": {"kind": "deliver", "res": "Water", "amount": 20}, "reward": {"power": 60},
-			"legacy": "Becomes the aquifer-fills-the-Tank step once the Tank exists."}
+		{"text": "Deliver 20 Water to the Hub.", "check": {"kind": "deliver", "res": "Water", "amount": 20}, "reward": {"power": 60}}
 	],
 	"standing": [
 		{"chapter": 0, "text": "Deliver 40 Stone to the Hub.", "check": {"kind": "deliver", "res": "Stone", "amount": 40}, "reward": {"power": 50}},
