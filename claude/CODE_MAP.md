@@ -66,7 +66,7 @@ index as [Stone, Glimmer, Obsidian, Water, Power].
 - `native/src/modules.cpp` (A3): the engine side of machine modules: `set_module` (a
   body that never settles; saved as a flag), `body_info` (size, centre of mass, pixels),
   `body_pixels` (its bitmap), `body_set_pixel` (opens and closes ports, knocks out walls),
-  `drive_body(id, vx, vy)` (no gravity, that velocity for two ticks: call it every tick to hold or haul a rig).
+  `drive_body(id, vx, vy, spin)` (no gravity, that velocity and turn for two ticks: call it every tick to hold, haul or swing a rig).
 - `scripts/machines/` (A3 framework): `faces.gd` (face types, `layout` turns a template
   into pixels and faces in the body's frame), `casing.gd` (stand-in material, `integrity`,
   `breach_at` floods from the cavity), `machines.gd` (the registry: `place`/`check_place`,
@@ -81,7 +81,7 @@ index as [Stone, Glimmer, Obsidian, Water, Power].
   (a Node or the Hub in reach, via `find_link`), `take_power` (the Hub's stock). `logistics/tank.gd`
   (capacity from the hollow, `pack` and Tank Size; draws its fill), `logistics/funnel.gd` (banks what it
   holds through `_bank`), `excavation/cutter.gd` (`front_of`, `slice`, hardness masks from the Drill Bit
-  level, wobbling 30-wide window, `room` rows clear ahead), `movers/slide.gd` (Piston and Gantry: a load at a mech face slid along the face's normal or along the rail, modes run / out / back by `use`, `MU.drive` for the velocity), `movers/winch.gd` (the rig, states docked /
+  level, wobbling 30-wide window, `room` rows clear ahead), `movers/slide.gd` (Piston and Gantry: a load at a mech face slid along the face's normal or along the rail, modes run / out / back by `use`, `MU.drive` for the velocity), `movers/turntable.gd` (a pinned hub that swings its faces' rig round: modes hold / step / spin, poses kept in the hub's frame, `lag` blocks it), `movers/winch.gd` (the rig, states docked /
   down / up, `drive_body` on every rig module each tick, `_plow` clears loose powder off the rig's path
   on the way up, halt reasons keyed on Drill Bit and Drill Shaft), `power/windmill.gd` (gusts, open sky, network reach), `support/lab.gd` (A3 cut: power and goods
   from the Hub's stock into `game.current_tech`) and `support/lamp.gd` (`lit` while the stock pays).

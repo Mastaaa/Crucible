@@ -20,16 +20,18 @@ bool CrucibleSim::set_module(int id, bool on) {
 	return false;
 }
 
-// Body `id` moves at (vx, vy) cells a tick for the next two ticks, without gravity (a
-// winch holding a rig, hauling it, letting it down). Call it every tick to keep it moving;
+// Body `id` moves at (vx, vy) cells a tick and turns at `spin` radians a tick for the next two
+// ticks, without gravity (a winch holding a rig, hauling it, letting it down; a turntable
+// swinging one round). Call it every tick to keep it moving;
 // when the calls stop, gravity takes over. It still collides with ground and is pushed
 // out of it like any body. False if there's no such body.
-bool CrucibleSim::drive_body(int id, float vx, float vy) {
+bool CrucibleSim::drive_body(int id, float vx, float vy, float spin) {
 	for (Body &b : bodies) {
 		if (b.id == id) {
 			b.drive = 2;
 			b.dvx = vx;
 			b.dvy = vy;
+			b.dspin = spin;
 			return true;
 		}
 	}

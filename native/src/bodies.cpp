@@ -523,7 +523,7 @@ bool CrucibleSim::body_tick(Body &b) {
 		b.drive--;
 		b.vx = b.dvx;
 		b.vy = b.dvy;
-		b.spin = 0.0f;
+		b.spin = b.dspin;
 	} else {
 		b.vy += body_g;
 		b.spin *= 0.995f;
