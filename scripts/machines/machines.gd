@@ -24,6 +24,7 @@ const K_TANK = preload("res://scripts/machines/logistics/tank.gd")
 const K_FUNNEL = preload("res://scripts/machines/logistics/funnel.gd")
 const K_CUTTER = preload("res://scripts/machines/excavation/cutter.gd")
 const K_LASER = preload("res://scripts/machines/excavation/laser.gd")
+const K_THUMPER = preload("res://scripts/machines/excavation/thumper.gd")
 const K_WINCH = preload("res://scripts/machines/movers/winch.gd")
 const K_SLIDE = preload("res://scripts/machines/movers/slide.gd")
 const K_TURNTABLE = preload("res://scripts/machines/movers/turntable.gd")
@@ -50,7 +51,7 @@ static func register(def: Dictionary) -> void:
 static func ensure_defs() -> void:
 	if defs.is_empty():
 		kinds = {"tank": K_TANK, "funnel": K_FUNNEL, "cutter": K_CUTTER, "winch": K_WINCH, "windmill": K_WINDMILL,
-				"lab": K_LAB, "lamp": K_LAMP, "slide": K_SLIDE, "turntable": K_TURNTABLE, "laser": K_LASER}
+				"lab": K_LAB, "lamp": K_LAMP, "slide": K_SLIDE, "turntable": K_TURNTABLE, "laser": K_LASER, "thumper": K_THUMPER}
 		for d: Dictionary in MD.defs():
 			register(d)
 		for d: Dictionary in TM.defs():

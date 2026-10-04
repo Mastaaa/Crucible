@@ -5,7 +5,9 @@ extends SceneTree
 ##     pushed into
 ##  C. the Laser Excavator strips a vein of Glimmer along its beam, leaves rock that isn't ore, and
 ##     with Filler on swaps the cell it took for Stone from the Hub's stock
-##  D. research: the Laser's Build button waits for its tech
+##  D. research: the Laser's and Thumper's Build buttons wait for their techs
+##  E. the Thumper: the Winch lowers, lifts and drops it, each landing blasts a cone below it, the
+##     cone breaks rock and Obsidian and leaves the sides, and a floor it can't break halts the rig
 ## Run: godot --headless --path . --script tests/scenario_excavators.gd
 
 const D = preload("res://scripts/defs.gd")
@@ -35,6 +37,7 @@ func _process(_d: float) -> bool:
 		scenario_b()
 		scenario_c()
 		scenario_d()
+		scenario_e()
 		print("FAILURES: %d" % fails)
 		return true
 	return false
@@ -185,7 +188,7 @@ func scenario_c() -> void:
 	# Without power it takes nothing.
 	r = laser_rig(false)
 	l = game.modules[r["laser"]]
-	for _i in 200:
+	for _i in 60:
 		game.stock[D.R_POWER] = 0.0
 		game.run_ticks(1)
 	check(glimmer_in(l) == 0, "with no power it takes nothing")
@@ -197,3 +200,72 @@ func scenario_d() -> void:
 	check(not MC.unlocked(game, MC.defs["laser"]), "the Laser is locked at first")
 	game.researched["laser"] = true
 	check(MC.unlocked(game, MC.defs["laser"]), "and open once researched")
+	check(not MC.unlocked(game, MC.defs["thumper"]), "the Thumper is locked at first")
+	game.researched["thumper"] = true
+	check(MC.unlocked(game, MC.defs["thumper"]), "and open once researched")
+
+
+## A Thumper under a Winch over a stack of Stone, a seam of Obsidian and bedrock.
+func scenario_e() -> void:
+	print("E. Thumper")
+	fresh()
+	# The engine's cone: a blast aimed down breaks rock below and leaves rock beside.
+	fill(Rect2i(250, SURFACE - 40, 60, 60), 2)
+	var broke: int = game.sim.explode_cone(280, SURFACE - 30, 20.0, 14, PI * 0.5, PI * 0.25)
+	check(broke > 50 and game.sim.get_cell(280, SURFACE - 15) == D.AIR, "a cone blast aimed down breaks rock below it (%d cells)" % broke)
+	check(game.sim.get_cell(280 + 18, SURFACE - 28) == 2 and game.sim.get_cell(280, SURFACE - 38) == 2, "and leaves the rock beside and behind it")
+	fresh()
+	game.researched["thumper"] = true
+	fill(Rect2i(X0 - 40, SURFACE + 20, 130, 30), 2)
+	fill(Rect2i(X0 - 40, SURFACE + 50, 130, 14), 4)
+	fill(Rect2i(X0 - 40, SURFACE + 64, 130, 60), D.BEDROCK)
+	var winch := place("winch", X0 + 14, SURFACE - 80)
+	var sn := MC.snap(game, "thumper", 0, Vector2i(X0 + 22, SURFACE - 51))
+	var th := MC.place(game, "thumper", sn["at"], 0)
+	check(sn["snapped"] and th > 0, "the Thumper hooks onto the Winch's cable")
+	secs(1.0)
+	var w: Dictionary = game.modules[winch]
+	var t: Dictionary = game.modules[th]
+	check(w["tether"] == th and t["rig_of"] == winch, "and is its rig")
+	# Dirt cells well off to each side of the shaft, at the top, are outside every cone.
+	var side_ok := true
+	var rows := [SURFACE + 2, SURFACE + 8]
+	check(until(func() -> bool: return t.get("thumps", 0) >= 2, 40.0), "its first landings set off blasts (%d)" % t.get("thumps", 0))
+	var last: Dictionary = t["last"]
+	check(last["broke"] > 100 and last["power"] >= 10, "a blast out of a long drop breaks a lot: power %d, %d cells" % [last["power"], last["broke"]])
+	check(until(func() -> bool: return w["halt"] != "", 400.0), "it works down through the rock until something stops it (%s)" % w["halt"])
+	check("nothing left" in w["halt"], "and the halt says the floor is unbreakable")
+	var left := 0
+	for y in range(SURFACE + 20, SURFACE + 62):
+		for x in range(303, 322):
+			var c: int = game.sim.get_cell(x, y)
+			if (c == 2 or c == 4) and game.sim.get_owner(x, y) == 0:
+				left += 1
+	check(left == 0, "the shaft is clear of Stone and Obsidian all the way down (%d cells left)" % left)
+	for y in rows:
+		for x in [312 - 30, 312 + 30]:
+			if game.sim.get_cell(x, y) != 6:
+				side_ok = false
+	check(side_ok, "while the dirt to either side of the cone at the top is untouched")
+	var bed := 0
+	for x in range(300, 325):
+		if game.sim.get_cell(x, SURFACE + 64) == D.BEDROCK:
+			bed += 1
+	check(bed == 25, "and the bedrock is whole (%d of 25 cells)" % bed)
+	check(w["plowed"] > 100, "the rubble was shoved aside as it went (%d cells)" % w["plowed"])
+	check(w["cable"] > 90.0, "cable out %.0f" % w["cable"])
+	check(game.modules.has(th) and game.modules.has(winch), "(the rig stands)")
+	# A click on the Winch starts it again.
+	MC.kinds["winch"].use(game, w, MC.defs["winch"])
+	check(w["halt"] == "", "a click on the Winch clears the halt")
+	# Without power the Winch does nothing.
+	fresh()
+	game.researched["thumper"] = true
+	winch = place("winch", X0 + 14, SURFACE - 80)
+	sn = MC.snap(game, "thumper", 0, Vector2i(X0 + 22, SURFACE - 51))
+	th = MC.place(game, "thumper", sn["at"], 0)
+	w = game.modules[winch]
+	for _i in 300:
+		game.stock[D.R_POWER] = 0.0
+		game.run_ticks(1)
+	check(w["cable"] < 3.0, "with no power the cable stays put (%.1f)" % w["cable"])

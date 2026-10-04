@@ -6,7 +6,7 @@ history (what shipped when, old numbers, test notes) is the root STATUS.md:
 Claude adds a section at its top each phase and doesn't need to read the rest.
 
 ## Handoff
-- Last done: A4 part 3, the full Cutter and the Laser Excavator (Hot rock at Drill Bit 4, a mount face on the
+- Last done: A4 part 4, the tethered Thumper (engine `explode_cone`, `bin/` rebuilt; `excavation/thumper.gd`; the Winch runs a lower / lift / drop cycle for a Thumper load in `winch._thump`, plowing rubble under it as it lowers; scenario_excavators E). Before it: A4 part 3, the full Cutter and the Laser Excavator (Hot rock at Drill Bit 4, a mount face on the
   Cutter, `rig_of` and `powered` set by every mover, `excavation/laser.gd` with Filler; scenario_excavators).
   Before it: A4 part 2, Turntable (`movers/turntable.gd`; the engine's `drive_body` gained a spin, `bin/`
   rebuilt; `MU.drive` takes a spin; the hub holds each joined module on its pose in the hub's frame and stops
@@ -57,7 +57,7 @@ Claude adds a section at its top each phase and doesn't need to read the rest.
     across a load); scenario_run allows 1.5.
   - The Node-as-module question (A3's plan) is settled the cheap way: Node stays a structure
     because the packet network, repairs and fog sight hang off it.
-- Next: A4, in order: the tethered Thumper, Macerator and
+- Next: A4, in order: Macerator and
   Press, the Drone Cage with Chute and Conveyor, then the test and bot rewrite.
   Plan: claude/ALPHA_PLAN.md. The spawn-region system and the Spoil Heap are in `main` (PR #6).
   The wave 1 rows only place pockets and seams by depth band, with no placement relative to

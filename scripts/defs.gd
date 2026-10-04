@@ -267,6 +267,8 @@ const TECHS := [
 		"text": "A pinned hub that swings whatever is joined to its mechanical faces round, a quarter turn at a time or without stopping."},
 	{"id": "laser", "name": "Laser Excavator", "tier": 2, "needs": [], "power": 900, "mats": [0, 12, 0, 0, 0], "module": "laser",
 		"text": "A module with a one-pixel beam that strips ore off a wall without cutting a tunnel: it takes the first solid cell in its beam if that is ore, and can leave Stone in its place."},
+	{"id": "thumper", "name": "Thumper", "tier": 1, "needs": [], "power": 250, "module": "thumper",
+		"text": "A block hung from a Winch that is lifted and dropped: each hard landing blasts a 90 degree cone below it and breaks rock the Cutter can't."},
 	{"id": "brace", "name": "Brace", "tier": 1, "needs": [], "power": 180, "building": B_BRACE,
 		"text": "A beam across a gap, rock to rock (up to 160 cells). It props what rests on it and holds rock within 50 cells of each end."},
 	{"id": "tremor_dampers", "name": "Tremor Dampers", "tier": 4, "needs": ["brace"], "power": 1200,
