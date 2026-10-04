@@ -10,6 +10,7 @@ const FILES := [
 	"res://data/modules/logistics.json",
 	"res://data/modules/excavation.json",
 	"res://data/modules/movers.json",
+	"res://data/modules/processing.json",
 	"res://data/modules/power.json",
 	"res://data/modules/support.json",
 ]

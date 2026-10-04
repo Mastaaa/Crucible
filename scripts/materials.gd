@@ -27,6 +27,7 @@ static var kinds := PackedByteArray()
 static var dig_rates := PackedFloat32Array()
 static var dig_powers := PackedFloat32Array()
 static var worths := PackedFloat32Array()   # per id: units a dug cell pays, against dirt's 1
+static var shatters := PackedInt32Array()   # per id: what a hard fall breaks it to, or -1
 static var yields: Array = []           # per id: PackedInt32Array of stockpiles
 static var hots := PackedByteArray()
 static var burns := PackedByteArray()
@@ -55,6 +56,8 @@ static func ensure() -> void:
 	kinds.resize(256)
 	kinds.fill(K_STATIC)
 	dig_rates.resize(256)
+	shatters.resize(256)
+	shatters.fill(-1)
 	dig_powers.resize(256)
 	dig_powers.fill(0.2)
 	worths.resize(256)
@@ -119,6 +122,7 @@ static func ensure() -> void:
 			kinds[mid] = kind
 			family_of[mid] = fam_bits
 			dig_rates[mid] = float(e.get("dig_rate", 0.0))
+			shatters[mid] = _ref(e, "shatters_to")
 			dig_powers[mid] = float(e.get("dig_power", 0.2))
 			worths[mid] = float(e.get("worth", 1.0))
 			yields[mid] = ys
@@ -463,6 +467,23 @@ static func yields_of(m: int) -> PackedInt32Array:
 static func worth_of(m: int) -> float:
 	ensure()
 	return worths[m]
+
+
+## What a cell of `m` ground up becomes: what it shatters to, or itself.
+static func ground_of(m: int) -> int:
+	ensure()
+	return shatters[m] if shatters[m] >= 0 else m
+
+
+## The rock a compacted cell of powder `m` presses into (the lowest id whose shards it is), or -1.
+static func pressed_of(m: int) -> int:
+	ensure()
+	if kinds[m] != K_POWDER:
+		return -1
+	for r in 256:
+		if kinds[r] == K_STATIC and shatters[r] == m and r != 5:
+			return r
+	return -1
 
 
 ## The first stockpile `m` pays into, or -1.
