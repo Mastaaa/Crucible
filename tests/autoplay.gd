@@ -6,7 +6,9 @@ extends SceneTree
 ## It knows the map (it flattens a strip beside the Hub to build on), so it times the loop for
 ## someone who knows where things are. The full bot comes back at the end of A4.
 ##
-## godot --headless --path . --script tests/autoplay.gd -- --seed=7 [--max=3600] [--quiet]
+## godot --headless --path . --script tests/autoplay.gd -- --seed=7 [--max=3600] [--quiet] [--cheat]
+## --cheat starts with the research that bears on depth already done and keeps the Hub's power topped up,
+## so a run tests what the machines can dig rather than how fast the economy lets them.
 
 const D = preload("res://scripts/defs.gd")
 const MC = preload("res://scripts/machines/machines.gd")
@@ -27,6 +29,8 @@ var step_seen := 0
 var depth_seen := 0
 var techs_seen := 0
 var last_report := 0.0
+var alerts_seen := {}
+var cheat := false
 
 
 func _initialize() -> void:
@@ -39,6 +43,8 @@ func _initialize() -> void:
 			side = 1
 		elif a == "--quiet":
 			quiet = true
+		elif a == "--cheat":
+			cheat = true
 	game = load("res://scenes/main.tscn").instantiate()
 	root.add_child(game)
 
@@ -50,6 +56,10 @@ func _process(_d: float) -> bool:
 		game.paused = true
 		MC.ensure_defs()
 		_flatten()
+		if cheat:
+			game.levels["drill_bit"] = 5
+			game.levels["drill_shaft"] = 8
+			game.levels["tank_size"] = 3
 		return false
 	if f < 3:
 		return false
@@ -87,6 +97,8 @@ func _put(def_id: String, x: int, y: int) -> int:
 
 
 func _play() -> void:
+	if cheat:
+		game.stock[D.R_POWER] = 100.0
 	var hub: Rect2i = game.hub.rect()
 	var top := hub.end.y
 	var x0 := hub.position.x - 230 if side < 0 else hub.end.x + 200
@@ -154,6 +166,11 @@ func _report(final: bool) -> void:
 	if techs > techs_seen:
 		techs_seen = techs
 		print("%s  research: %d done (%s)" % [_clock(t), techs, ", ".join(game.researched.keys())])
+	for a: Dictionary in game.alerts:
+		var key := "%s@%d" % [a["text"], int(a["t"] / 30.0)]
+		if a["kind"] != "info" and not alerts_seen.has(key):
+			alerts_seen[key] = true
+			print("%s  alert: %s" % [_clock(t), a["text"]])
 	var depth := MC.deepest(game)
 	while depth >= (depth_seen + 1) * 500:
 		depth_seen += 1
