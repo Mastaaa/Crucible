@@ -3415,6 +3415,8 @@ void CrucibleSim::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("body_info", "id"), &CrucibleSim::body_info);
 	ClassDB::bind_method(D_METHOD("body_pixels", "id"), &CrucibleSim::body_pixels);
 	ClassDB::bind_method(D_METHOD("body_set_pixel", "id", "lx", "ly", "material"), &CrucibleSim::body_set_pixel);
+	ClassDB::bind_method(D_METHOD("put_cells", "x", "y", "w", "h", "material", "n"), &CrucibleSim::put_cells);
+	ClassDB::bind_method(D_METHOD("take_cells", "x", "y", "w", "h", "material", "n"), &CrucibleSim::take_cells);
 	ClassDB::bind_method(D_METHOD("save_state"), &CrucibleSim::save_state);
 	ClassDB::bind_method(D_METHOD("load_state", "data"), &CrucibleSim::load_state);
 	ClassDB::bind_method(D_METHOD("set_threads", "n"), &CrucibleSim::set_threads);

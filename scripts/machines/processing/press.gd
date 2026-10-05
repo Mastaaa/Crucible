@@ -72,9 +72,7 @@ static func scan(g, m: Dictionary, def: Dictionary) -> void:
 		m["state"] = "Too many loose bodies in the world."
 		return
 	m["work"] = 0.0
-	m["contents"][mat] -= need
-	if m["contents"][mat] <= 0:
-		m["contents"].erase(mat)
+	MU.take(m, mat, need)
 	m["blocks"] = m.get("blocks", 0) + 1
 	m["state"] = "Pressed a block of %s." % M.names[rock]
 

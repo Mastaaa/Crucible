@@ -11,6 +11,7 @@ extends RefCounted
 ## rebuilt after loading.
 
 const Building = preload("res://scripts/building.gd")
+const Interior = preload("res://scripts/machines/interior.gd")
 
 const PATH := "user://run.save"
 const MAGIC := 0x43525553           # "CRUS"
@@ -71,6 +72,7 @@ static func write(game, path := PATH) -> bool:
 	for b: Building in game.buildings:
 		blds.append(_building(b))
 	state["buildings"] = blds
+	state["interiors"] = Interior.snapshot(game)
 	state["hub"] = game.hub.id
 	state["crucible"] = game.crucible.id
 	state["rng"] = [game.rng.seed, game.rng.state]
@@ -133,6 +135,7 @@ static func restore(game, state: Dictionary) -> void:
 	for v: String in GAME_VARS:
 		if state.has(v):
 			game.set(v, _dec(state[v], by_id, game))
+	Interior.restore(game, state.get("interiors", {}))
 	game.hub = by_id[state["hub"]]
 	game.crucible = by_id[state["crucible"]]
 	game.rng.seed = state["rng"][0]
@@ -156,6 +159,8 @@ static func _enc(v: Variant) -> Variant:
 	if v is Object:
 		if v is Building:
 			return {"$b": v.id}
+		if v.has_method("save_state"):
+			return null          # a machine's interior sim: saved apart (Interior.snapshot)
 		var fields := {}
 		for p: Dictionary in v.get_property_list():
 			if p["usage"] & PROPERTY_USAGE_SCRIPT_VARIABLE:

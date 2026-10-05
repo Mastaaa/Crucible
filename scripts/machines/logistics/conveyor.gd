@@ -73,9 +73,7 @@ static func scan(g, m: Dictionary, def: Dictionary) -> void:
 			var n := mini(int(p["rate"]), m["contents"][mat])
 			if n > 0:
 				m["queue"].append([mat, n, due])
-				m["contents"][mat] -= n
-				if m["contents"][mat] <= 0:
-					m["contents"].erase(mat)
+				MU.take(m, mat, n)
 		# Loose bodies lying on it ride.
 		var mods := {}
 		for id: int in g.modules:

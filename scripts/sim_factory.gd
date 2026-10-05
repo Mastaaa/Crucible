@@ -17,6 +17,21 @@ static func native_available() -> bool:
 	return ClassDB.class_exists("CrucibleSim") and not OS.get_cmdline_user_args().has("--gdscript-sim")
 
 
+## A small sim of its own for the inside of a machine (A-interior): the same materials and
+## reactions as the world, one thread, a room-temperature ambient and gravity straight down.
+static func create_pocket(w: int, h: int) -> RefCounted:
+	var s: RefCounted = ClassDB.instantiate("CrucibleSim")
+	s.set_size(w, h)
+	M.ensure()
+	s.configure(M.sim_materials, M.sim_reactions)
+	s.set_threads(1)
+	s.set_fall(D.SIM_FALL_ACCEL, D.SIM_FALL_MAX)
+	s.set_body_params(D.body_params())
+	s.set_temp_params(D.temp_params())
+	s.set_ambient(PackedInt32Array([20]))
+	return s
+
+
 static func create(threads := -1) -> RefCounted:
 	if native_available():
 		var s: RefCounted = ClassDB.instantiate("CrucibleSim")

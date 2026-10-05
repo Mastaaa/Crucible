@@ -129,12 +129,33 @@ static func stored(m: Dictionary) -> int:
 	return n
 
 
-## Puts up to n units of material `mat` in `m`; returns how many fit.
+## Puts up to n units of material `mat` in `m`; returns how many fit. A module with an
+## interior (interior.gd) takes them as cells in its own sim; otherwise it is a count.
 static func add(m: Dictionary, def: Dictionary, mat: int, n: int) -> int:
 	var put := clampi(capacity(m, def) - stored(m), 0, n)
+	if put > 0 and m.get("sim") != null:
+		var b: Rect2i = m["box"]
+		put = m["sim"].put_cells(b.position.x, b.position.y, b.size.x, b.size.y, mat, put)
 	if put > 0:
 		m["contents"][mat] = m["contents"].get(mat, 0) + put
 	return put
+
+
+## Takes up to n units of `mat` out of `m` (the topmost cells of its interior, when it has
+## one); returns how many came out.
+static func take(m: Dictionary, mat: int, n: int) -> int:
+	var have: int = m["contents"].get(mat, 0)
+	var k := mini(n, have)
+	if k <= 0:
+		return 0
+	if m.get("sim") != null:
+		var b: Rect2i = m["box"]
+		k = m["sim"].take_cells(b.position.x, b.position.y, b.size.x, b.size.y, mat, k)
+	if have - k <= 0:
+		m["contents"].erase(mat)
+	else:
+		m["contents"][mat] = have - k
+	return k
 
 
 # --- The network -----------------------------------------------------------------

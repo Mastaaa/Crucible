@@ -596,6 +596,8 @@ public:
 	PackedFloat32Array body_info(int id) const;
 	PackedByteArray body_pixels(int id) const;
 	int body_set_pixel(int id, int lx, int ly, int m);
+	int put_cells(int x, int y, int w, int h, int m, int n);
+	int take_cells(int x, int y, int w, int h, int m, int n);
 
 	PackedByteArray save_state() const; // save.cpp
 	template <class O>

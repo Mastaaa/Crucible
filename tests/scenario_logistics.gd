@@ -119,7 +119,7 @@ func scenario_a() -> void:
 	var sn3 := MC.snap(game, "tank", 0, Vector2i(sn2["at"].x + 7, sn2["at"].y - 15))
 	var high := MC.place(game, "tank", sn3["at"], 0)
 	check(sn1["snapped"] and sn2["snapped"] and sn3["snapped"] and c1 > 0 and c2 > 0 and high > 0, "two Chutes and a Tank snap on above the first Tank")
-	game.modules[low]["contents"][SAND] = 100
+	MC.add_contents(game, low, SAND, 100)
 	check(until(func() -> bool: return held(high, SAND) >= 100, 20.0), "the Tank's powder comes out at the top of the line (%d cells)" % held(high, SAND))
 	check(held(low, SAND) == 0 and held(c1, SAND) == 0 and held(c2, SAND) == 0, "and none is left on the way")
 

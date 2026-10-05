@@ -170,7 +170,7 @@ func scenario_b() -> void:
 	if pair["snapped"]:
 		var tank: int = pair["tank"]
 		var before := good(FLUX)
-		game.modules[tank]["contents"][FLUX] = 60
+		MC.add_contents(game, tank, FLUX, 60)
 		check(until(func() -> bool: return good(FLUX) - before > 0.55, 12.0), "what the Tank passes in is banked too (%.2f units)" % (good(FLUX) - before))
 	# No power: nothing is taken.
 	h = hopper()
