@@ -14,6 +14,7 @@ extends RefCounted
 
 const D = preload("res://scripts/defs.gd")
 const MU = preload("res://scripts/machines/mu.gd")
+const F = preload("res://scripts/machines/faces.gd")
 const SF = preload("res://scripts/sim_factory.gd")
 
 const PAD := 3             # bedrock cells round the open box
@@ -25,7 +26,8 @@ static func wants(def: Dictionary) -> bool:
 
 ## The grid size and the open box a module's interior needs at its present capacity.
 static func shape(m: Dictionary, def: Dictionary) -> Dictionary:
-	var iw := int(def["size"][0]) - 2 * int(def["wall"])
+	var lay_w := int(F.layout(def, m["turns"])["size"].x)          # the width in the frame the module was placed in
+	var iw := lay_w - 2 * int(def["wall"])
 	var rows := ceili(float(MU.capacity(m, def)) / float(iw))
 	var w := ceili(float(iw + 2 * PAD) / 32.0) * 32
 	var h := ceili(float(rows + 2 * PAD) / 32.0) * 32

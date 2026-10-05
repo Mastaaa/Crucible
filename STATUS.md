@@ -4,6 +4,21 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## Machine interiors, parts 2 and 3: drawn, and on every vessel
+
+Tests: twenty-two scenarios and engine_compare end `FAILURES: 0`; scenario_interior gained part H. No engine change, `bin/` as part 1 left it.
+
+- Part 2: `scripts/interior_layer.gd`, a child of the overlay drawn behind it. Each interior's open box goes to a texture of
+  material ids (refreshed only when the sim changed) and a small canvas shader runs it through the palette image, squeezed
+  into the module's cavity, so a Tank of sand under water shows its layers. The Tank's old fill polygon only draws for a
+  module with no sim. `tests/shot_interior.gd` takes the screenshot.
+- Part 3: `"interior": true` is on the Press, Macerator, Bus Hopper, Cutter and Laser as well as the Tank. The Funnel, Chute,
+  Conveyor and Drone Cage keep counts (they pass things on). The box width follows the layout the module was placed in, so
+  a Tank placed turned has a box as wide as its turned cavity.
+- Cost: five interiors on a rig took about 0.08 ms a tick over the same rig without them (2.0 to 2.1 ms a tick, headless,
+  `sim` and modules together).
+- A module that holds material for a process (the A5 vessels) only needs the flag and `MU.add` / `MU.take`.
+
 ## Machine interiors, part 1: the Tank gets a sim of its own
 
 Tests: twenty-two scenarios and engine_compare end `FAILURES: 0`; scenario_interior is new. The engine changed

@@ -34,6 +34,7 @@ index as [Stone, Glimmer, Obsidian, Water, Power].
   worldgen's grid; worldgen calls it once, after `_heat`, and returns its report as `spawned`.
   Rows are blobs, speckles, or seams (`aspect`); the second half of the table is wave 1's home
   ranges. Cells come out of `set_cells` at their `placed` temperature (Rime is cold).
+- `scripts/interior_layer.gd` (interiors, part 2): a child of the overlay, drawn behind it; the open box of each module's interior sim as an R8 texture of material ids (`_texture`, refreshed when `sim.get_changed()`), a canvas shader that looks the ids up in the palette image, drawn into the cavity as a textured quad.
 - `scripts/hud.gd`: top bar (speed buttons, `speed_label` when the sim can't keep up),
   Build list (structures by key, then `MC.add_build_buttons` for the modules; `MC.refresh_buttons`
   shows a tech-gated one once it opens), building panel (`_rebuild_info`), alerts, depth

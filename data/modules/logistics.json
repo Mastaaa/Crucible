@@ -51,7 +51,7 @@
 			"params": {"bank": 40}
 		},
 		{
-			"id": "bus_hopper", "name": "Bus Hopper", "kind": "bus_hopper", "size": [26, 22], "wall": 2, "front": "up", "anchored": true,
+			"id": "bus_hopper", "name": "Bus Hopper", "kind": "bus_hopper", "size": [26, 22], "wall": 2, "interior": true, "front": "up", "anchored": true,
 			"tech": "bus_hopper", "cost": [10, 0, 0, 0, 0],
 			"blurb": "Bolted in place. The network's way in and out. Importing, it swallows the loose powder, liquid and gas in its open top and whatever a joined Tank, Chute or Conveyor passes into its left face, and banks it: goods under their own names, the rest as the Hub's stockpiles. Click it to export a banked good (or Water) instead, out of its right face or, with nothing joined there, out of its mouth. Needs a Node or the Hub in reach, and a little power per cell.",
 			"faces": [

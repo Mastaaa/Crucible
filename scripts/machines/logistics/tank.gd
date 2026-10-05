@@ -40,6 +40,8 @@ static func info(_g, m: Dictionary, def: Dictionary) -> String:
 
 ## What it holds, as a level in its hollow in the colour of what there is most of.
 static func draw(ov, g, m: Dictionary, def: Dictionary, _z: float) -> void:
+	if m.get("sim") != null:
+		return          # the interior draws itself (scripts/interior_layer.gd)
 	var n := MU.stored(m)
 	if n <= 0:
 		return
