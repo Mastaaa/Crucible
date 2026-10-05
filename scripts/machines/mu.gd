@@ -4,6 +4,7 @@ extends RefCounted
 ## Nothing here preloads machines.gd, so a behaviour script can use it without a cycle.
 
 const D = preload("res://scripts/defs.gd")
+const M = preload("res://scripts/materials.gd")
 const F = preload("res://scripts/machines/faces.gd")
 
 const SCAN := 6                 # ticks between scans (machines.gd runs the kinds' `scan` this often)
@@ -119,6 +120,8 @@ static func drive(m: Dictionary, v: Vector2, spin := 0.0) -> void:
 static func capacity(m: Dictionary, def: Dictionary) -> int:
 	if m.has("cap"):
 		return m["cap"]
+	if def.get("params", {}).has("cap"):
+		return int(def["params"]["cap"])      # a vessel's box is its size from the first scan
 	return F.layout(def, m["turns"])["cavity"]
 
 
@@ -135,10 +138,39 @@ static func add(m: Dictionary, def: Dictionary, mat: int, n: int) -> int:
 	var put := clampi(capacity(m, def) - stored(m), 0, n)
 	if put > 0 and m.get("sim") != null:
 		var b: Rect2i = m["box"]
-		put = m["sim"].put_cells(b.position.x, b.position.y, b.size.x, b.size.y, mat, put)
+		if M.kind_of(mat) == M.K_STATIC:
+			put = _lay(m["sim"], b, mat, put)
+		else:
+			put = m["sim"].put_cells(b.position.x, b.position.y, b.size.x, b.size.y, mat, put)
 	if put > 0:
 		m["contents"][mat] = m["contents"].get(mat, 0) + put
 	return put
+
+
+## Sets up to n cells of a solid in the box of an interior, from the floor up and out from the
+## middle of each row (powder and liquid fall to the floor on their own, a solid does not).
+static func _lay(sim: RefCounted, b: Rect2i, mat: int, n: int) -> int:
+	var put := 0
+	for y in range(b.end.y - 1, b.position.y - 1, -1):
+		for k in b.size.x:
+			if put >= n:
+				return put
+			var x := b.position.x + (b.size.x >> 1) + (-((k + 1) >> 1) if (k & 1) else (k >> 1))
+			if x < b.position.x or x >= b.end.x or sim.get_cell(x, y) != D.AIR:
+				continue
+			sim.set_cell(x, y, mat)
+			put += 1
+	return put
+
+
+## Whether a module's `pass` rule lets material `mat` out: `mats` names the ones it moves, `kinds`
+## the states of matter ("gas", "liquid", "powder", "static"); with neither, everything goes.
+static func passes(rule: Dictionary, mat: int) -> bool:
+	if rule.has("mats"):
+		return M.name_of(mat) in rule["mats"]
+	if rule.has("kinds"):
+		return M.KINDS[M.kind_of(mat)] in rule["kinds"]
+	return true
 
 
 ## Takes up to n units of `mat` out of `m` (the topmost cells of its interior, when it has

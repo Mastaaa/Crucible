@@ -28,6 +28,9 @@ const K_LASER = preload("res://scripts/machines/excavation/laser.gd")
 const K_THUMPER = preload("res://scripts/machines/excavation/thumper.gd")
 const K_MACERATOR = preload("res://scripts/machines/processing/macerator.gd")
 const K_PRESS = preload("res://scripts/machines/processing/press.gd")
+const K_THERMAL = preload("res://scripts/machines/processing/thermal.gd")
+const K_CASTER = preload("res://scripts/machines/processing/caster.gd")
+const K_COMBUSTOR = preload("res://scripts/machines/power/combustor.gd")
 const K_CHUTE = preload("res://scripts/machines/logistics/chute.gd")
 const K_CONVEYOR = preload("res://scripts/machines/logistics/conveyor.gd")
 const K_BUS_HOPPER = preload("res://scripts/machines/logistics/bus_hopper.gd")
@@ -60,7 +63,7 @@ static func ensure_defs() -> void:
 	if defs.is_empty():
 		kinds = {"tank": K_TANK, "funnel": K_FUNNEL, "cutter": K_CUTTER, "winch": K_WINCH, "windmill": K_WINDMILL,
 				"lab": K_LAB, "lamp": K_LAMP, "slide": K_SLIDE, "turntable": K_TURNTABLE, "laser": K_LASER, "thumper": K_THUMPER,
-				"macerator": K_MACERATOR, "press": K_PRESS,
+				"macerator": K_MACERATOR, "press": K_PRESS, "thermal": K_THERMAL, "caster": K_CASTER, "combustor": K_COMBUSTOR,
 				"chute": K_CHUTE, "conveyor": K_CONVEYOR, "bus_hopper": K_BUS_HOPPER, "vault": K_VAULT,
 				"drone_cage": K_DRONE_CAGE}
 		for d: Dictionary in MD.defs():
@@ -221,6 +224,7 @@ static func tick(g) -> void:
 			kind.scan(g, m, defs[m["def"]])
 		INT.ensure(m, defs[m["def"]])
 		INT.sync(m)
+		CS.wear(g, m, defs[m["def"]])
 
 
 # Every tick: bolted-down modules hold still, and each behaviour moves what it moves.
@@ -438,6 +442,8 @@ static func _pass(g, m: Dictionary) -> void:
 		return
 	var left: int = rule["rate"]
 	for mat: int in m["contents"].keys():
+		if not MU.passes(rule, mat):
+			continue
 		# Take first: a reaction inside may have used cells since the last count.
 		var got := MU.take(m, mat, mini(left, m["contents"][mat]))
 		var moved := add_contents(g, fs["link_m"], mat, got)

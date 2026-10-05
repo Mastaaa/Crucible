@@ -1,5 +1,5 @@
 {
-	"_about": "Module definitions for the processing group (A4). See logistics.json for the shape. `front` is where a Macerator's mouth and a Press's block are.",
+	"_about": "Module definitions for the processing group (A4, A5). See logistics.json for the shape. `front` is where a Macerator's mouth and a Press's or Caster's block are. The Boiler, Chiller and Furnace share the thermal kind: params target (degrees), rate (degrees a scan), power (a second while it works), cap; `pass` with `kinds` or `mats` lets only those out of its face; `melts` is the temperature its casing stands.",
 	"modules": [
 		{
 			"id": "macerator", "name": "Macerator", "kind": "macerator", "size": [26, 18], "wall": 2, "interior": true, "front": "up", "anchored": true,
@@ -19,6 +19,48 @@
 				{"type": "pixel", "dir": "down", "at": 10, "w": 6, "name": "in"}
 			],
 			"params": {"slab": [12, 8], "time": 3.0, "power": 3.0, "cap": 400}
+		},
+		{
+			"id": "boiler", "name": "Boiler", "kind": "thermal", "size": [26, 30], "wall": 2, "interior": true, "anchored": true, "melts": 700,
+			"tech": "boiler", "cost": [14, 4, 0, 0, 0],
+			"blurb": "Bolted in place. Heats what a Tank passes into its bottom face to 130 degrees, so Water boils to Steam, and lets only the gas out of its top face into whatever is joined there. Needs a Node or the Hub in reach, and power while it heats.",
+			"faces": [
+				{"type": "pixel", "dir": "down", "at": 6, "w": 6, "name": "in"},
+				{"type": "pixel", "dir": "up", "at": 13, "w": 6, "name": "out"}
+			],
+			"pass": {"face": 1, "rate": 30, "kinds": ["gas"]},
+			"params": {"target": 130, "rate": 20, "power": 0.25, "cap": 300}
+		},
+		{
+			"id": "chiller", "name": "Chiller", "kind": "thermal", "size": [26, 30], "wall": 2, "interior": true, "anchored": true,
+			"tech": "chiller", "cost": [14, 6, 0, 0, 0],
+			"blurb": "Bolted in place. Cools what a Tank passes into its bottom face to 20 below zero, so Water freezes to Ice, and lets only Ice out of its top face. Needs a Node or the Hub in reach, and power while it cools.",
+			"faces": [
+				{"type": "pixel", "dir": "down", "at": 6, "w": 6, "name": "in"},
+				{"type": "pixel", "dir": "up", "at": 13, "w": 6, "name": "out"}
+			],
+			"pass": {"face": 1, "rate": 30, "mats": ["Ice"]},
+			"params": {"target": -20, "rate": 20, "power": 0.25, "cap": 300}
+		},
+		{
+			"id": "furnace", "name": "Furnace", "kind": "thermal", "size": [26, 30], "wall": 2, "interior": true, "anchored": true, "melts": 1500,
+			"tech": "furnace", "cost": [20, 8, 0, 0, 0],
+			"blurb": "Bolted in place. Heats what a Tank passes into its bottom face to 950 degrees: Sand fuses to Glass, and Ferrite with Flux smelts to Slag and Ferrite bars. Glass, bars and Slag go out of its top face; everything else stays in to cook. Its casing stands 1500 degrees. Needs a Node or the Hub in reach, and power while it heats.",
+			"faces": [
+				{"type": "pixel", "dir": "down", "at": 6, "w": 6, "name": "in"},
+				{"type": "pixel", "dir": "up", "at": 13, "w": 6, "name": "out"}
+			],
+			"pass": {"face": 1, "rate": 30, "mats": ["Glass", "Ferrite bar", "Slag", "Slag crust"]},
+			"params": {"target": 950, "rate": 24, "power": 0.5, "cap": 300}
+		},
+		{
+			"id": "caster", "name": "Caster", "kind": "caster", "size": [26, 18], "wall": 2, "interior": true, "front": "right", "anchored": true,
+			"tech": "caster", "cost": [16, 6, 0, 0, 0],
+			"blurb": "Bolted in place. Liquid joined into its bottom face is set, once there is enough of one kind, into a solid block (a rigid body) that comes out of its side: Lava becomes Obsidian, Slag a crust, Quickmire Mire stone, Water Ice. Each block takes 4 seconds and some power, and needs open air in front for the block.",
+			"faces": [
+				{"type": "pixel", "dir": "down", "at": 10, "w": 6, "name": "in"}
+			],
+			"params": {"slab": [12, 8], "time": 4.0, "power": 4.0, "cap": 300}
 		}
-	]
+]
 }

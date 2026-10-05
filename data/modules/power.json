@@ -1,5 +1,5 @@
 {
-	"_about": "Module definitions for the power group. See logistics.json for the shape.",
+	"_about": "Module definitions for the power group. See logistics.json for the shape. The Combustor burns a cell of fuel every `burn` seconds.",
 	"modules": [
 		{
 			"id": "windmill", "name": "Windmill", "kind": "windmill", "size": [12, 36], "wall": 2,
@@ -7,6 +7,15 @@
 			"blurb": "Turns in open sky and feeds the Hub's stockpile while a Node or the Hub is within reach. Gusts come and go.",
 			"faces": [],
 			"params": {"power": 0.3, "gust": 0.5, "period": 14.0, "sky": 60}
+		},
+		{
+			"id": "combustor", "name": "Combustor", "kind": "combustor", "size": [26, 18], "wall": 2, "interior": true, "anchored": true,
+			"tech": "combustor", "cost": [12, 4, 0, 0, 0],
+			"blurb": "Bolted in place. Fuel joined into its bottom face (Coal, Coal chunks, Slick) is burnt a cell a second for 2 to 3 power each, added to the Hub's store while a Node or the Hub is in reach. It burns nothing while the store is full.",
+			"faces": [
+				{"type": "pixel", "dir": "down", "at": 6, "w": 6, "name": "in"}
+			],
+			"params": {"burn": 1.0, "cap": 120}
 		}
 	]
 }
