@@ -13,7 +13,14 @@ const M = preload("res://scripts/materials.gd")
 ## TODO: the casing material becomes a field of the module definition (and with it, what melts it).
 const MATERIAL := D.OBSIDIAN
 const DEAD := 0.5          # integrity below this and the module drops as wreckage
-const BREACH_LEAK := 6     # contents units a breached module spills per scan
+const LEAK_MAX := 60       # contents units a breached module spills per scan at the edge of wreckage (integrity DEAD)
+
+
+## Units a breached module spills per scan: the share of casing it has lost, against the share
+## at which it becomes wreckage, times LEAK_MAX, and at least one. A pinhole seeps and a
+## gutted wall pours.
+static func leak(share: float) -> int:
+	return maxi(1, roundi(LEAK_MAX * (1.0 - share) / (1.0 - DEAD)))
 
 ## Wear (A5): a vessel with an interior loses casing pixels while its hottest cell is above its
 ## melting point (`melts` in the definition, else MELT) and while corrosive contents sit in it.

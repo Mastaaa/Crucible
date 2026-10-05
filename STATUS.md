@@ -27,7 +27,7 @@ widening left it.
 - Casing wear, `casing.gd` `wear`, once a scan for modules with an interior: the hottest interior cell above the
   definition's `melts` (default 1150, Boiler 700, Furnace 1500) costs one to six casing pixels a scan, and corrosive
   contents cost one now and then (a chance up to 0.1 a scan at 400 units). Integrity falls and the usual rules apply
-  (DEAD at 0.5). It raises one alert per module. Nothing here depends on the breach leak, which Alex has yet to decide.
+  (DEAD at 0.5). It raises one alert per module. The damage-scaled breach leak (PR #27) picks wear up on its own: a worn vessel that has a hole leaks faster as more casing goes.
 - `MU.add` lays a solid (Ice, Glass, Ferrite, Obsidian) from the floor up instead of `put_cells`, which starts at the top
   row where a solid then hangs. `MU.capacity` takes `params.cap` from the first scan on: a box that shrank at its first
   scan used to drop whatever was put in before it (the Combustor lost its fuel that way in the first test run).
@@ -43,6 +43,16 @@ pulling and restart after.
   and reactions, and the reaction rule's catalyst are 32 bits now (were 16, all used by wave 1). `materials.gd` allows 32
   tags. No data changed, so no material behaves differently; a throwaway pair of materials in tags 17 and 30 reacted
   through a family rule on a bench run (not kept as a test, wave 2's materials will cover it).
+
+## Breach leaks follow the damage
+
+Tests: all scenarios and engine_compare end `FAILURES: 0`; scenario_interior E gained a pinhole against a gutted wall. No engine change.
+
+- Alex: an interior should leak according to how much damage the machine has taken. A breached module now spills
+  `Casing.leak(integrity)` units a scan: LEAK_MAX (60) times the share of casing lost over the share at which the module
+  becomes wreckage (half), at least one. A two-pixel hole in a Tank seeps about 1 a scan; a wall with a fifth of the casing
+  gone pours about 25. It replaces the flat 6 a scan. Taken from the interior (or the count) the same way as before, the
+  most common material first.
 
 ## Machine interiors, parts 2 and 3: drawn, and on every vessel
 

@@ -248,8 +248,9 @@ Rough phase: interiors now (before A5 part 3); pocket dimensions after Alpha.
 **Alex:** each machine runs its own pixel sim inside it instead of reaching into the world's. It moves with
 the machine and resizes as modules change. Feasibility write-up: plans/pocket-sim-feasibility.md in the project files.
 - Interiors (in the build): `interior: true` in a definition, `scripts/machines/interior.gd`; the Tank first. Gravity
-  is down in the machine's frame. Today a breach leaks the interior out gradually; the full "dissolve into the world
-  at once" version is Alex's call (a 9000-cell Tank released in one tick would flood the world sim).
+  is down in the machine's frame. A breach leaks the interior out gradually, faster the more casing is gone
+  (Alex's call, 2026-10-05, over the full "dissolve into the world at once" version: a 9000-cell Tank released in one
+  tick would flood the world sim).
 - Pocket dimensions (parked): a separate, persistent sim made by a machine, never dissolved into the world. Only
   machines nest a sim in the world sim. A dimension freezes while nothing powered is dialed to it, and it is
   inaccessible while its link is severed.

@@ -197,7 +197,7 @@ func scenario_c() -> void:
 	MC.knock_out(game, box, [Vector2i(1, 14)])      # through the second layer
 	secs(0.5)
 	check(game.modules[box]["breach"].x >= 0, "a hole through both layers is a breach")
-	secs(4.0)
+	secs(8.0)           # the leak follows the damage: this hole is two pixels, so it seeps
 	var left := MC.stored(game.modules[box])
 	var outside := count(Rect2i(room.position.x, room.position.y, 232, room.size.y), D.WATER)
 	print("  contents left %d, water outside the box on its left: %d" % [left, outside])
