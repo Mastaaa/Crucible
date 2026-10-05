@@ -4,6 +4,31 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A5 part 1: goods bank and Bus Hopper
+
+Tests: twenty scenarios and engine_compare end `FAILURES: 0`; scenario_goods is new. The engine did not change, so
+`bin/` is as it was.
+
+- Goods bank: `game.goods` maps a material id to units. A material marked `"good": true` in the data banks there
+  under its own id instead of a stockpile, a cell paying `worth` / 600 units (6 for every good, so 100 cells a
+  unit). The goods are the wave 1 materials a recipe could want: Slick, Sourwater, Hush, Quickmire, Flux, Ferrite,
+  Rattle, Bloat, Glass, Rime, Wisp, Slag and Ferrite bar. Flux, Ferrite and the bar no longer pay Stone and Rime no
+  longer pays Water. The Funnel banks goods too (`game.bank_cells`), the bank is saved, and the first of each good
+  is noted in the event log.
+- Terminal: a Goods list at the bottom right (`scripts/goods_panel.gd`), one row per banked good in the good's colour,
+  hidden while the bank is empty and moved up when the Crucible panel is showing.
+- Bus Hopper (`scripts/machines/logistics/bus_hopper.gd`, Tier 1 research after Chute, 10 Stone): a bolted
+  26 x 22 module with an open mouth on top, an `in` face on its left and an `out` face on its right. Importing (the
+  default) it banks the loose powder, liquid and gas in its mouth (anything that is a good or pays a stockpile) and
+  what a joined Tank, Chute or Conveyor passes in. A click cycles it through exporting each banked good (and Water,
+  from the Hub's stockpile) and back to importing. Exporting takes units into its hollow and passes them out of
+  `out` into what is joined there, or pours them out of the mouth when nothing is. Needs a Node or the Hub in reach
+  and 0.004 power a cell.
+- Not yet: a cap on banked goods (Vault cells, part 2, give the bank a size), goods as research costs (part 8), and
+  an eyedropper filter. The unit is the same 600-cell unit as the stockpiles.
+- Found on the way: `sim.add_particle` takes velocity in cells a tick (4 at most); machines.gd's breach `_spill` passes
+  30, which flings a particle off the map in a tick. Left alone.
+
 ## A4 end: the bot, and what it found
 
 Tests: nineteen scenarios and engine_compare end `FAILURES: 0` (this part changes only tests/autoplay.gd and

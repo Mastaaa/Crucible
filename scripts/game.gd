@@ -64,6 +64,7 @@ var hub: Building
 var crucible: Building
 var rng := RandomNumberGenerator.new()   # seeded with the map: spills and the like
 var stock := PackedFloat64Array([0.0, 0.0, 0.0, 0.0, 0.0])
+var goods := {}                    # A5: banked goods, material id -> units (bank_good, take_good)
 var packets: Array = []
 var relays: Array = []
 var relay_index := {}             # relay -> its index in `relays`
@@ -376,6 +377,7 @@ func _reset(s: int) -> void:
 	next_id = 1
 	next_order = 1
 	stock = PackedFloat64Array([D.START_STONE, 0.0, 0.0, 0.0, D.START_POWER])
+	goods.clear()
 	spring_acc = 0.0
 	power_made = D.HUB_POWER_PER_S
 	researched.clear()
@@ -2280,6 +2282,37 @@ func _bank(at: Vector2, r: int, amount: float) -> void:
 	if r == D.R_GLIMMER and not tiers_open[2]:
 		discover(2, at)
 	stock[r] += amount
+
+
+## Banks `n` cells of material `mat` the way a Funnel or Bus Hopper swallows them: a good under
+## its own id, else into each stockpile it yields (worth against dirt's 1, a unit per
+## CELLS_PER_UNIT). Cells of a material that pays nothing are dropped.
+func bank_cells(at: Vector2, mat: int, n: int) -> void:
+	if n <= 0:
+		return
+	if Mats.is_good(mat):
+		bank_good(mat, D.cell_units(mat) * n)
+		return
+	for r: int in D.mat_yields(mat):
+		_bank(at, r, D.cell_units(mat) * n)
+
+
+func bank_good(mat: int, units: float) -> void:
+	goods[mat] = goods.get(mat, 0.0) + units
+	if not firsts.has("good_%d" % mat):
+		firsts["good_%d" % mat] = true
+		mark("First %s banked." % Mats.names[mat], false)
+
+
+## Takes up to `units` of good `mat` from the bank; returns what it took.
+func take_good(mat: int, units: float) -> float:
+	var got := minf(units, goods.get(mat, 0.0))
+	if got <= 0.0:
+		return 0.0
+	goods[mat] -= got
+	if goods[mat] < 1e-6:
+		goods.erase(mat)
+	return got
 
 
 ## Packets per second the Hub sent over the last second.
