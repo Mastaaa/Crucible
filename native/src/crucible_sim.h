@@ -159,7 +159,7 @@ public:
 		int16_t cools_to = -1;
 		int16_t cools_cost = 0;
 		int16_t kindle = T_NONE;
-		uint16_t family = 0; // family tags, a bit each (materials.gd assigns them)
+		uint32_t family = 0; // family tags, a bit each (materials.gd assigns them)
 		// A2 (wave 1). Heat capacity: a pass's change in degrees is shared among this many
 		// cells' worth of mass (Rime takes 20 times the heat to move).
 		uint8_t heat_mass = 1;
@@ -168,10 +168,10 @@ public:
 		// set_speed, times set_boost with a cell of the set_catalyst family beside it.
 		int16_t sets_to = -1;
 		uint32_t set_speed = 0;
-		uint16_t set_catalyst = 0;
+		uint32_t set_catalyst = 0;
 		uint16_t set_boost = 256;
 		// A burning cell with a burn_catalyst cell beside it burns down burn_boost / 256 times as fast.
-		uint16_t burn_catalyst = 0;
+		uint32_t burn_catalyst = 0;
 		uint16_t burn_boost = 256;
 		bool burn_wet = false; // keeps burning beside water (oil on a pond); smothering gas still puts it out
 		// A blast of blast_r cells (power blast_power) when it takes a hard landing
@@ -183,7 +183,7 @@ public:
 		uint8_t blast_impact = 0;
 		int16_t blast_temp = T_NONE;
 		bool blast_flame = false;
-		uint16_t blast_inhibit = 0;
+		uint32_t blast_inhibit = 0;
 		// A swell: beside a liquid (not a hot one) it turns itself and that cell into
 		// absorb_to, with the liquid's id in the aux byte, with chance absorb_chance.
 		int16_t absorb_to = -1;
@@ -196,7 +196,7 @@ public:
 		// takes over one of the four neighbours in grow_over if a grow_feed cell is within
 		// grow_reach; that cell is used up.
 		uint32_t grow_chance = 0;
-		uint16_t grow_feed = 0;
+		uint32_t grow_feed = 0;
 		uint8_t grow_reach = 0;
 		std::bitset<256> grow_over;
 		// A material that comes out of a reaction as a rigid body of body_w x body_h cells.
@@ -214,7 +214,7 @@ public:
 		int16_t min_temp = INT16_MIN;
 		int16_t max_temp = INT16_MAX;
 		int16_t heat = 0;
-		uint16_t catalyst = 0;
+		uint32_t catalyst = 0;
 		uint16_t boost = 256;
 		// A2: with chance emit_chance each time it fires, a rigid body of the `emit`
 		// material is forged beside the cells (Ferrite bars from smelting).
@@ -432,7 +432,7 @@ private:
 	inline void mark_heat(int x, int y) { heat_dirty[((y >> CSHIFT) * CW) + (x >> CSHIFT)].store(1, std::memory_order_relaxed); }
 	// A cell that changed: its chunk gets a temperature pass next time.
 	inline void tmark(Ctx *cx, int x, int y) { (cx ? cx->tnext : tnext)[((y >> CSHIFT) * CW) + (x >> CSHIFT)] = 1; }
-	inline bool has_family(int i, uint16_t fam) const {
+	inline bool has_family(int i, uint32_t fam) const {
 		const int offs[8] = { -W - 1, -W, -W + 1, -1, 1, W - 1, W, W + 1 };
 		for (int k = 0; k < 8; k++) {
 			if (mats[cells[i + offs[k]]].family & fam) {

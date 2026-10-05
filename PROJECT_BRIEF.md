@@ -181,7 +181,7 @@ Cache, Turbine, Relay Mast, Warren and mites, and the Conduit and Strut names (n
   rule overrides its families'. A rule can carry a temperature window, heat, and a catalyst family
   that multiplies its chance (A2: it can also leave a body behind, `emit`). Wave 1 adds data keys for
   a setting stage, blasts (impact, heat, fire), a swell, growth and heat mass; data/materials.json's
-  `_about` lists them. The family list is full at 16 tags (a bit each in a uint16).
+  `_about` lists them. The family list holds up to 32 tags (a bit each in a uint32; wave 1 used 16, A5 part 3 widened it).
 - Settling: cells next to anything a building digs hold still for SETTLE_S (20 s) before weathering,
   erosion, loosening or powder falls can take them; liquids aren't held.
 - A run (10): lost when the Hub is destroyed (it takes damage like any building and patches itself with its
