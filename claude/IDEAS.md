@@ -222,3 +222,20 @@ reads what flows through it).
   where the FAFO comes back in.
 - Open: do vessels read heat and light from their site (entry 7, site resources), or carry their
   own? Does a breached vessel spill its whole contents?
+
+---
+
+## 9. Shorer: a module that lays its own supports (logged 2026-10-05)
+Rough phase: A5, Support group. Parked until Alex says go on A5.
+
+**Alex:** A module that attaches to machines and lays support structures as needed, as long as it is
+fed the right materials, so an up-facing Excavator can keep the walls intact while the machine keeps
+excavating the roof.
+- Touches: the Laser Excavator's filler swap (refills only the cells it mines), the Press (makes the
+  Stone blocks a Shorer could be fed), Brace and Bulkhead (the hand-placed supports it would replace).
+- The A4 bot runs lost the shaft to cave-ins above the rig (Tank full, shaft plugged with Dirt and
+  Stone), so the module would have to shore behind the rig as it passes.
+- Open: does it lay casing cells or place Braces? Which materials hold, and how much does a metre
+  of shaft cost? Does it share the cutter's mount face or take its own?
+- Probe first: an up-facing Excavator on the cheated bot (placement rotation already exists) shows how
+  much shoring a shaft needs.
