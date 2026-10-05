@@ -8,6 +8,10 @@
 
 using namespace godot;
 
+namespace {
+constexpr uint8_t AIR = 0;
+}
+
 // Body `id` never turns back into ground, however still it lies. False if there's no
 // such body.
 bool CrucibleSim::set_module(int id, bool on) {
@@ -109,4 +113,46 @@ int CrucibleSim::body_set_pixel(int id, int lx, int ly, int m) {
 		return b.count;
 	}
 	return -1;
+}
+
+// Machine interiors (the game's scripts/machines/interior.gd): a vessel's contents live in a
+// small sim of their own, and the game moves them in and out by the count.
+//
+// Puts up to n cells of material m into the empty (air) cells of the rectangle, top row first
+// and from the middle of the row outwards, and returns how many went in. They fall from there
+// like anything poured.
+int CrucibleSim::put_cells(int x, int y, int w, int h, int m, int n) {
+	if (m <= 0 || m > 255 || n <= 0) {
+		return 0;
+	}
+	int put = 0;
+	for (int yy = std::max(y, 0); yy < std::min(y + h, H) && put < n; yy++) {
+		for (int k = 0; k < w && put < n; k++) {
+			int xx = x + w / 2 + ((k & 1) ? -((k + 1) >> 1) : (k >> 1));
+			if (xx < std::max(x, 0) || xx >= std::min(x + w, W) || cells[yy * W + xx] != AIR) {
+				continue;
+			}
+			set_cell(xx, yy, m);
+			put++;
+		}
+	}
+	return put;
+}
+
+// Takes up to n cells of material m out of the rectangle, topmost first, and returns how many
+// went.
+int CrucibleSim::take_cells(int x, int y, int w, int h, int m, int n) {
+	if (m <= 0 || m > 255 || n <= 0) {
+		return 0;
+	}
+	int taken = 0;
+	for (int yy = std::max(y, 0); yy < std::min(y + h, H) && taken < n; yy++) {
+		for (int xx = std::max(x, 0); xx < std::min(x + w, W) && taken < n; xx++) {
+			if (cells[yy * W + xx] == m) {
+				set_cell(xx, yy, AIR);
+				taken++;
+			}
+		}
+	}
+	return taken;
 }

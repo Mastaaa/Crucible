@@ -15,9 +15,7 @@ static func scan(g, m: Dictionary, def: Dictionary) -> void:
 			n = mini(n, g.good_room_cells(mat))      # a full bank holds a good back
 		if n <= 0:
 			continue
-		m["contents"][mat] -= n
-		if m["contents"][mat] <= 0:
-			m["contents"].erase(mat)
+		n = MU.take(m, mat, n)
 		left -= n
 		g.bank_cells(m["at"], mat, n)
 		m["banked"] = m.get("banked", 0) + n

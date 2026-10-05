@@ -19,6 +19,7 @@ const CS = preload("res://scripts/machines/casing.gd")
 const TM = preload("res://scripts/machines/test_modules.gd")
 const MU = preload("res://scripts/machines/mu.gd")
 const MD = preload("res://scripts/machines/module_data.gd")
+const INT = preload("res://scripts/machines/interior.gd")
 # The module groups' behaviour scripts, by the `kind` a definition names. A group adds its own here.
 const K_TANK = preload("res://scripts/machines/logistics/tank.gd")
 const K_FUNNEL = preload("res://scripts/machines/logistics/funnel.gd")
@@ -121,8 +122,9 @@ static func place(g, def_id: String, at: Vector2i, turns: int) -> int:
 		"id": id, "def": def_id, "turns": posmod(turns, 4), "body": body,
 		"designed": lay["designed"], "opened": 0, "count": lay["designed"], "dirty": true,
 		"integrity": 1.0, "breach": Vector2i(-1, -1), "faces": fl, "contents": {},
-		"at": Vector2(at) + Vector2(size) * 0.5,
+		"at": Vector2(at) + Vector2(size) * 0.5, "sim": null, "box": Rect2i(),
 	}
+	INT.ensure(g.modules[id], def)
 	if not g.firsts.has(def_id):
 		g.firsts[def_id] = true
 		g.mark("First %s built" % def["name"], false)
@@ -217,6 +219,8 @@ static func tick(g) -> void:
 		var kind: Variant = kinds.get(defs[m["def"]].get("kind", ""))
 		if kind != null:
 			kind.scan(g, m, defs[m["def"]])
+		INT.ensure(m, defs[m["def"]])
+		INT.sync(m)
 
 
 # Every tick: bolted-down modules hold still, and each behaviour moves what it moves.
@@ -230,6 +234,7 @@ static func _motion(g) -> void:
 		var kind: Variant = kinds.get(def.get("kind", ""))
 		if kind != null:
 			kind.step(g, m, def)
+		INT.step(m)
 	# What the movers added up (MU.drive) goes to the engine once.
 	for id: int in g.modules:
 		var m: Dictionary = g.modules[id]
@@ -269,9 +274,7 @@ static func _spill(g, m: Dictionary, fr: Dictionary) -> void:
 		var mat := _most(m)
 		if mat < 0:
 			return
-		m["contents"][mat] -= 1
-		if m["contents"][mat] <= 0:
-			m["contents"].erase(mat)
+		MU.take(m, mat, 1)
 		var v := out * SPILL_SPEED + Vector2(g.rng.randf_range(-10.0, 10.0), g.rng.randf_range(-10.0, 10.0))
 		g.sim.add_particle(at.x, at.y, v.x, v.y, mat)
 
@@ -435,10 +438,11 @@ static func _pass(g, m: Dictionary) -> void:
 		return
 	var left: int = rule["rate"]
 	for mat: int in m["contents"].keys():
-		var moved := add_contents(g, fs["link_m"], mat, mini(left, m["contents"][mat]))
-		m["contents"][mat] -= moved
-		if m["contents"][mat] <= 0:
-			m["contents"].erase(mat)
+		# Take first: a reaction inside may have used cells since the last count.
+		var got := MU.take(m, mat, mini(left, m["contents"][mat]))
+		var moved := add_contents(g, fs["link_m"], mat, got)
+		if moved < got:
+			MU.add(m, defs[m["def"]], mat, got - moved)
 		left -= moved
 		if left <= 0:
 			break

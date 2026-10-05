@@ -83,9 +83,7 @@ static func _import(g, m: Dictionary, def: Dictionary) -> void:
 			n = mini(n, g.good_room_cells(mat))      # a full bank holds a good back
 		if n <= 0 or not MU.take_power(g, power * n):
 			continue
-		m["contents"][mat] -= n
-		if m["contents"][mat] <= 0:
-			m["contents"].erase(mat)
+		n = MU.take(m, mat, n)
 		left -= n
 		g.bank_cells(m["at"], mat, n)
 		did += n
@@ -139,15 +137,13 @@ static func _pour(g, m: Dictionary, def: Dictionary) -> void:
 	var side := Vector2(nrm.y, nrm.x).abs()
 	var left := int(def["params"]["rate"])
 	for mat: int in m["contents"].keys():
-		while left > 0 and m["contents"][mat] > 0:
+		while left > 0 and m["contents"].get(mat, 0) > 0:
 			var off: float = (g.rng.randf() - 0.5) * float(fo["across"]) * 0.6
 			var at: Vector2 = pt + nrm * 1.5 + side * off
 			var v: Vector2 = nrm * 0.5 + side * (g.rng.randf() - 0.5) * 0.4   # cells a tick
 			g.sim.add_particle(at.x, at.y, v.x, v.y, mat)
-			m["contents"][mat] -= 1
+			MU.take(m, mat, 1)
 			left -= 1
-		if m["contents"][mat] <= 0:
-			m["contents"].erase(mat)
 		if left <= 0:
 			break
 

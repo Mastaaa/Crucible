@@ -239,3 +239,24 @@ excavating the roof.
   of shaft cost? Does it share the cutter's mount face or take its own?
 - Probe first: an up-facing Excavator on the cheated bot (placement rotation already exists) shows how
   much shoring a shaft needs.
+
+---
+
+## 10. Machine interiors and pocket dimensions (logged 2026-10-05)
+Rough phase: interiors now (before A5 part 3); pocket dimensions after Alpha.
+
+**Alex:** each machine runs its own pixel sim inside it instead of reaching into the world's. It moves with
+the machine and resizes as modules change. Feasibility write-up: plans/pocket-sim-feasibility.md in the project files.
+- Interiors (in the build): `interior: true` in a definition, `scripts/machines/interior.gd`; the Tank first. Gravity
+  is down in the machine's frame. Today a breach leaks the interior out gradually; the full "dissolve into the world
+  at once" version is Alex's call (a 9000-cell Tank released in one tick would flood the world sim).
+- Pocket dimensions (parked): a separate, persistent sim made by a machine, never dissolved into the world. Only
+  machines nest a sim in the world sim. A dimension freezes while nothing powered is dialed to it, and it is
+  inaccessible while its link is severed.
+- Dialing (Alex, borrowing RFTools): a dimension is a registry record keyed by an ID, so several Projector modules
+  can dial the same one and move goods in and out. Creating one is a menu of properties (Dimlets, simplified):
+  size, ambient temperature, gravity, terrain mix, chemistry variant. Confirming asks the Projector for a large
+  amount of goods whose type and rarity follow the spec. Every property is already settable per sim instance
+  (`configure`, `set_fall`, `set_ambient`, `set_size`).
+- Open: where IDs come from and what they cost; what goods leaving a random-chemistry pocket are worth outside;
+  whether a dimension survives its builder machine (the registry says yes).
