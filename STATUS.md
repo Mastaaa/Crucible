@@ -14,6 +14,44 @@ pulling and restart after.
   tags. No data changed, so no material behaves differently; a throwaway pair of materials in tags 17 and 30 reacted
   through a family rule on a bench run (not kept as a test, wave 2's materials will cover it).
 
+## Machine interiors, parts 2 and 3: drawn, and on every vessel
+
+Tests: twenty-two scenarios and engine_compare end `FAILURES: 0`; scenario_interior gained part H. No engine change, `bin/` as part 1 left it.
+
+- Part 2: `scripts/interior_layer.gd`, a child of the overlay drawn behind it. Each interior's open box goes to a texture of
+  material ids (refreshed only when the sim changed) and a small canvas shader runs it through the palette image, squeezed
+  into the module's cavity, so a Tank of sand under water shows its layers. The Tank's old fill polygon only draws for a
+  module with no sim. `tests/shot_interior.gd` takes the screenshot.
+- Part 3: `"interior": true` is on the Press, Macerator, Bus Hopper, Cutter and Laser as well as the Tank. The Funnel, Chute,
+  Conveyor and Drone Cage keep counts (they pass things on). The box width follows the layout the module was placed in, so
+  a Tank placed turned has a box as wide as its turned cavity.
+- Cost: five interiors on a rig took about 0.08 ms a tick over the same rig without them (2.0 to 2.1 ms a tick, headless,
+  `sim` and modules together).
+- A module that holds material for a process (the A5 vessels) only needs the flag and `MU.add` / `MU.take`.
+
+## Machine interiors, part 1: the Tank gets a sim of its own
+
+Tests: twenty-two scenarios and engine_compare end `FAILURES: 0`; scenario_interior is new. The engine changed
+(`put_cells`, `take_cells`), so `bin/` is rebuilt: close Godot before pulling.
+
+- Alex's pitch (2026-10-05): a machine runs its own pixel simulation inside it instead of reaching into the world's.
+  A definition with `"interior": true` (the Tank, for now) gets a small `CrucibleSim` in `m["sim"]`, built by
+  `scripts/machines/interior.gd`. One cell in it is one unit, so capacities and balance are as they were. The Tank packs
+  four units to a slot of its hollow, so the box is the cavity's inner width (22) and as tall as the capacity needs (52
+  rows at Tank Size 1), padded with bedrock to a multiple of 32.
+- Gravity points down in the module's own frame, so a Turntable can swing a Tank without sloshing it. Reactions and heat
+  run inside: lava poured on water makes rock in the Tank. Casing damage from it waits for A5's casing melting.
+- `MU.add` puts cells in at the top of the box (engine `put_cells`), `MU.take` takes the topmost (`take_cells`). Every
+  place that used to subtract from `m["contents"]` calls `MU.take` now. `contents` stays a count per material, recounted
+  from the sim at every scan, so the Funnel, Bus Hopper, Press and the HUD read it as before. Tests that set a Tank's
+  contents by hand call `MC.add_contents` now.
+- A breach still leaks six units a scan from the most common material, taken out of the interior; the leak stops
+  when the hole is repaired. Wreckage throws the interior out as it threw the count.
+- Saves: each interior is stored apart (`state["interiors"]`, the engine's bytes). A module with none saved (an older
+  save) gets a fresh interior filled from its counts. No version bump.
+- Not yet: the interior is invisible (the Tank still draws a fill level), and the box does not follow a module that is
+  not a Tank. Both are the next two parts.
+
 ## A5 part 2: Vault cells
 
 Tests: twenty-one scenarios and engine_compare end `FAILURES: 0`; scenario_vault is new. No engine change, `bin/` as it was.

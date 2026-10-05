@@ -2,7 +2,7 @@
 	"_about": "Module definitions for the excavation group. See logistics.json for the shape. `front` is the way the cutter digs.",
 	"modules": [
 		{
-			"id": "cutter", "name": "Cutter Excavator", "kind": "cutter", "size": [26, 16], "wall": 2, "front": "down", "sense": true,
+			"id": "cutter", "name": "Cutter Excavator", "kind": "cutter", "size": [26, 16], "wall": 2, "interior": true, "front": "down", "sense": true,
 			"cost": [10, 0, 0, 0, 0],
 			"blurb": "Cuts a 30-wide tunnel in soft ground ahead of it (Drill Bit research hardens it: Clay and Stone later, Hot rock at level 4) and passes what it digs to the Tank above. Needs power, and a Winch to hang from, or a Piston, Gantry or Turntable to mount on at its mechanical face (it digs along the nearest axis of where it faces).",
 			"faces": [
@@ -16,7 +16,7 @@
 			}
 		},
 		{
-			"id": "laser", "name": "Laser Excavator", "kind": "laser", "size": [20, 14], "wall": 2, "front": "down", "sense": true,
+			"id": "laser", "name": "Laser Excavator", "kind": "laser", "size": [20, 14], "wall": 2, "interior": true, "front": "down", "sense": true,
 			"tech": "laser", "cost": [16, 6, 0, 0, 0],
 			"blurb": "A one-pixel beam ahead of it strips ore off a wall: it takes the first solid cell it meets if that is ore (Glimmer, Obsidian, Coal and the like) and leaves other rock alone. With Filler on (click it) it swaps each cell it takes for Stone from the Hub's stockpile, so the wall keeps its shape. Aim it by mounting it on a Winch rig, Piston, Gantry or Turntable; what it takes goes up into a Tank.",
 			"faces": [

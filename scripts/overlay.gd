@@ -6,6 +6,7 @@ extends Node2D
 const D = preload("res://scripts/defs.gd")
 const Building = preload("res://scripts/building.gd")
 const MC = preload("res://scripts/machines/machines.gd")
+const InteriorLayer = preload("res://scripts/interior_layer.gd")
 
 const LINK_COL := Color(0.55, 0.78, 1.0, 0.32)
 const TREE_COL := Color(0.62, 0.84, 1.0, 0.55)
@@ -21,6 +22,9 @@ var font: Font
 
 func _ready() -> void:
 	font = ThemeDB.fallback_font
+	var inside := InteriorLayer.new()
+	inside.game = game
+	add_child(inside)
 
 
 func _draw() -> void:

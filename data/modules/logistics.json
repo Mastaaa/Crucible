@@ -4,11 +4,12 @@
 		"script in scripts/machines/), size [w, h] in cells, wall (casing thickness), faces [{type pixel|power|mech|signal,",
 		"dir up|down|left|right, at (middle along the wall), w, name}], cost [stone, glimmer, obsidian, water, power], blurb,",
 		"anchored (bolted in place: it holds still until something drives it), pass {face, rate} (units a scan moved out of",
-		"that face into what's joined there), params (the behaviour's own numbers)."
+		"that face into what's joined there), interior (true: its contents live in a sim of their own, scripts/machines/interior.gd),",
+		"params (the behaviour's own numbers)."
 	],
 	"modules": [
 		{
-			"id": "tank", "name": "Tank", "kind": "tank", "size": [26, 30], "wall": 2,
+			"id": "tank", "name": "Tank", "kind": "tank", "size": [26, 30], "wall": 2, "interior": true,
 			"cost": [8, 0, 0, 0, 0],
 			"blurb": "Holds what the Excavator below it digs, packed four cells to a slot of its hollow. Hooks onto a Winch at the top and empties through a Funnel when it docks. Tank Size research makes it hold more.",
 			"faces": [
@@ -50,7 +51,7 @@
 			"params": {"bank": 40}
 		},
 		{
-			"id": "bus_hopper", "name": "Bus Hopper", "kind": "bus_hopper", "size": [26, 22], "wall": 2, "front": "up", "anchored": true,
+			"id": "bus_hopper", "name": "Bus Hopper", "kind": "bus_hopper", "size": [26, 22], "wall": 2, "interior": true, "front": "up", "anchored": true,
 			"tech": "bus_hopper", "cost": [10, 0, 0, 0, 0],
 			"blurb": "Bolted in place. The network's way in and out. Importing, it swallows the loose powder, liquid and gas in its open top and whatever a joined Tank, Chute or Conveyor passes into its left face, and banks it: goods under their own names, the rest as the Hub's stockpiles. Click it to export a banked good (or Water) instead, out of its right face or, with nothing joined there, out of its mouth. Needs a Node or the Hub in reach, and a little power per cell.",
 			"faces": [

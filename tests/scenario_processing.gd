@@ -131,8 +131,8 @@ func scenario_a() -> void:
 	check(held(r["tank"], RUBBLE) == 0 and game.sim.get_cell(330, SURFACE - 21) == STONE, "with no power it grinds nothing, and the slab is still there")
 	# With nowhere to put the powder it stops, and says why.
 	r = grinder()
-	game.modules[r["tank"]]["contents"][RUBBLE] = 1144
-	game.modules[r["mac"]]["contents"][RUBBLE] = 400
+	MC.add_contents(game, r["tank"], RUBBLE, 1144)
+	MC.add_contents(game, r["mac"], RUBBLE, 400)
 	secs(0.5)
 	check(loose_bodies() >= 1 and "Full" in game.modules[r["mac"]]["state"], "full, it leaves the slab alone (%s)" % game.modules[r["mac"]]["state"])
 
@@ -143,7 +143,7 @@ func presser(rubble: int) -> Dictionary:
 	var tank := place("tank", 300, SURFACE - 30)
 	var sn := MC.snap(game, "press", 0, Vector2i(313, SURFACE - 30 - 9))
 	var press := MC.place(game, "press", sn["at"], 0)
-	game.modules[tank]["contents"][RUBBLE] = rubble
+	MC.add_contents(game, tank, RUBBLE, rubble)
 	secs(1.0)
 	return {"tank": tank, "press": press, "snapped": sn["snapped"]}
 

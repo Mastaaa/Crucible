@@ -34,6 +34,7 @@ index as [Stone, Glimmer, Obsidian, Water, Power].
   worldgen's grid; worldgen calls it once, after `_heat`, and returns its report as `spawned`.
   Rows are blobs, speckles, or seams (`aspect`); the second half of the table is wave 1's home
   ranges. Cells come out of `set_cells` at their `placed` temperature (Rime is cold).
+- `scripts/interior_layer.gd` (interiors, part 2): a child of the overlay, drawn behind it; the open box of each module's interior sim as an R8 texture of material ids (`_texture`, refreshed when `sim.get_changed()`), a canvas shader that looks the ids up in the palette image, drawn into the cavity as a textured quad.
 - `scripts/hud.gd`: top bar (speed buttons, `speed_label` when the sim can't keep up),
   Build list (structures by key, then `MC.add_build_buttons` for the modules; `MC.refresh_buttons`
   shows a tech-gated one once it opens), building panel (`_rebuild_info`), alerts, depth
@@ -66,7 +67,7 @@ index as [Stone, Glimmer, Obsidian, Water, Power].
 - `native/src/modules.cpp` (A3): the engine side of machine modules: `set_module` (a
   body that never settles; saved as a flag), `body_info` (size, centre of mass, pixels),
   `body_pixels` (its bitmap), `body_set_pixel` (opens and closes ports, knocks out walls),
-  `drive_body(id, vx, vy, spin)` (no gravity, that velocity and turn for two ticks: call it every tick to hold, haul or swing a rig).
+  `put_cells(x, y, w, h, m, n)` / `take_cells(...)` (interiors: fill the empty cells of a rectangle from the top row, or empty the topmost cells of a material; both return how many), `drive_body(id, vx, vy, spin)` (no gravity, that velocity and turn for two ticks: call it every tick to hold, haul or swing a rig).
 - `scripts/machines/` (A3 framework): `faces.gd` (face types, `layout` turns a template
   into pixels and faces in the body's frame), `casing.gd` (stand-in material, `integrity`,
   `breach_at` floods from the cavity), `machines.gd` (the registry: `place`/`check_place`,
@@ -78,7 +79,7 @@ index as [Stone, Glimmer, Obsidian, Water, Power].
   script, registered in machines.gd (`kinds`), each with `scan` (every 6 ticks), `step` (every tick),
   `info` and `draw`. `mu.gd` is what machines.gd and the behaviours share without a preload cycle (`rig` walks a load's joined modules, `drive` adds to what a module is driven at this tick):
   `defs`, `frame`/`world`/`turn`, `front`, `partner`, `bounds`, `capacity`/`stored`/`add`, `networked`
-  (a Node or the Hub in reach, via `find_link`), `take_power` (the Hub's stock). `logistics/tank.gd`
+  (a Node or the Hub in reach, via `find_link`), `take_power` (the Hub's stock). `interior.gd` (a definition with `interior: true` gets a `CrucibleSim` in `m["sim"]` and its open box in `m["box"]`: `shape`, `ensure` (make or resize from the capacity, contents stay at the bottom), `sync` (recount `contents` from the cells, every scan), `step` (every tick), `snapshot` / `restore` for the save; `MU.add` and `MU.take` move the cells), `logistics/tank.gd`
   (capacity from the hollow, `pack` and Tank Size; draws its fill), `logistics/funnel.gd` (banks what it
   holds through `game.bank_cells`), `logistics/vault.gd` (A5: `caps` sums the live cells' power and goods, `cluster` walks joined cells, `scan` marks a cell live when any cell of its cluster is networked), `logistics/bus_hopper.gd` (A5: `_import` banks the mouth's loose pixels and what a joined module passes in, `_export` takes banked units into its hollow and passes them on or `_pour`s them out of the mouth, `use` cycles the mode), `haulers/drone_cage.gd` (drones as dictionaries on the module: `_spot` halves the square, nearest half first, skipping spots a drone is already heading for, `step` flies them, deliveries through `MU.add`), `logistics/chute.gd` (a `pass` pipe), `logistics/conveyor.gd` (a belt: `geometry` of the ride zone and the end, powder on a timed queue, riders driven each tick, `use` reverses), `processing/macerator.gd` (grinds loose bodies at its mouth cell by cell to `M.ground_of`, flags them so they don't settle), `processing/press.gd` (powder of one kind to a rock block body, `M.pressed_of`, `footprint`), `excavation/thumper.gd` (a landing at speed blasts a 90 degree `explode_cone` out of its front; the Winch's `_thump` cycle lowers, lifts and drops it), `excavation/laser.gd` (a one-pixel beam: `aim` finds the first solid cell, `ore_mask` is what it takes, Filler swaps the cell for Stone), `excavation/cutter.gd` (`front_of`, `slice`, hardness masks from the Drill Bit
   level, wobbling 30-wide window, `room` rows clear ahead), `movers/slide.gd` (Piston and Gantry: a load at a mech face slid along the face's normal or along the rail, modes run / out / back by `use`, `MU.drive` for the velocity), `movers/turntable.gd` (a pinned hub that swings its faces' rig round: modes hold / step / spin, poses kept in the hub's frame, `lag` blocks it), `movers/winch.gd` (the rig, states docked /
