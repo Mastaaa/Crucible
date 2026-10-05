@@ -132,7 +132,7 @@ func scenario_a() -> void:
 	# With nowhere to put the powder it stops, and says why.
 	r = grinder()
 	MC.add_contents(game, r["tank"], RUBBLE, 1144)
-	game.modules[r["mac"]]["contents"][RUBBLE] = 400
+	MC.add_contents(game, r["mac"], RUBBLE, 400)
 	secs(0.5)
 	check(loose_bodies() >= 1 and "Full" in game.modules[r["mac"]]["state"], "full, it leaves the slab alone (%s)" % game.modules[r["mac"]]["state"])
 

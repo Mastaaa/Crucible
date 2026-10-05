@@ -7,6 +7,7 @@ extends SceneTree
 ##  E. a breach leaks the interior out into the world
 ##  F. Tank Size research grows the interior and keeps what is in it
 ##  G. an interior survives a save and a load
+##  H. every vessel with the flag has one, a turned Tank's box follows its turned layout
 ## Run: godot --headless --path . --script tests/scenario_interior.gd
 
 const D = preload("res://scripts/defs.gd")
@@ -41,6 +42,7 @@ func _process(_d: float) -> bool:
 		scenario_e()
 		scenario_f()
 		scenario_g()
+		scenario_h()
 		print("FAILURES: %d" % fails)
 		return true
 	return false
@@ -220,3 +222,25 @@ func scenario_g() -> void:
 		secs(1.0)
 		check(inside(t, SAND) == 150, "it keeps running")
 	Save.erase()
+
+
+func scenario_h() -> void:
+	print("H. Other vessels")
+	fresh()
+	MC.ensure_defs()
+	var want := ["press", "macerator", "bus_hopper", "cutter", "laser"]
+	var at := {"press": Vector2i(210, SURFACE - 26), "macerator": Vector2i(240, SURFACE - 26), "bus_hopper": Vector2i(270, SURFACE - 30),
+			"cutter": Vector2i(210, SURFACE - 70), "laser": Vector2i(250, SURFACE - 70)}
+	for d: String in want:
+		var id := MC.place(game, d, at[d], 0)
+		check(id > 0 and game.modules[id]["sim"] != null, "a %s has an interior" % d)
+		if id > 0 and game.modules[id]["sim"] != null:
+			var m: Dictionary = game.modules[id]
+			var inner: int = int(MC.defs[d]["size"][0]) - 2 * int(MC.defs[d]["wall"])
+			check(m["box"].size.x == inner, "its box is as wide as its cavity (%d)" % inner)
+	var funnel := MC.place(game, "funnel", Vector2i(300, SURFACE - 70), 0)
+	check(funnel > 0 and game.modules[funnel]["sim"] == null, "the Funnel stays a count")
+	fresh()
+	var t := MC.place(game, "tank", Vector2i(260, SURFACE - 40), 1)
+	var lay: Vector2i = MC.F.layout(MC.defs["tank"], 1)["size"]
+	check(t > 0 and game.modules[t]["box"].size.x == lay.x - 4, "a Tank placed turned has a box as wide as its turned cavity (%d of %d)" % [game.modules[t]["box"].size.x, lay.x - 4])

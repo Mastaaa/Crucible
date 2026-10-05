@@ -2,7 +2,7 @@
 	"_about": "Module definitions for the processing group (A4). See logistics.json for the shape. `front` is where a Macerator's mouth and a Press's block are.",
 	"modules": [
 		{
-			"id": "macerator", "name": "Macerator", "kind": "macerator", "size": [26, 18], "wall": 2, "front": "up", "anchored": true,
+			"id": "macerator", "name": "Macerator", "kind": "macerator", "size": [26, 18], "wall": 2, "interior": true, "front": "up", "anchored": true,
 			"tech": "macerator", "cost": [12, 4, 0, 0, 0],
 			"blurb": "Bolted in place. Grinds the loose rigid bodies (a collapsed slab, a Press's block) that touch its open top into powder, a few cells at a time: Stone becomes Rubble. The powder goes out of its side face into a Tank or Funnel joined there. Needs a Node or the Hub in reach, and power per cell.",
 			"faces": [
@@ -12,7 +12,7 @@
 			"params": {"rate": 24, "power_mult": 4.0, "cap": 400}
 		},
 		{
-			"id": "press", "name": "Press", "kind": "press", "size": [26, 18], "wall": 2, "front": "right", "anchored": true,
+			"id": "press", "name": "Press", "kind": "press", "size": [26, 18], "wall": 2, "interior": true, "front": "right", "anchored": true,
 			"tech": "press", "cost": [12, 4, 0, 0, 0],
 			"blurb": "Bolted in place. Powder joined into its bottom face is squeezed, once there is enough of one kind, into a solid block (a rigid body) that comes out of its side: Rubble becomes Stone, Loose dirt becomes Dirt. Each block takes 3 seconds and some power, and needs open air in front for the block.",
 			"faces": [
