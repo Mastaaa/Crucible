@@ -30,7 +30,7 @@ static func scan(g, m: Dictionary, def: Dictionary) -> void:
 	m["why"] = ""
 	var rate := gust(g, m, def)
 	var made := rate * MU.SCAN_DT
-	var room: float = D.HUB_POWER_CAP - g.stock[D.R_POWER]
+	var room: float = g.power_cap() - g.stock[D.R_POWER]
 	g.stock[D.R_POWER] += clampf(made, 0.0, maxf(room, 0.0))
 	m["flow"] = rate
 	m["spin"] = fmod(m.get("spin", 0.0) + rate * 0.2, TAU)

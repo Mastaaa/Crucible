@@ -59,6 +59,18 @@
 			],
 			"pass": {"face": 0, "rate": 40},
 			"params": {"cap": 200, "rate": 24, "depth": 4, "power": 0.004}
+		},
+		{
+			"id": "vault", "name": "Vault Cell", "kind": "vault", "size": [16, 16], "wall": 2, "anchored": true,
+			"tech": "vault", "cost": [12, 4, 0, 0, 0],
+			"blurb": "A bolted storage cell. Cells set side by side join into one bank, and a bank with a Node or the Hub in reach raises the Hub's power store by 150 and its goods store by 40 units a cell. Lose a cell and its share goes with it, and whatever no longer fits.",
+			"faces": [
+				{"type": "power", "dir": "up", "at": 8, "w": 6, "name": "up"},
+				{"type": "power", "dir": "down", "at": 8, "w": 6, "name": "down"},
+				{"type": "power", "dir": "left", "at": 8, "w": 6, "name": "left"},
+				{"type": "power", "dir": "right", "at": 8, "w": 6, "name": "right"}
+			],
+			"params": {"power": 150, "goods": 40}
 		}
 	]
 }

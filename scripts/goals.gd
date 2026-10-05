@@ -99,7 +99,7 @@ static func _complete(game) -> void:
 	var reward: Dictionary = cur["reward"]
 	var pay := float(reward.get("power", 0.0))
 	if pay > 0.0:
-		game.stock[D.R_POWER] = minf(game.stock[D.R_POWER] + pay, D.HUB_POWER_CAP)
+		game.stock[D.R_POWER] = minf(game.stock[D.R_POWER] + pay, game.power_cap())
 	game.mark("Instruction %d done: %s" % [cur["n"], cur["text"]], false)
 	game.show_banner("Instruction %d done.%s" % [cur["n"], " %d power sent." % int(pay) if pay > 0.0 else ""], 3.0)
 	g["cur"] = {}

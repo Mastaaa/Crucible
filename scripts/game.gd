@@ -10,6 +10,7 @@ const MC = preload("res://scripts/machines/machines.gd")
 const Goals = preload("res://scripts/goals.gd")
 const SimFactory = preload("res://scripts/sim_factory.gd")
 const Mats = preload("res://scripts/materials.gd")
+const Vault = preload("res://scripts/machines/logistics/vault.gd")
 const WorldGen = preload("res://scripts/worldgen.gd")
 const Building = preload("res://scripts/building.gd")
 const Overlay = preload("res://scripts/overlay.gd")
@@ -64,6 +65,7 @@ var hub: Building
 var crucible: Building
 var rng := RandomNumberGenerator.new()   # seeded with the map: spills and the like
 var stock := PackedFloat64Array([0.0, 0.0, 0.0, 0.0, 0.0])
+var vault_prev := {}                # the caps the last trim saw (not saved)
 var goods := {}                    # A5: banked goods, material id -> units (bank_good, take_good)
 var packets: Array = []
 var relays: Array = []
@@ -378,6 +380,7 @@ func _reset(s: int) -> void:
 	next_order = 1
 	stock = PackedFloat64Array([D.START_STONE, 0.0, 0.0, 0.0, D.START_POWER])
 	goods.clear()
+	vault_prev = {}
 	spring_acc = 0.0
 	power_made = D.HUB_POWER_PER_S
 	researched.clear()
@@ -683,8 +686,10 @@ func _tick() -> void:
 	if stock[D.R_STONE] < D.HUB_TRICKLE_BELOW:
 		stock[D.R_STONE] += D.DT / D.HUB_TRICKLE_S
 	# The floor: the Hub always makes a little power, so no network is past saving.
-	if stock[D.R_POWER] < D.HUB_POWER_CAP:
-		stock[D.R_POWER] = minf(stock[D.R_POWER] + D.HUB_POWER_PER_S * D.DT, D.HUB_POWER_CAP)
+	if stock[D.R_POWER] < power_cap():
+		stock[D.R_POWER] = minf(stock[D.R_POWER] + D.HUB_POWER_PER_S * D.DT, power_cap())
+	if ticks % 6 == 0:
+		_trim_to_caps()
 	if ticks % 30 == 0:
 		_power_stats()
 	_dispatch()
@@ -2284,6 +2289,29 @@ func _bank(at: Vector2, r: int, amount: float) -> void:
 	stock[r] += amount
 
 
+## A Vault cell that went takes its share of the stores with it: power over the new cap is lost,
+## and goods are scaled down together until they fit.
+func _trim_to_caps() -> void:
+	var pc := power_cap()
+	var gc := goods_cap()
+	if vault_prev.is_empty():
+		vault_prev = {"power": pc, "goods": gc}
+		return
+	var lost_p := 0.0
+	var lost_g := 0.0
+	if pc < vault_prev["power"] and stock[D.R_POWER] > pc:
+		lost_p = stock[D.R_POWER] - pc
+		stock[D.R_POWER] = pc
+	var held := goods_total()
+	if gc < vault_prev["goods"] and held > gc:
+		lost_g = held - gc
+		for mat: int in goods.keys():
+			goods[mat] *= gc / held
+	vault_prev = {"power": pc, "goods": gc}
+	if lost_p > 0.5 or lost_g > 0.05:
+		alert("destroyed", "A Vault cell is gone: %d power and %.1f units of goods with it." % [int(lost_p), lost_g], hub.center())
+
+
 ## Banks `n` cells of material `mat` the way a Funnel or Bus Hopper swallows them: a good under
 ## its own id, else into each stockpile it yields (worth against dirt's 1, a unit per
 ## CELLS_PER_UNIT). Cells of a material that pays nothing are dropped.
@@ -2297,7 +2325,34 @@ func bank_cells(at: Vector2, mat: int, n: int) -> void:
 		_bank(at, r, D.cell_units(mat) * n)
 
 
+func power_cap() -> float:
+	return D.HUB_POWER_CAP + Vault.caps(self)["power"]
+
+
+func goods_cap() -> float:
+	return D.HUB_GOODS_CAP + Vault.caps(self)["goods"]
+
+
+func goods_total() -> float:
+	var t := 0.0
+	for mat: int in goods:
+		t += goods[mat]
+	return t
+
+
+func goods_room() -> float:
+	return maxf(0.0, goods_cap() - goods_total())
+
+
+## Cells of good `mat` the bank has room for.
+func good_room_cells(mat: int) -> int:
+	return int(floor(goods_room() / D.cell_units(mat)))
+
+
 func bank_good(mat: int, units: float) -> void:
+	units = minf(units, goods_room())
+	if units <= 0.0:
+		return
 	goods[mat] = goods.get(mat, 0.0) + units
 	if not firsts.has("good_%d" % mat):
 		firsts["good_%d" % mat] = true

@@ -569,6 +569,7 @@ static func mask(what: String) -> PackedByteArray:
 				"liquid": hit = k == K_LIQUID
 				"worth_liquid": hit = k == K_LIQUID and yield_of(m) >= 0
 				"powder": hit = k == K_POWDER
+				"loose_stock": hit = (k == K_POWDER or k == K_LIQUID or k == K_GAS) and goods[m] == 0 and yield_of(m) >= 0
 				"loose_bank": hit = (k == K_POWDER or k == K_LIQUID or k == K_GAS) and (goods[m] != 0 or yield_of(m) >= 0)
 				"dig_no_obsidian": hit = dig_rates[m] > 0.0 and names[m] != "Obsidian"
 				"dig_no_hot": hit = dig_rates[m] > 0.0 and names[m] != "Hot rock"

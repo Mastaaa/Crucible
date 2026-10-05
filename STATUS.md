@@ -4,6 +4,23 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A5 part 2: Vault cells
+
+Tests: twenty-one scenarios and engine_compare end `FAILURES: 0`; scenario_vault is new. No engine change, `bin/` as it was.
+
+- Vault Cell (`scripts/machines/logistics/vault.gd`, Tier 2 research after Bus Hopper, 12 Stone and 4 Glimmer): a bolted
+  16 x 16 cell with a power face on every side. Cells set side by side join into a bank. A bank with a Node or the Hub in
+  reach (any cell of it) raises the Hub's power store by 150 and its goods store by 40 units a cell; a bank out of reach
+  adds nothing. There is no separate terminal: the HUD's Goods list shows the total against the cap, and the cell's
+  panel says how many cells its bank has.
+- Caps: the Hub alone holds 100 power (as before) and 30 units of goods, all kinds together. `game.power_cap()` and
+  `goods_cap()` give the sums; the Hub's trickle, Windmills and Instruction rewards stop at the power cap. With the goods
+  bank full, a Funnel and a Bus Hopper hold goods back (what pays a stockpile still banks).
+- Losing a cell takes its share: power over the new cap is lost, goods scale down together, and an alert reports it.
+  Power that coal banked over the cap stays until then.
+- This is the answer to the Crucible's power gap in claude/STATUS.md: a few cells hold the 4 power/s a charge draws.
+  The Hub's packets still take about 10 s to get power down to it.
+
 ## A5 part 1: goods bank and Bus Hopper
 
 Tests: twenty scenarios and engine_compare end `FAILURES: 0`; scenario_goods is new. The engine did not change, so

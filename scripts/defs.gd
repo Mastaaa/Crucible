@@ -175,6 +175,7 @@ const PACKET_SPEED := 60.0 * S
 const HUB_POWER_PER_S := 0.2        # the floor: the Hub always makes this much
 const LAMP_POWER_PER_S := 0.1
 const HUB_POWER_CAP := 100.0        # the Hub's power store
+const HUB_GOODS_CAP := 30.0         # A5: units of goods (all kinds together) the Hub holds; Vault cells add to it and to the power store
 const SPRING_CELLS_PER_S := 8.0 * S * S   # a spring tops its aquifer up by this much water
 const CAVE_SPRING_CHANCE := 0.4
 
@@ -275,6 +276,8 @@ const TECHS := [
 		"text": "A bolted belt that carries loose powder and loose rigid bodies lying on it along its length, and lets them into a Tank or Funnel at the end."},
 	{"id": "bus_hopper", "name": "Bus Hopper", "tier": 1, "needs": ["chute"], "power": 300, "module": "bus_hopper",
 		"text": "A bolted module that banks loose pixels as goods, and spits a banked good (or Water) back out as pixels."},
+	{"id": "vault", "name": "Vault Cell", "tier": 2, "needs": ["bus_hopper"], "power": 800, "mats": [0, 6, 0, 0, 0], "module": "vault",
+		"text": "A bolted storage cell. Cells set side by side form a bank that raises the Hub's power store and its goods store."},
 	{"id": "drone_cage", "name": "Drone Cage", "tier": 2, "needs": ["conveyor"], "power": 900, "mats": [0, 8, 0, 0, 0], "module": "drone_cage",
 		"text": "A bolted cage of drones that fly out, lift loose powder from a square of ground round it and bring it back, to pass on into a Tank or Funnel."},
 	{"id": "macerator", "name": "Macerator", "tier": 2, "needs": [], "power": 700, "module": "macerator",
