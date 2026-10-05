@@ -135,6 +135,8 @@ static func stored(m: Dictionary) -> int:
 ## Puts up to n units of material `mat` in `m`; returns how many fit. A module with an
 ## interior (interior.gd) takes them as cells in its own sim; otherwise it is a count.
 static func add(m: Dictionary, def: Dictionary, mat: int, n: int) -> int:
+	if def.has("accepts") and not accepts(def["accepts"], mat):
+		return 0
 	var put := clampi(capacity(m, def) - stored(m), 0, n)
 	if put > 0 and m.get("sim") != null:
 		var b: Rect2i = m["box"]
@@ -182,6 +184,14 @@ static func passes(rule: Dictionary, mat: int, held: Dictionary = {}) -> bool:
 			if rule.get("light", false) and M.density_of(other) < want:
 				return false
 	return true
+
+
+## Whether a definition's `accepts` rule (the filters of `passes`, and `pressable`: a Press could squeeze it)
+## lets material `mat` in. What it refuses stays in whatever was passing it on.
+static func accepts(rule: Dictionary, mat: int) -> bool:
+	if rule.get("pressable", false) and M.pressed_of(mat) < 0:
+		return false
+	return passes(rule, mat)
 
 
 ## Takes up to n units of `mat` out of `m` (the topmost cells of its interior, when it has

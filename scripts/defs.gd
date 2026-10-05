@@ -290,6 +290,8 @@ const TECHS := [
 		"text": "A bolted vessel that splits a mix: liquids and gases out of its top face, solids out of its left face."},
 	{"id": "centrifuge", "name": "Centrifuge", "tier": 3, "needs": ["sieve"], "power": 1600, "mats": [0, 12, 0, 0, 0], "module": "centrifuge",
 		"text": "A bolted vessel that spins a mix apart by density: the lightest material out of its top face, the densest out of its left face."},
+	{"id": "shorer", "name": "Shorer", "tier": 2, "needs": ["press"], "power": 900, "mats": [0, 6, 0, 0, 0], "module": "shorer",
+		"text": "A module that sets powder (Rubble, Loose dirt) as rock into the open air along its side, so a rig lines the shaft behind it with its own spoil."},
 	{"id": "boiler", "name": "Boiler", "tier": 2, "needs": [], "power": 900, "mats": [0, 6, 0, 0, 0], "module": "boiler",
 		"text": "A bolted vessel that heats what a Tank passes into it to 130 degrees and lets only the gas out: Water goes in, Steam comes out."},
 	{"id": "chiller", "name": "Chiller", "tier": 2, "needs": ["boiler"], "power": 900, "mats": [0, 6, 0, 0, 0], "module": "chiller",
