@@ -226,7 +226,7 @@ reads what flows through it).
 ---
 
 ## 9. Shorer: a module that lays its own supports (logged 2026-10-05)
-Rough phase: A5, Support group. Parked until Alex says go on A5.
+Rough phase: A5, Support group. Built as A5 part 6: it sets powder as rock into a strip along its side (see STATUS.md).
 
 **Alex:** A module that attaches to machines and lays support structures as needed, as long as it is
 fed the right materials, so an up-facing Excavator can keep the walls intact while the machine keeps

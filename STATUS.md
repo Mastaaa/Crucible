@@ -4,6 +4,21 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A5 part 6: the Shorer
+
+Tests: twenty-five scenarios and engine_compare end `FAILURES: 0`; scenario_shorer is new. No engine change.
+
+- `support/shorer.gd`, a free body (14 by 16) with an `in` face down, so it sits on a Tank's `out` face and rides a rig.
+  Powder it holds (anything the Press could squeeze: `M.pressed_of`) is set, a cell for a cell, into the open air of a
+  strip along its `front` side (`depth` 3 cells, as long as the module; turn it with R to pick the side), as the rock the
+  powder presses to: Rubble to Stone, Sand to Glass. It fills air only, never liquid, ground or bodies, at `rate` 6
+  cells a scan for 0.05 power a cell, and lays the strip again when cells that hang free weather away.
+- A definition may carry `accepts` (the filters of `pass`, plus `pressable`): `MU.add` refuses what it does not match,
+  so a Tank keeps its Water and Ash instead of clogging the Shorer. `MU.accepts`.
+- Entry 9 of IDEAS.md asked whether it lays casing cells or Braces and whether it takes the Cutter's mount face. It lays
+  rock into the gap and takes a pixel face of its own. How a rig should carry one beside a Cutter (the Tank's only
+  free pixel face is `out`, which the Cutter's spoil passes through) is untried: this part only gives the module.
+
 ## A5 part 5: Pump, Sieve, Centrifuge
 
 Tests: twenty-four scenarios and engine_compare end `FAILURES: 0`; scenario_fluids is new. No engine change.

@@ -32,6 +32,7 @@ const K_THERMAL = preload("res://scripts/machines/processing/thermal.gd")
 const K_CASTER = preload("res://scripts/machines/processing/caster.gd")
 const K_SEPARATOR = preload("res://scripts/machines/processing/separator.gd")
 const K_PUMP = preload("res://scripts/machines/logistics/pump.gd")
+const K_SHORER = preload("res://scripts/machines/support/shorer.gd")
 const K_COMBUSTOR = preload("res://scripts/machines/power/combustor.gd")
 const K_CHUTE = preload("res://scripts/machines/logistics/chute.gd")
 const K_CONVEYOR = preload("res://scripts/machines/logistics/conveyor.gd")
@@ -65,7 +66,7 @@ static func ensure_defs() -> void:
 	if defs.is_empty():
 		kinds = {"tank": K_TANK, "funnel": K_FUNNEL, "cutter": K_CUTTER, "winch": K_WINCH, "windmill": K_WINDMILL,
 				"lab": K_LAB, "lamp": K_LAMP, "slide": K_SLIDE, "turntable": K_TURNTABLE, "laser": K_LASER, "thumper": K_THUMPER,
-				"macerator": K_MACERATOR, "press": K_PRESS, "thermal": K_THERMAL, "caster": K_CASTER, "combustor": K_COMBUSTOR, "separator": K_SEPARATOR, "pump": K_PUMP,
+				"macerator": K_MACERATOR, "press": K_PRESS, "thermal": K_THERMAL, "caster": K_CASTER, "combustor": K_COMBUSTOR, "separator": K_SEPARATOR, "pump": K_PUMP, "shorer": K_SHORER,
 				"chute": K_CHUTE, "conveyor": K_CONVEYOR, "bus_hopper": K_BUS_HOPPER, "vault": K_VAULT,
 				"drone_cage": K_DRONE_CAGE}
 		for d: Dictionary in MD.defs():
