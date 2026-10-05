@@ -163,6 +163,19 @@ static func research_mats(t: Dictionary) -> Array:
 	return out
 
 
+## Goods a tech step wants out of the goods bank, {good name: units}: its own `goods` plus the
+## per-tier `research_bank` of data/instructions.json.
+static func research_bank(t: Dictionary) -> Dictionary:
+	var out: Dictionary = {}
+	var tier: Dictionary = data().get("research_bank", {}).get(str(int(t.get("tier", 1))), {})
+	for nm: String in tier:
+		out[nm] = float(tier[nm])
+	var own: Dictionary = t.get("goods", {})
+	for nm: String in own:
+		out[nm] = out.get(nm, 0.0) + float(own[nm])
+	return out
+
+
 ## The chapter on the board: {} once all are done.
 static func chapter(game) -> Dictionary:
 	var chapters: Array = data()["chapters"]

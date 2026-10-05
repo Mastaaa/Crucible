@@ -27,7 +27,7 @@ const GAME_VARS := [
 	"body_seen", "body_seen_tick", "modules", "next_module",
 	"game_time", "ticks", "won", "carry_on", "run_lost", "lost_cause", "buildings_lost",
 	"milestones", "goals", "firsts", "deepest", "hub_fix_t", "hub_warned",
-	"researched", "levels", "tech_power", "tech_mats", "current_tech", "tiers_open", "research_rate", "research_acc",
+	"researched", "levels", "tech_power", "tech_mats", "tech_bank", "current_tech", "tiers_open", "research_rate", "research_acc",
 	"cstate", "c_delivered", "c_inflight", "c_tokens", "c_last_packet", "c_draining", "c_power", "c_powered_t",
 	"c_starved", "tremor_timer", "tremor_left", "cave_cells", "cave_t", "crucible_linked_once",
 	"alerts", "seen_kinds", "seen_mats",

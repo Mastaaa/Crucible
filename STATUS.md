@@ -4,6 +4,26 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A5 part 8: Mk upgrades paid in goods
+
+Tests: twenty-seven scenarios and engine_compare end `FAILURES: 0`; scenario_upgrades is new. No engine change.
+
+- A tech step may carry `goods` ({good name: units}), and data/instructions.json has a per-tier `research_bank`
+  (Tier 3 wants 2 Flux, Tier 4 wants 2 Glass on top of what a tech lists). `Goals.research_bank` adds them up. The Lab
+  takes them out of `game.goods` from the same `goods_per_s` quota as the stock materials (`game.tech_bank`, saved);
+  `tech_mats_done` waits for both. The research list and the top bar name them ("needs 2 Flux").
+- Three upgrades with four levels each (Mk I to IV), tiers 2, 2, 3 and 4, power 1200 to 5600:
+  - Throughput: every level adds half again to a module's moves a scan (`MU.rate`: pass faces, Bus Hopper, Conveyor, Pump,
+    Macerator, Shorer, and the degrees a Boiler, Chiller or Furnace adds a scan). Goods: Flux, Ferrite, Glass, Ferrite bar.
+  - Efficiency: every level takes a tenth off what a module draws (`MU.take_power`, so every module, the Lab's research
+    excluded). Goods: Rime, Ferrite, Glass, Ferrite bar.
+  - Plating: casing stands 100 degrees hotter a level (`Casing.PLATING_MELT`) and acid takes a quarter less of its
+    chance a level, none at level 4. This is the hazard-proofing IDEAS.md asked the Mk upgrades to carry. The breach
+    leak itself is unchanged.
+- The goods order is the chain: Flux and Rime come from the Spoil Heap, Ferrite from deep ore, Glass and Ferrite bars
+  from the Furnace (Tier 3), so the last levels need the processing chain, not only mining.
+- Drill Bit, Drill Shaft and Tank Size keep their stock-material costs.
+
 ## A5 part 7: sensors and the Thermoelectric Plate
 
 Tests: twenty-six scenarios and engine_compare end `FAILURES: 0`; scenario_sensing is new. No engine change.

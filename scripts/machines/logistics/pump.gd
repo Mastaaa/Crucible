@@ -20,7 +20,7 @@ static func scan(g, m: Dictionary, def: Dictionary) -> void:
 	if not m["net"]:
 		m["state"] = "No power: no Node or Hub in reach."
 		return
-	var budget := mini(int(p["rate"]), MU.capacity(m, def) - MU.stored(m))
+	var budget := mini(MU.rate(g, int(p["rate"])), MU.capacity(m, def) - MU.stored(m))
 	if budget <= 0:
 		m["state"] = "Full: nowhere to put the liquid."
 		return

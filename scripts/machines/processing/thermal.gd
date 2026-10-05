@@ -67,7 +67,7 @@ static func scan(g, m: Dictionary, def: Dictionary) -> void:
 	if not MU.take_power(g, float(p["power"]) * MU.SCAN_DT):
 		m["state"] = "Waiting for power."
 		return
-	var d := int(p["rate"]) * (1 if warming else -1)
+	var d := MU.rate(g, int(p["rate"])) * (1 if warming else -1)
 	for r: Vector3i in rs:
 		sim.heat_rect(r.x, r.y, r.z, 1, d)
 	m["state"] = "%s toward %d degrees." % ["Heating" if warming else "Cooling", target]

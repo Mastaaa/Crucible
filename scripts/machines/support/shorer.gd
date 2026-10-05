@@ -46,7 +46,7 @@ static func scan(g, m: Dictionary, def: Dictionary) -> void:
 		return
 	var r := strip(g, m, def)
 	var rock := M.pressed_of(mat)
-	var left := mini(int(p["rate"]), int(m["contents"][mat]))
+	var left := mini(MU.rate(g, int(p["rate"])), int(m["contents"][mat]))
 	var laid := 0
 	for y in range(r.end.y - 1, r.position.y - 1, -1):
 		for x in range(r.position.x, r.end.x):

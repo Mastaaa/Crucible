@@ -29,6 +29,8 @@ const MELT_STEP := 150     # degrees over the melting point that cost one more p
 const MELT_MAX := 6        # pixels a scan at most
 const ACID_UNITS := 400    # corrosive units that make the acid chance a scan its largest
 const ACID_CHANCE := 0.1   # chance a scan that a vessel full of acid loses one pixel
+const PLATING_MELT := 100  # degrees a Plating level adds to every casing's melting point
+const PLATING_ACID := 0.25 # share of the acid chance a Plating level takes off (level 4: none)
 
 
 ## Casing pixels of `m` as a share of the design, counting open ports as present.
@@ -86,7 +88,8 @@ static func wear(g, m: Dictionary, def: Dictionary) -> void:
 		return
 	var b: Rect2i = m["box"]
 	var hi: int = sim.rect_temp(b.position.x, b.position.y, b.size.x, b.size.y).y
-	var melts := int(def.get("melts", MELT))
+	var plating: int = g.level("plating")
+	var melts := int(def.get("melts", MELT)) + PLATING_MELT * plating
 	var lost := 0
 	var why := ""
 	if hi > melts:
@@ -96,7 +99,7 @@ static func wear(g, m: Dictionary, def: Dictionary) -> void:
 	for mat: int in m["contents"]:
 		if M.is_corrosive(mat):
 			acid += m["contents"][mat]
-	if acid > 0 and g.rng.randf() < ACID_CHANCE * minf(1.0, float(acid) / float(ACID_UNITS)):
+	if acid > 0 and g.rng.randf() < ACID_CHANCE * minf(1.0, float(acid) / float(ACID_UNITS)) * (1.0 - PLATING_ACID * float(plating)):
 		lost += 1
 		why = why if why != "" else "corroding"
 	if lost <= 0:

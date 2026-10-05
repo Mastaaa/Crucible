@@ -636,6 +636,9 @@ func _tech_cost_text(t: Dictionary) -> String:
 	for r in D.NRES:
 		if mats[r] > 0:
 			parts.append("%d %s" % [mats[r], D.RES_NAMES[r]])
+	var bank := Goals.research_bank(t)
+	for nm: String in bank:
+		parts.append("%d %s" % [roundi(bank[nm]), nm])
 	return ", ".join(parts)
 
 
@@ -649,6 +652,12 @@ func _mats_left(id: String) -> String:
 		var left := int(want[r] - got[r])
 		if left > 0:
 			parts.append("%d %s" % [left, D.RES_NAMES[r]])
+	var bank: Dictionary = g.tech_bank_needed(g.tech_step(id))
+	var in_bank: Dictionary = g.tech_bank_got(id)
+	for nm: String in bank:
+		var left := ceili(float(bank[nm]) - in_bank.get(nm, 0.0) - 1e-6)
+		if left > 0:
+			parts.append("%d %s" % [left, nm])
 	return ", ".join(parts)
 
 

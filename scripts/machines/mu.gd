@@ -218,8 +218,20 @@ static func networked(g, m: Dictionary, def: Dictionary) -> bool:
 	return g.find_link(-1, bounds(m, def), null) != null
 
 
-## Takes `amount` power from the Hub's stock if it's all there.
+## Mk upgrades (A5): every level of Throughput speeds each module's moves by MK_RATE, and
+## every level of Efficiency takes MK_POWER off what a module costs in power.
+const MK_RATE := 0.5
+const MK_POWER := 0.1
+
+
+## `base` moves a scan, as the Throughput upgrade has it.
+static func rate(g, base: int) -> int:
+	return roundi(float(base) * (1.0 + MK_RATE * float(g.level("throughput"))))
+
+
+## Takes `amount` power from the Hub's stock if it's all there (less with Efficiency).
 static func take_power(g, amount: float) -> bool:
+	amount *= 1.0 - MK_POWER * float(g.level("efficiency"))
 	if g.stock[D.R_POWER] < amount:
 		return false
 	g.stock[D.R_POWER] -= amount
