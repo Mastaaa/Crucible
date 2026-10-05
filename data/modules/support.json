@@ -21,7 +21,8 @@
 			"accepts": {"kinds": ["powder"], "pressable": true},
 			"blurb": "Lays its own supports. Powder a Tank passes into its bottom face (Rubble, Loose dirt, Sand) is set, a cell for a cell, into the open air in a strip along its left side as the rock it presses to: Rubble becomes Stone. It never displaces liquid or ground. Hung on a rig beside the shaft wall it lines the gap behind the rig with the spoil the Cutter digs. R turns it before placing. Needs a Node or the Hub in reach, and a little power a cell.",
 			"faces": [
-				{"type": "pixel", "dir": "down", "at": 7, "w": 6, "name": "in"}
+				{"type": "pixel", "dir": "down", "at": 7, "w": 6, "name": "in"},
+				{"type": "signal", "dir": "right", "at": 7, "w": 4, "name": "gate"}
 			],
 			"params": {"cap": 120, "rate": 6, "depth": 3, "power": 0.05}
 		}

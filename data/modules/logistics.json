@@ -79,7 +79,8 @@
 			"blurb": "Lifts liquid. Takes the liquid in front of its mouth into its hollow and passes it up through its top face into a Tank or Chute joined there. Hung on a rig in place of a Cutter it clears water and oil out of the shaft ahead. Needs a Node or the Hub in reach, and a little power a cell.",
 			"faces": [
 				{"type": "pixel", "dir": "up", "at": 13, "w": 6, "name": "out"},
-				{"type": "mech", "dir": "up", "at": 4, "w": 4, "name": "mount"}
+				{"type": "mech", "dir": "up", "at": 4, "w": 4, "name": "mount"},
+				{"type": "signal", "dir": "right", "at": 8, "w": 4, "name": "gate"}
 			],
 			"pass": {"face": 0, "rate": 30},
 			"params": {"cap": 120, "rate": 30, "depth": 4, "power": 0.004}

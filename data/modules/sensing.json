@@ -1,0 +1,32 @@
+{
+	"_about": "Module definitions for the sensing group (A5). See logistics.json for the shape. A sensor has a signal face (`sig`); a module with a signal face called `gate` that touches it works only while the sensor's signal is on. params.sense: temperature (on at `above` degrees, stepped through `steps`), material (on when the mouth holds `min` cells of what it `watch`es), timer (on for `duty` of each period in `steps`).",
+	"modules": [
+		{
+			"id": "thermometer", "name": "Thermometer", "kind": "sensor", "size": [14, 14], "wall": 2, "front": "down", "anchored": true,
+			"tech": "thermometer", "cost": [4, 2, 0, 0, 0],
+			"blurb": "Bolted in place. Reads the average temperature of the cells in front of its mouth, and its signal face is on while that is at least the setting. Click it to step the setting (50, 100, 300, 600, 900 degrees). R turns it before placing.",
+			"faces": [
+				{"type": "signal", "dir": "left", "at": 7, "w": 4, "name": "sig"}
+			],
+			"params": {"sense": "temperature", "depth": 4, "steps": [50, 100, 300, 600, 900]}
+		},
+		{
+			"id": "material_sensor", "name": "Material Sensor", "kind": "sensor", "size": [14, 14], "wall": 2, "front": "down", "anchored": true,
+			"tech": "material_sensor", "cost": [4, 2, 0, 0, 0],
+			"blurb": "Bolted in place. Its signal face is on while at least 6 cells of the material it watches lie in front of its mouth. Click it to change what it watches (Water, Slick, Lava, Steam, Sand, Sourwater).",
+			"faces": [
+				{"type": "signal", "dir": "left", "at": 7, "w": 4, "name": "sig"}
+			],
+			"params": {"sense": "material", "depth": 4, "min": 6, "watch": ["Water", "Slick", "Lava", "Steam", "Sand", "Sourwater"]}
+		},
+		{
+			"id": "timer", "name": "Timer", "kind": "sensor", "size": [14, 14], "wall": 2, "anchored": true,
+			"tech": "timer", "cost": [3, 0, 0, 0, 0],
+			"blurb": "Bolted in place. Its signal face is on for half of every period. Click it to step the period (2, 4, 8, 16 seconds).",
+			"faces": [
+				{"type": "signal", "dir": "left", "at": 7, "w": 4, "name": "sig"}
+			],
+			"params": {"sense": "timer", "duty": 0.5, "steps": [2, 4, 8, 16]}
+		}
+	]
+}
