@@ -6,7 +6,7 @@ Claude reads each session is claude/STATUS.md.
 
 ## A5 part 3 prep: the family mask widened
 
-Tests: twenty-one scenarios and engine_compare end `FAILURES: 0`. The engine changed (family fields), so close Godot before
+Tests: twenty-two scenarios and engine_compare end `FAILURES: 0`. The engine changed (family fields), so close Godot before
 pulling and restart after.
 
 - Alex chose "Widen" on the decision card. A material's `family` tags, the catalyst, inhibit and feed masks on materials
