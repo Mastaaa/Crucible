@@ -4,6 +4,36 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A5 part 4: heat processing
+
+Tests: twenty-three scenarios and engine_compare end `FAILURES: 0`; scenario_thermal is new. No engine change, `bin/` as the
+widening left it.
+
+- One script, `processing/thermal.gd`, is the Boiler, the Chiller and the Furnace. Each is a bolted vessel with an interior;
+  `params.target` is the temperature it holds. Every scan, while the average of the occupied cells is short of the target,
+  it adds (or takes) `rate` degrees on those cells, run by run along each row (`heat_rect` on a one-row rectangle), for
+  `power` a second from the Hub. Heating the empty space above the load instead left a Furnace at its target in the air
+  and its Ferrite cold, so the smelt stalled; the occupied-cell version smelted 5 bars from 150 Ferrite and 80 Flux in the
+  probe. An empty vessel does nothing. Boiler 130 degrees, Chiller -20, Furnace 950 (Sand fuses at 900, Ferrite and Flux
+  smelt between 850 and Flux's own melting at 1000).
+- `pass` in a definition may carry `kinds` (states of matter) or `mats` (names): `MU.passes`. The Boiler lets gas out,
+  the Chiller Ice, the Furnace Glass, Ferrite bar, Slag and Slag crust; the rest stays in to cook. Layout is vertical:
+  Tank, vessel, Tank, joined face to face (the vessel's `in` is down at 6, its `out` up at 13, which line up with a Tank's
+  `out` and `in`).
+- `processing/caster.gd`, the Press for liquids: a slab (12 by 8) of one liquid with a `casts_to` (data key: Lava to
+  Obsidian, Slag to Slag crust, Quickmire to Mire stone, Water to Ice) is set after 4 seconds into a block body out of
+  its front. `power/combustor.gd` burns a cell every `burn` seconds (richest `fuel` first: Slick 3, Coal and Coal chunks
+  2) into the Hub's power, idle at the cap. `M.cast_of`, `M.fuel_of`.
+- Casing wear, `casing.gd` `wear`, once a scan for modules with an interior: the hottest interior cell above the
+  definition's `melts` (default 1150, Boiler 700, Furnace 1500) costs one to six casing pixels a scan, and corrosive
+  contents cost one now and then (a chance up to 0.1 a scan at 400 units). Integrity falls and the usual rules apply
+  (DEAD at 0.5). It raises one alert per module. The damage-scaled breach leak (PR #27) picks wear up on its own: a worn vessel that has a hole leaks faster as more casing goes.
+- `MU.add` lays a solid (Ice, Glass, Ferrite, Obsidian) from the floor up instead of `put_cells`, which starts at the top
+  row where a solid then hangs. `MU.capacity` takes `params.cap` from the first scan on: a box that shrank at its first
+  scan used to drop whatever was put in before it (the Combustor lost its fuel that way in the first test run).
+- Not here: the Thermoelectric Plate (moved to sensors), and nothing yet makes use of a Caster block beyond the
+  Macerator turning it back to powder.
+
 ## A5 part 3 prep: the family mask widened
 
 Tests: twenty-two scenarios and engine_compare end `FAILURES: 0`. The engine changed (family fields), so close Godot before
