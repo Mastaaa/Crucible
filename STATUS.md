@@ -14,6 +14,16 @@ pulling and restart after.
   tags. No data changed, so no material behaves differently; a throwaway pair of materials in tags 17 and 30 reacted
   through a family rule on a bench run (not kept as a test, wave 2's materials will cover it).
 
+## Breach leaks follow the damage
+
+Tests: all scenarios and engine_compare end `FAILURES: 0`; scenario_interior E gained a pinhole against a gutted wall. No engine change.
+
+- Alex: an interior should leak according to how much damage the machine has taken. A breached module now spills
+  `Casing.leak(integrity)` units a scan: LEAK_MAX (60) times the share of casing lost over the share at which the module
+  becomes wreckage (half), at least one. A two-pixel hole in a Tank seeps about 1 a scan; a wall with a fifth of the casing
+  gone pours about 25. It replaces the flat 6 a scan. Taken from the interior (or the count) the same way as before, the
+  most common material first.
+
 ## Machine interiors, parts 2 and 3: drawn, and on every vessel
 
 Tests: twenty-two scenarios and engine_compare end `FAILURES: 0`; scenario_interior gained part H. No engine change, `bin/` as part 1 left it.

@@ -270,7 +270,7 @@ static func _assess(g, m: Dictionary) -> void:
 static func _spill(g, m: Dictionary, fr: Dictionary) -> void:
 	var at := _world(fr, Vector2(m["breach"]) + Vector2(0.5, 0.5))
 	var out := (at - Vector2(fr["st"][0], fr["st"][1])).normalized()
-	for _i in CS.BREACH_LEAK:
+	for _i in CS.leak(m["integrity"]):
 		var mat := _most(m)
 		if mat < 0:
 			return
