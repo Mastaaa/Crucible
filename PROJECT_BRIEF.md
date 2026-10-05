@@ -127,7 +127,7 @@ materials with real chemistry, modular machines (Create-like), and biomes.
 5. A5, materials wave 2 (about 25 in all), processing chains, sensors, Mk I to IV upgrades,
    Vault cells; the bot completes a run again. Order (one PR each): goods bank and Bus Hopper (done), Vault cells (done),
    wave 2 materials, heat processing (Boiler, Chiller, Furnace, Caster, Combustor, casing wear: done; the Thermoelectric Plate goes to sensors), fluids and separation
-   (Pump, Sieve, Centrifuge), the Shorer, sensors, Mk upgrades paid in goods, the bot.
+   (Pump, Sieve, Centrifuge: done; the Electrolyser comes with wave 2), the Shorer, sensors, Mk upgrades paid in goods, the bot.
 6. A6, a slightly wider world and biome patches built on the spawn-region system.
 7. A7, pacing and polish against the bot.
 

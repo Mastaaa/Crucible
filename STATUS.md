@@ -4,6 +4,25 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A5 part 5: Pump, Sieve, Centrifuge
+
+Tests: twenty-four scenarios and engine_compare end `FAILURES: 0`; scenario_fluids is new. No engine change.
+
+- `logistics/pump.gd`: a free body shaped like the Cutter (a mech `mount` face and an `out` face up), so on a rig it hangs
+  under a Tank in place of a Cutter. Its mouth (`front`, `depth` 4 rows, the Bus Hopper's rectangle) takes the liquid cells
+  there a slice at a time, up to `rate` 30 a scan, for 0.004 power a cell, into its interior and out of `out`. Liquid
+  only (the new `M.mask("liquid")` already existed); powder stays. It reaches four rows, so a deep pool is pumped from
+  the top down as the rig lowers, not from a distance. This is the answer to oil and floods ahead of a rig, untried on
+  the bot (the rig is still built by hand).
+- `pass` may be a list of rules, one per out face (`machines.gd` `_pass_rule`). A rule may carry `power` (a cell moved,
+  needs a Node or the Hub in reach) and the filters `kinds`, `mats`, `heavy`, `light` (`MU.passes`; `heavy` and `light`
+  look at the module's contents, with a single material left only `heavy` takes it). `M.density_of` is the data density
+  (statics 100). Modules count what they pass in `m["passed"]`.
+- `processing/separator.gd` is the kind of both vessels (capacity and report). Sieve: liquids and gases out of the top
+  `fluid` face, powder and rock out of the left `solid` face. Centrifuge: the lightest material out of the top `light`
+  face, the densest out of the left `heavy` face, 0.01 power a cell. Both stand 26 by 30, bolted, with `in` down at 6.
+- Not here: the Electrolyser. Its products (Brine, Lye, Lift) are wave 2 materials, so it comes with part 3.
+
 ## A5 part 4: heat processing
 
 Tests: twenty-three scenarios and engine_compare end `FAILURES: 0`; scenario_thermal is new. No engine change, `bin/` as the

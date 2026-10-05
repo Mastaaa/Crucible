@@ -28,6 +28,7 @@ static var dig_rates := PackedFloat32Array()
 static var dig_powers := PackedFloat32Array()
 static var worths := PackedFloat32Array()   # per id: units a dug cell pays, against dirt's 1
 static var shatters := PackedInt32Array()   # per id: what a hard fall breaks it to, or -1
+static var densities := PackedInt32Array()   # A5: per id: the data `density` (statics default 100: heavier than any powder or liquid)
 static var casts := PackedInt32Array()      # A5: per id: the solid a Caster sets it into, or -1 (data `casts_to`)
 static var fuels := PackedFloat32Array()    # A5: per id: power a Combustor gets from a cell (data `fuel`)
 static var yields: Array = []           # per id: PackedInt32Array of stockpiles
@@ -61,6 +62,7 @@ static func ensure() -> void:
 	dig_rates.resize(256)
 	shatters.resize(256)
 	shatters.fill(-1)
+	densities.resize(256)
 	casts.resize(256)
 	casts.fill(-1)
 	fuels.resize(256)
@@ -130,6 +132,7 @@ static func ensure() -> void:
 			family_of[mid] = fam_bits
 			dig_rates[mid] = float(e.get("dig_rate", 0.0))
 			shatters[mid] = _ref(e, "shatters_to")
+			densities[mid] = int(e.get("density", 100))
 			casts[mid] = _ref(e, "casts_to")
 			fuels[mid] = float(e.get("fuel", 0.0))
 			dig_powers[mid] = float(e.get("dig_power", 0.2))
@@ -483,6 +486,12 @@ static func worth_of(m: int) -> float:
 static func ground_of(m: int) -> int:
 	ensure()
 	return shatters[m] if shatters[m] >= 0 else m
+
+
+## How dense `m` is, the number a sim sorts by (a gas 1 to 8, Water 10, Lava 30, powders about 50, a solid 100).
+static func density_of(m: int) -> int:
+	ensure()
+	return densities[m]
 
 
 ## The solid a Caster sets a liquid `m` into, or -1.
