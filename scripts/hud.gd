@@ -1031,7 +1031,7 @@ func _status_text(b: Building) -> String:
 	match b.type:
 		D.B_HUB:
 			lines.append("Sending %d of 6 packets a second." % g.hub_output())
-			lines.append("Power %d / %d here, making %.1f/s" % [int(g.stock[D.R_POWER]), int(D.HUB_POWER_CAP), D.HUB_POWER_PER_S])
+			lines.append("Power %d / %d here, making %.1f/s" % [int(g.stock[D.R_POWER]), int(g.power_cap()), D.HUB_POWER_PER_S])
 	return "\n".join(lines)
 
 

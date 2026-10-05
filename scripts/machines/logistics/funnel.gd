@@ -4,12 +4,15 @@ extends RefCounted
 ## banks under its own id, A5).
 
 const MU = preload("res://scripts/machines/mu.gd")
+const M = preload("res://scripts/materials.gd")
 
 
 static func scan(g, m: Dictionary, def: Dictionary) -> void:
 	var left: int = def["params"]["bank"]
 	for mat: int in m["contents"].keys():
 		var n := mini(left, m["contents"][mat])
+		if M.is_good(mat):
+			n = mini(n, g.good_room_cells(mat))      # a full bank holds a good back
 		if n <= 0:
 			continue
 		m["contents"][mat] -= n

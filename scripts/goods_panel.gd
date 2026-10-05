@@ -35,6 +35,7 @@ func refresh(g) -> void:
 	var off := -8.0 - (226.0 if hud.crucible_panel.visible else 0.0)
 	offset_top = off
 	offset_bottom = off
+	title.text = "Goods   %s / %d" % [_units(g.goods_total()), int(g.goods_cap())]
 	var ids: Array = g.goods.keys()
 	ids.sort()
 	while rows.get_child_count() < ids.size():

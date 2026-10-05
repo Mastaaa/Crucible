@@ -29,7 +29,7 @@ uncover elements, deposits and curios; exploit reactions or get blindsided by th
   tooling: cloud_setup.sh (run by the SessionStart hook in .claude/), build.sh, run_tests.sh,
   lsp_check.py, cache/ (prebuilt godot-cpp).
 - tests/: scenario_* (power, research, chemistry, light, collapse, bodies, depth, run, goals, modules, quarry, movers, excavators,
-  temperature, wave1, spawn, goods), engine_compare, autoplay (the quarry bot, a pacing probe), bench, bench_net,
+  temperature, wave1, spawn, goods, vault), engine_compare, autoplay (the quarry bot, a pacing probe), bench, bench_net,
   mapdump, shot_* (screenshots; shot_help is the F1 panel, shot_title the title, win and loss screens).
 
 ## Working with a cloud session (how Claude works on it)
@@ -125,7 +125,7 @@ materials with real chemistry, modular machines (Create-like), and biomes.
 4. A4, movers and excavators (Piston, Gantry, Turntable, full Cutter, Laser, Thumper, Macerator, Press, Chute, Conveyor and Drone Cage done): Gantry, Piston, Turntable, full Cutter, Laser Excavator, tethered
    Thumper, Macerator, Press, the Drone Cage; tests and the bot rewritten.
 5. A5, materials wave 2 (about 25 in all), processing chains, sensors, Mk I to IV upgrades,
-   Vault cells; the bot completes a run again. Order (one PR each): goods bank and Bus Hopper (done), Vault cells,
+   Vault cells; the bot completes a run again. Order (one PR each): goods bank and Bus Hopper (done), Vault cells (done),
    wave 2 materials, heat processing (Boiler, Chiller, Furnace, Caster, casing melting), fluids and separation
    (Pump, Sieve, Centrifuge), the Shorer, sensors, Mk upgrades paid in goods, the bot.
 6. A6, a slightly wider world and biome patches built on the spawn-region system.

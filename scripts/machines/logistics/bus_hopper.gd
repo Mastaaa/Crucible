@@ -79,6 +79,8 @@ static func _import(g, m: Dictionary, def: Dictionary) -> void:
 	var left := int(p["rate"])
 	for mat: int in m["contents"].keys():
 		var n := mini(left, int(m["contents"][mat]))
+		if M.is_good(mat):
+			n = mini(n, g.good_room_cells(mat))      # a full bank holds a good back
 		if n <= 0 or not MU.take_power(g, power * n):
 			continue
 		m["contents"][mat] -= n
@@ -91,7 +93,7 @@ static func _import(g, m: Dictionary, def: Dictionary) -> void:
 			break
 	# What lies in the mouth.
 	var r := mouth(g, m, def)
-	var mask := M.mask("loose_bank")
+	var mask := M.mask("loose_bank" if g.goods_room() >= 1.0 else "loose_stock")    # no room: goods stay out
 	var there: int = g.sim.count_in_rect(r.position.x, r.position.y, r.size.x, r.size.y, mask)
 	if there > 0:
 		if MU.take_power(g, power * there):
