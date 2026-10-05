@@ -4,7 +4,7 @@ extends SceneTree
 ##  B. what goes in settles in layers (sand under water) and comes out the top by count
 ##  C. a full Tank refuses more, and the cells inside are exactly the units it counts
 ##  D. reactions run inside (lava on water makes rock) and the counts follow
-##  E. a breach leaks the interior out into the world
+##  E. a breach leaks the interior out into the world, faster the more casing is gone
 ##  F. Tank Size research grows the interior and keeps what is in it
 ##  G. an interior survives a save and a load
 ##  H. every vessel with the flag has one, a turned Tank's box follows its turned layout
@@ -181,6 +181,28 @@ func scenario_e() -> void:
 	var left := MU.stored(game.modules[t])
 	check(left < before - 40, "the interior leaks through it (%d to %d)" % [before, left])
 	check(inside(t, WATER) == held(t, WATER), "the count still matches the sim (%d)" % inside(t, WATER))
+	# A small hole against a gutted wall, side by side.
+	var small := fresh()
+	var big := MC.place(game, "tank", Vector2i(240, SURFACE - 30), 0)
+	secs(0.3)
+	MC.add_contents(game, small, SAND, 600)
+	MC.add_contents(game, big, SAND, 600)
+	secs(1.0)
+	MC.knock_out(game, small, [Vector2i(0, 15), Vector2i(1, 15)])
+	var wall: Array = [Vector2i(0, 15), Vector2i(1, 15)]
+	for y in range(3, 25):
+		wall.append(Vector2i(24, y))
+		wall.append(Vector2i(25, y))
+	MC.knock_out(game, big, wall)
+	secs(0.5)
+	check(game.modules[small]["breach"].x >= 0 and game.modules[big]["breach"].x >= 0, "both are breached")
+	check(game.modules.has(big) and game.modules[big]["integrity"] >= 0.5, "the big one is damaged but not wreckage (%.2f)" % game.modules[big]["integrity"])
+	var s0 := MU.stored(game.modules[small])
+	var b0 := MU.stored(game.modules[big])
+	secs(1.5)
+	var lost_small := s0 - MU.stored(game.modules[small])
+	var lost_big := b0 - MU.stored(game.modules[big])
+	check(lost_small >= 1 and lost_big > lost_small * 5, "a gutted wall pours much faster than a pinhole seeps (%d against %d in 1.5 s)" % [lost_big, lost_small])
 
 
 func scenario_f() -> void:
