@@ -164,12 +164,23 @@ static func _lay(sim: RefCounted, b: Rect2i, mat: int, n: int) -> int:
 
 
 ## Whether a module's `pass` rule lets material `mat` out: `mats` names the ones it moves, `kinds`
-## the states of matter ("gas", "liquid", "powder", "static"); with neither, everything goes.
-static func passes(rule: Dictionary, mat: int) -> bool:
+## the states of matter ("gas", "liquid", "powder", "static"), `heavy` only the densest material
+## the module holds and `light` only the lightest (`held` is its contents; with only one material
+## left, only `heavy` takes it); with none of them, everything goes.
+static func passes(rule: Dictionary, mat: int, held: Dictionary = {}) -> bool:
 	if rule.has("mats"):
 		return M.name_of(mat) in rule["mats"]
 	if rule.has("kinds"):
 		return M.KINDS[M.kind_of(mat)] in rule["kinds"]
+	if rule.get("heavy", false) or rule.get("light", false):
+		if held.size() < 2:
+			return rule.get("heavy", false)          # one material left: nothing to sort, it goes out the heavy way
+		var want := M.density_of(mat)
+		for other: int in held:
+			if rule.get("heavy", false) and M.density_of(other) > want:
+				return false
+			if rule.get("light", false) and M.density_of(other) < want:
+				return false
 	return true
 
 

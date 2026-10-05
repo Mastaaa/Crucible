@@ -30,6 +30,8 @@ const K_MACERATOR = preload("res://scripts/machines/processing/macerator.gd")
 const K_PRESS = preload("res://scripts/machines/processing/press.gd")
 const K_THERMAL = preload("res://scripts/machines/processing/thermal.gd")
 const K_CASTER = preload("res://scripts/machines/processing/caster.gd")
+const K_SEPARATOR = preload("res://scripts/machines/processing/separator.gd")
+const K_PUMP = preload("res://scripts/machines/logistics/pump.gd")
 const K_COMBUSTOR = preload("res://scripts/machines/power/combustor.gd")
 const K_CHUTE = preload("res://scripts/machines/logistics/chute.gd")
 const K_CONVEYOR = preload("res://scripts/machines/logistics/conveyor.gd")
@@ -63,7 +65,7 @@ static func ensure_defs() -> void:
 	if defs.is_empty():
 		kinds = {"tank": K_TANK, "funnel": K_FUNNEL, "cutter": K_CUTTER, "winch": K_WINCH, "windmill": K_WINDMILL,
 				"lab": K_LAB, "lamp": K_LAMP, "slide": K_SLIDE, "turntable": K_TURNTABLE, "laser": K_LASER, "thumper": K_THUMPER,
-				"macerator": K_MACERATOR, "press": K_PRESS, "thermal": K_THERMAL, "caster": K_CASTER, "combustor": K_COMBUSTOR,
+				"macerator": K_MACERATOR, "press": K_PRESS, "thermal": K_THERMAL, "caster": K_CASTER, "combustor": K_COMBUSTOR, "separator": K_SEPARATOR, "pump": K_PUMP,
 				"chute": K_CHUTE, "conveyor": K_CONVEYOR, "bus_hopper": K_BUS_HOPPER, "vault": K_VAULT,
 				"drone_cage": K_DRONE_CAGE}
 		for d: Dictionary in MD.defs():
@@ -432,24 +434,43 @@ static func _unlink_all(g, m: Dictionary, restore: bool) -> void:
 			fs["open"] = false
 
 
-# The test conduit: contents move out of its `pass` face into what's joined there.
+# A module's `pass` rule (or rules, as a list): contents move out of the rule's face into what is
+# joined there. A rule may filter what goes (MU.passes) and charge `power` a cell moved.
 static func _pass(g, m: Dictionary) -> void:
-	var rule: Dictionary = defs[m["def"]].get("pass", {})
-	if rule.is_empty():
-		return
+	var rules: Variant = defs[m["def"]].get("pass", {})
+	if rules is Dictionary:
+		rules = [rules] if not rules.is_empty() else []
+	for rule: Dictionary in rules:
+		_pass_rule(g, m, rule)
+
+
+static func _pass_rule(g, m: Dictionary, rule: Dictionary) -> void:
 	var fs: Dictionary = m["faces"][rule["face"]]
 	if fs["link_m"] == 0:
 		return
+	var power := float(rule.get("power", 0.0))
+	if power > 0.0 and not MU.networked(g, m, defs[m["def"]]):
+		return
 	var left: int = rule["rate"]
-	for mat: int in m["contents"].keys():
-		if not MU.passes(rule, mat):
+	var held: Dictionary = m["contents"].duplicate()
+	for mat: int in held:
+		if not MU.passes(rule, mat, held):
 			continue
+		var want := mini(left, m["contents"].get(mat, 0))
+		if want <= 0:
+			continue
+		if power > 0.0:
+			while want > 0 and not MU.take_power(g, power * want):
+				want = want >> 1
+			if want <= 0:
+				return
 		# Take first: a reaction inside may have used cells since the last count.
-		var got := MU.take(m, mat, mini(left, m["contents"][mat]))
+		var got := MU.take(m, mat, want)
 		var moved := add_contents(g, fs["link_m"], mat, got)
 		if moved < got:
 			MU.add(m, defs[m["def"]], mat, got - moved)
 		left -= moved
+		m["passed"] = m.get("passed", 0) + moved
 		if left <= 0:
 			break
 

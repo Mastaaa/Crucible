@@ -1,5 +1,5 @@
 {
-	"_about": "Module definitions for the processing group (A4, A5). See logistics.json for the shape. `front` is where a Macerator's mouth and a Press's or Caster's block are. The Boiler, Chiller and Furnace share the thermal kind: params target (degrees), rate (degrees a scan), power (a second while it works), cap; `pass` with `kinds` or `mats` lets only those out of its face; `melts` is the temperature its casing stands.",
+	"_about": "Module definitions for the processing group (A4, A5). See logistics.json for the shape. `front` is where a Macerator's mouth and a Press's or Caster's block are. The Sieve and Centrifuge share the separator kind, with `pass` as a list of rules (one per out face; `kinds`, `heavy`, `light`, `power` a cell). The Boiler, Chiller and Furnace share the thermal kind: params target (degrees), rate (degrees a scan), power (a second while it works), cap; `pass` with `kinds` or `mats` lets only those out of its face; `melts` is the temperature its casing stands.",
 	"modules": [
 		{
 			"id": "macerator", "name": "Macerator", "kind": "macerator", "size": [26, 18], "wall": 2, "interior": true, "front": "up", "anchored": true,
@@ -61,6 +61,36 @@
 				{"type": "pixel", "dir": "down", "at": 10, "w": 6, "name": "in"}
 			],
 			"params": {"slab": [12, 8], "time": 4.0, "power": 4.0, "cap": 300}
+		},
+		{
+			"id": "sieve", "name": "Sieve", "kind": "separator", "size": [26, 30], "wall": 2, "interior": true, "anchored": true,
+			"tech": "sieve", "cost": [14, 4, 0, 0, 0],
+			"blurb": "Bolted in place. A Tank passes a mix into its bottom face; liquids and gases go out of its top face and solids (powder and rock) out of its left face, each into whatever is joined there. Needs a Node or the Hub in reach, and a little power a cell.",
+			"faces": [
+				{"type": "pixel", "dir": "down", "at": 6, "w": 6, "name": "in"},
+				{"type": "pixel", "dir": "up", "at": 13, "w": 6, "name": "fluid"},
+				{"type": "pixel", "dir": "left", "at": 24, "w": 6, "name": "solid"}
+			],
+			"pass": [
+				{"face": 1, "rate": 30, "kinds": ["liquid", "gas"], "power": 0.004},
+				{"face": 2, "rate": 30, "kinds": ["powder", "static"], "power": 0.004}
+			],
+			"params": {"cap": 300}
+		},
+		{
+			"id": "centrifuge", "name": "Centrifuge", "kind": "separator", "size": [26, 30], "wall": 2, "interior": true, "anchored": true,
+			"tech": "centrifuge", "cost": [16, 6, 0, 0, 0],
+			"blurb": "Bolted in place. A Tank passes a mix into its bottom face; it spins the mix apart by density, the lightest material out of its top face and the densest out of its left face, one material at a time. Needs a Node or the Hub in reach, and power a cell.",
+			"faces": [
+				{"type": "pixel", "dir": "down", "at": 6, "w": 6, "name": "in"},
+				{"type": "pixel", "dir": "up", "at": 13, "w": 6, "name": "light"},
+				{"type": "pixel", "dir": "left", "at": 24, "w": 6, "name": "heavy"}
+			],
+			"pass": [
+				{"face": 1, "rate": 30, "light": true, "power": 0.01},
+				{"face": 2, "rate": 30, "heavy": true, "power": 0.01}
+			],
+			"params": {"cap": 300}
 		}
-]
+	]
 }
