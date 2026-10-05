@@ -392,14 +392,14 @@ void CrucibleSim::configure(const Array &materials, const Array &reactions) {
 		m.cools_to = (int16_t)(int)d.get("cools_to", -1);
 		m.cools_cost = temp_of(d, "cools_cost", 0);
 		m.kindle = temp_of(d, "kindle");
-		m.family = (uint16_t)(int)d.get("family", 0);
+		m.family = (uint32_t)(int)d.get("family", 0);
 		// A2: wave 1 (see materials.gd for the data keys)
 		m.heat_mass = (uint8_t)std::clamp((int)d.get("heat_mass", 1), 1, 255);
 		m.sets_to = (int16_t)(int)d.get("sets_to", -1);
 		m.set_speed = chance_of(d, "set_speed");
-		m.set_catalyst = (uint16_t)(int)d.get("set_catalyst", 0);
+		m.set_catalyst = (uint32_t)(int)d.get("set_catalyst", 0);
 		m.set_boost = (uint16_t)std::clamp((int)std::lround((double)d.get("set_boost", 1.0) * 256.0), 0, 65535);
-		m.burn_catalyst = (uint16_t)(int)d.get("burn_catalyst", 0);
+		m.burn_catalyst = (uint32_t)(int)d.get("burn_catalyst", 0);
 		m.burn_boost = (uint16_t)std::clamp((int)std::lround((double)d.get("burn_boost", 1.0) * 256.0), 0, 65535);
 		m.burn_wet = (bool)d.get("burn_wet", false);
 		m.blast_r = (uint8_t)std::clamp((int)d.get("blast_r", 0), 0, 64);
@@ -407,13 +407,13 @@ void CrucibleSim::configure(const Array &materials, const Array &reactions) {
 		m.blast_impact = (uint8_t)std::clamp((int)d.get("blast_impact", 0), 0, 255);
 		m.blast_temp = temp_of(d, "blast_temp");
 		m.blast_flame = (bool)d.get("blast_flame", false);
-		m.blast_inhibit = (uint16_t)(int)d.get("blast_inhibit", 0);
+		m.blast_inhibit = (uint32_t)(int)d.get("blast_inhibit", 0);
 		m.absorb_to = (int16_t)(int)d.get("absorb_to", -1);
 		m.absorb_chance = chance_of(d, "absorb_chance");
 		m.plume = (int16_t)(int)d.get("plume", -1);
 		m.bursts_at = temp_of(d, "bursts_at");
 		m.grow_chance = chance_of(d, "grow_chance");
-		m.grow_feed = (uint16_t)(int)d.get("grow_feed", 0);
+		m.grow_feed = (uint32_t)(int)d.get("grow_feed", 0);
 		m.grow_reach = (uint8_t)std::clamp((int)d.get("grow_reach", 1), 1, 8);
 		if (d.has("grow_over")) {
 			PackedByteArray over = d["grow_over"];
@@ -440,7 +440,7 @@ void CrucibleSim::configure(const Array &materials, const Array &reactions) {
 		r.min_temp = temp_of(d, "min_temp", INT16_MIN);
 		r.max_temp = temp_of(d, "max_temp", INT16_MAX);
 		r.heat = temp_of(d, "heat", 0);
-		r.catalyst = (uint16_t)(int)d.get("catalyst", 0);
+		r.catalyst = (uint32_t)(int)d.get("catalyst", 0);
 		r.boost = (uint16_t)std::clamp((int)std::lround((double)d.get("boost", 1.0) * 256.0), 0, 65535);
 		r.emit = (uint8_t)(int)d.get("emit", 0);
 		r.emit_chance = chance_of(d, "emit_chance");

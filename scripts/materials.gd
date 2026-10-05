@@ -90,8 +90,8 @@ static func ensure() -> void:
 			if ids.has(fam):
 				push_error("%s: family %s is also a material's name" % [nm, fam])
 			elif not families.has(fam):
-				if families.size() >= 16:
-					push_error("%s: more than 16 families (%s)" % [nm, fam])
+				if families.size() >= 32:
+					push_error("%s: more than 32 families (%s)" % [nm, fam])
 				else:
 					families[fam] = 1 << families.size()
 	for e: Dictionary in data.get("materials", []):

@@ -4,6 +4,16 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A5 part 3 prep: the family mask widened
+
+Tests: twenty-one scenarios and engine_compare end `FAILURES: 0`. The engine changed (family fields), so close Godot before
+pulling and restart after.
+
+- Alex chose "Widen" on the decision card. A material's `family` tags, the catalyst, inhibit and feed masks on materials
+  and reactions, and the reaction rule's catalyst are 32 bits now (were 16, all used by wave 1). `materials.gd` allows 32
+  tags. No data changed, so no material behaves differently; a throwaway pair of materials in tags 17 and 30 reacted
+  through a family rule on a bench run (not kept as a test, wave 2's materials will cover it).
+
 ## A5 part 2: Vault cells
 
 Tests: twenty-one scenarios and engine_compare end `FAILURES: 0`; scenario_vault is new. No engine change, `bin/` as it was.
