@@ -4,6 +4,26 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A5 part 7: sensors and the Thermoelectric Plate
+
+Tests: twenty-six scenarios and engine_compare end `FAILURES: 0`; scenario_sensing is new. No engine change.
+
+- `sensing/sensor.gd` is three modules (data/modules/sensing.json), each 14 by 14 with one signal face `sig` on its left:
+  the Thermometer (signal on while the average temperature in its `front` mouth is at or past a setting), the Material
+  Sensor (on while the mouth holds at least 6 cells of the material it watches) and the Timer (on for half of every
+  period). A click steps the setting: temperature 50, 100, 300, 600, 900; the watched material through a short list;
+  the Timer 2, 4, 8, 16 seconds. The state is `m["signal"]` and `m["reading"]`.
+- Signals pass by contact and no further. A module with a signal face named `gate` that touches a sensor works only
+  while that signal is on; one whose gate touches nothing works as it always did. Gated modules skip `scan` and `_pass`
+  and say "Off: its signal is off." The Pump, Boiler, Chiller, Furnace, Combustor, Shorer and Caster carry a gate face.
+  `machines.gd` `gated`.
+- `power/thermoelectric.gd`, the Thermoelectric Plate (20 by 10): pays 0.001 power a degree of difference between the
+  strip in front of it and the strip behind it, to a cap of 0.8 a second, into the Hub's stock. It needs a Node or the
+  Hub in reach. It reads cells of the world only; a vessel interior does not count.
+- Techs: Timer and Thermometer at tier 1, Material Sensor at tier 2, Thermoelectric Plate at tier 3.
+- Bug found by the test: a JSON number list holds floats, so `Array.find(int)` missed and a click wrapped to the first
+  step. `sensor.gd` `_at` compares as ints.
+
 ## A5 part 6: the Shorer
 
 Tests: twenty-five scenarios and engine_compare end `FAILURES: 0`; scenario_shorer is new. No engine change.

@@ -33,6 +33,8 @@ const K_CASTER = preload("res://scripts/machines/processing/caster.gd")
 const K_SEPARATOR = preload("res://scripts/machines/processing/separator.gd")
 const K_PUMP = preload("res://scripts/machines/logistics/pump.gd")
 const K_SHORER = preload("res://scripts/machines/support/shorer.gd")
+const K_SENSOR = preload("res://scripts/machines/sensing/sensor.gd")
+const K_THERMOELECTRIC = preload("res://scripts/machines/power/thermoelectric.gd")
 const K_COMBUSTOR = preload("res://scripts/machines/power/combustor.gd")
 const K_CHUTE = preload("res://scripts/machines/logistics/chute.gd")
 const K_CONVEYOR = preload("res://scripts/machines/logistics/conveyor.gd")
@@ -66,7 +68,7 @@ static func ensure_defs() -> void:
 	if defs.is_empty():
 		kinds = {"tank": K_TANK, "funnel": K_FUNNEL, "cutter": K_CUTTER, "winch": K_WINCH, "windmill": K_WINDMILL,
 				"lab": K_LAB, "lamp": K_LAMP, "slide": K_SLIDE, "turntable": K_TURNTABLE, "laser": K_LASER, "thumper": K_THUMPER,
-				"macerator": K_MACERATOR, "press": K_PRESS, "thermal": K_THERMAL, "caster": K_CASTER, "combustor": K_COMBUSTOR, "separator": K_SEPARATOR, "pump": K_PUMP, "shorer": K_SHORER,
+				"macerator": K_MACERATOR, "press": K_PRESS, "thermal": K_THERMAL, "caster": K_CASTER, "combustor": K_COMBUSTOR, "separator": K_SEPARATOR, "pump": K_PUMP, "shorer": K_SHORER, "sensor": K_SENSOR, "thermoelectric": K_THERMOELECTRIC,
 				"chute": K_CHUTE, "conveyor": K_CONVEYOR, "bus_hopper": K_BUS_HOPPER, "vault": K_VAULT,
 				"drone_cage": K_DRONE_CAGE}
 		for d: Dictionary in MD.defs():
@@ -216,7 +218,8 @@ static func tick(g) -> void:
 			_spill(g, m, frames[id])
 	_connections(g, frames)
 	for id: int in g.modules.keys():
-		_pass(g, g.modules[id])
+		if not gated(g, g.modules[id]):
+			_pass(g, g.modules[id])
 	for id: int in g.modules.keys():
 		var m: Dictionary = g.modules[id]
 		if m.get("rig_of", 0) != 0 and not g.modules.has(m["rig_of"]):
@@ -224,10 +227,23 @@ static func tick(g) -> void:
 			m["powered"] = false
 		var kind: Variant = kinds.get(defs[m["def"]].get("kind", ""))
 		if kind != null:
-			kind.scan(g, m, defs[m["def"]])
+			if gated(g, m):
+				m["state"] = "Off: its signal is off."
+			else:
+				kind.scan(g, m, defs[m["def"]])
 		INT.ensure(m, defs[m["def"]])
 		INT.sync(m)
 		CS.wear(g, m, defs[m["def"]])
+
+
+## Whether module `m` has a signal face called `gate` joined to a sensor whose signal is off: it
+## then does no work (no scan, nothing passed on). A `gate` joined to nothing leaves it working.
+static func gated(g, m: Dictionary) -> bool:
+	var i := MU.face_index(defs[m["def"]], "gate")
+	if i < 0 or i >= m["faces"].size():
+		return false
+	var other: Dictionary = g.modules.get(m["faces"][i]["link_m"], {})
+	return not other.is_empty() and not other.get("signal", false)
 
 
 # Every tick: bolted-down modules hold still, and each behaviour moves what it moves.
