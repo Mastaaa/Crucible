@@ -1,8 +1,8 @@
 extends RefCounted
-## Drone Cage (A4, the Warren reworked): a bolted cage with a few drones. They fly out to loose
-## powder anywhere in a square of ground round the cage, scoop up a handful, fly back and drop it
-## into the cage's hollow, from where it goes out of its pixel face into a joined Tank, Funnel or
-## Chute. Drones fly over anything, so they work through walls and across gaps; they only ever
+## Drone Cage (A4, the Warren reworked): a bolted cage with a few drones. They fly out to the nearest
+## loose powder in a square of ground round the cage (never to a spot another drone is already heading
+## for), scoop up a handful, fly back and drop it into the cage's hollow, from where it goes out of its
+## pixel face into a joined Tank, Funnel or Chute. Drones fly over anything, so they work through walls and across gaps; they only ever
 ## lift loose powder (never rock, liquid or a module's casing). A trip costs power from the Hub's
 ## stock and the cage needs a Node or the Hub in reach. Click it to switch the size of the square.
 
@@ -24,28 +24,35 @@ static func _zone(m: Dictionary, def: Dictionary) -> Rect2i:
 	return Rect2i(c.x - r, c.y - r, r * 2, r * 2)
 
 
-## A random spot in `zone` that has loose powder, by halving the square towards one that does, or
-## (-1, -1) if there is none.
-static func _spot(g, m: Dictionary, zone: Rect2i) -> Vector2i:
-	var powder := M.mask("powder")
+## The spot with loose powder nearest `home` in `zone` that no drone is already heading for (`avoid`),
+## found by halving the square and trying the halves nearest first, or (-1, -1) if there is none.
+static func _spot(g, zone: Rect2i, home: Vector2, avoid: Array) -> Vector2i:
 	var r := zone.intersection(Rect2i(2, 2, 10000, 10000))
-	var rng: int = m.get("rng", int(m["id"]) * 7919 + 13)
-	while r.size.x > BLOCK or r.size.y > BLOCK:
-		var w := maxi(1, r.size.x >> 1) if r.size.x > BLOCK else r.size.x
-		var h := maxi(1, r.size.y >> 1) if r.size.y > BLOCK else r.size.y
-		var parts: Array = []
-		for ox in (2 if r.size.x > BLOCK else 1):
-			for oy in (2 if r.size.y > BLOCK else 1):
-				var q := Rect2i(r.position.x + ox * w, r.position.y + oy * h, w, h)
-				if g.sim.count_in_rect(q.position.x, q.position.y, q.size.x, q.size.y, powder) > 0:
-					parts.append(q)
-		if parts.is_empty():
-			m["rng"] = rng
-			return Vector2i(-1, -1)
-		rng = (rng * 1103515245 + 12345) & 0x7fffffff
-		r = parts[(rng >> 8) % parts.size()]
-	m["rng"] = rng
-	return r.position + Vector2i(r.size.x >> 1, r.size.y >> 1)
+	return _nearest(g, r, home, avoid, M.mask("powder"))
+
+
+static func _nearest(g, r: Rect2i, home: Vector2, avoid: Array, powder: PackedByteArray) -> Vector2i:
+	if r.size.x <= BLOCK and r.size.y <= BLOCK:
+		var c := r.position + Vector2i(r.size.x >> 1, r.size.y >> 1)
+		for t: Vector2 in avoid:
+			if t.distance_to(Vector2(c)) < BLOCK * 0.75:
+				return Vector2i(-1, -1)
+		return c
+	var w := maxi(1, r.size.x >> 1) if r.size.x > BLOCK else r.size.x
+	var h := maxi(1, r.size.y >> 1) if r.size.y > BLOCK else r.size.y
+	var parts: Array = []
+	for ox in (2 if r.size.x > BLOCK else 1):
+		for oy in (2 if r.size.y > BLOCK else 1):
+			var q := Rect2i(r.position.x + ox * w, r.position.y + oy * h, w, h)
+			if g.sim.count_in_rect(q.position.x, q.position.y, q.size.x, q.size.y, powder) > 0:
+				parts.append(q)
+	parts.sort_custom(func(a: Rect2i, b: Rect2i) -> bool:
+		return home.distance_squared_to(Vector2(a.position) + Vector2(a.size) * 0.5) < home.distance_squared_to(Vector2(b.position) + Vector2(b.size) * 0.5))
+	for q: Rect2i in parts:
+		var found := _nearest(g, q, home, avoid, powder)
+		if found.x >= 0:
+			return found
+	return Vector2i(-1, -1)
 
 
 static func scan(g, m: Dictionary, def: Dictionary) -> void:
@@ -75,7 +82,11 @@ static func scan(g, m: Dictionary, def: Dictionary) -> void:
 	for dr: Dictionary in m["drones"]:
 		if dr["s"] != HOME or not dr["cargo"].is_empty():
 			continue
-		var spot := _spot(g, m, zone)
+		var out: Array = []
+		for o: Dictionary in m["drones"]:
+			if o["s"] == OUT:
+				out.append(o["t"])
+		var spot := _spot(g, zone, Vector2(m["at"]), out)
 		if spot.x < 0:
 			if busy == 0:
 				m["state"] = "No loose powder in the square."

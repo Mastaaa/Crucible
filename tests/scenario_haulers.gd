@@ -29,6 +29,7 @@ func _process(_d: float) -> bool:
 			print("FAILURES: 0")
 			return true
 		scenario_a()
+		scenario_nearest()
 		scenario_b()
 		scenario_c()
 		scenario_d()
@@ -106,6 +107,27 @@ func scenario_a() -> void:
 	check(until(func() -> bool: return held(tank, SAND) >= 60, 40.0), "the drones carry the pile into the Tank (%d of 60 cells)" % held(tank, SAND))
 	check(count_in(Rect2i(200, SURFACE - 40, 144, 40), SAND) == 0, "and no sand is left lying about")
 	check(game.modules[r["cage"]]["hauled"] >= 60, "the cage counts what it hauled (%d)" % game.modules[r["cage"]]["hauled"])
+
+
+func scenario_nearest() -> void:
+	print("A2. nearest first")
+	var r := cage()
+	fill(Rect2i(288, SURFACE - 6, 8, 6), SAND)        # about 25 cells from the cage's middle
+	fill(Rect2i(262, SURFACE - 6, 8, 6), SAND)        # about 50
+	secs(0.2)
+	var cg: Dictionary = game.modules[r["cage"]]
+	var first: Vector2 = Vector2.ZERO
+	for d: Dictionary in cg["drones"]:
+		if d["s"] != 0:
+			first = d["t"]
+			break
+	check(first != Vector2.ZERO and absf(first.x - 315.0) < 35.0, "the first drone goes for the nearer pile (to x %.0f)" % first.x)
+	secs(0.8)
+	var targets := {}
+	for d: Dictionary in cg["drones"]:
+		if d["s"] != 0:
+			targets[Vector2i(d["t"])] = true
+	check(targets.size() >= 2, "and the others go to other spots, not the same one (%d spots)" % targets.size())
 
 
 func scenario_b() -> void:

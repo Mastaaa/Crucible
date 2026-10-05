@@ -40,8 +40,8 @@ its research gate). The engine did not change, so `bin/` is as it was.
   (30 cells a second, over anything) to a spot of loose powder in a square of ground centred on the cage,
   scoops the 6 x 6 cells round it (`dig_rect` on the powder mask), flies home and drops the load into the
   cage's hollow (200 cells), which the `pass` rule moves out of the top face into a joined Tank, Funnel or
-  Chute. The spot is found by halving the square towards a half that has powder (a few counts, seeded per
-  cage), so a pile is worked from a random side. A trip costs 0.4 power from the Hub's stock; no power, no
+  Chute. The spot is the nearest powder to the cage that no drone is already heading for, found by halving the
+  square and trying the halves nearest first (a few counts; nearest-first came from a sketch Alex shared). A trip costs 0.4 power from the Hub's stock; no power, no
   Node or Hub in reach, or a full hollow keeps the drones home. It never lifts rock, liquid or a casing.
   Click it to cycle the square's size (60, 100 or 160 across; the middle is the start). Not built: a
   highlighted pickup area and a separate drop point (the A5 UI), and drone hazards (Hush, fire, crush).
