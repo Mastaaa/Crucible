@@ -32,6 +32,7 @@ static var yields: Array = []           # per id: PackedInt32Array of stockpiles
 static var hots := PackedByteArray()
 static var burns := PackedByteArray()
 static var corrosives := PackedByteArray()
+static var goods := PackedByteArray()      # A5: per id, 1 where a pixel banks as a good (data `good`)
 static var sighted := PackedStringArray()
 static var ids := {}                    # name -> first id
 static var families := {}               # family name -> its bit (A1): reactions can name a family
@@ -68,6 +69,7 @@ static func ensure() -> void:
 	family_of.resize(256)
 	hots.resize(256)
 	burns.resize(256)
+	goods.resize(256)
 	corrosives.resize(256)
 	sighted.resize(256)
 	_pal_rows.resize(256)
@@ -129,6 +131,7 @@ static func ensure() -> void:
 			hots[mid] = 1 if bool(e.get("hot", false)) else 0
 			burns[mid] = 1 if not burn.is_empty() else 0
 			corrosives[mid] = 1 if bool(e.get("corrosive", false)) else 0
+			goods[mid] = 1 if bool(e.get("good", false)) else 0
 			sighted[mid] = e.get("sighted", "")
 			var m := {
 				"id": mid,
@@ -493,6 +496,12 @@ static func yield_of(m: int) -> int:
 	return ys[0] if ys.size() > 0 else -1
 
 
+## Whether a pixel of `m` banks as a good (units under its own id) rather than a stockpile.
+static func is_good(m: int) -> bool:
+	ensure()
+	return goods[m] != 0
+
+
 static func is_hot(m: int) -> bool:
 	ensure()
 	return hots[m] != 0
@@ -560,6 +569,7 @@ static func mask(what: String) -> PackedByteArray:
 				"liquid": hit = k == K_LIQUID
 				"worth_liquid": hit = k == K_LIQUID and yield_of(m) >= 0
 				"powder": hit = k == K_POWDER
+				"loose_bank": hit = (k == K_POWDER or k == K_LIQUID or k == K_GAS) and (goods[m] != 0 or yield_of(m) >= 0)
 				"dig_no_obsidian": hit = dig_rates[m] > 0.0 and names[m] != "Obsidian"
 				"dig_no_hot": hit = dig_rates[m] > 0.0 and names[m] != "Hot rock"
 				"dig_no_obsidian_no_hot": hit = dig_rates[m] > 0.0 and names[m] != "Obsidian" and names[m] != "Hot rock"

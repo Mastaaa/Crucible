@@ -20,7 +20,7 @@ const AUTOSAVE_S := 300.0           # seconds of play between autosaves
 ## What the game node keeps that a run needs back. Everything else is a cache
 ## rebuilt on load, the camera, or the player's hand (tool, selection).
 const GAME_VARS := [
-	"info", "seed_value", "stock", "packets", "spring_tops", "dispatch_wait", "next_id", "next_order",
+	"info", "seed_value", "stock", "goods", "packets", "spring_tops", "dispatch_wait", "next_id", "next_order",
 	"send_log", "spring_acc", "power_made", "power_used", "used_acc",
 	"link_hp", "broken_links", "link_fixes", "link_ends", "damaged", "fallers", "crushed",
 	"body_seen", "body_seen_tick", "modules", "next_module",

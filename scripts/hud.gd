@@ -7,6 +7,7 @@ const Building = preload("res://scripts/building.gd")
 const MC = preload("res://scripts/machines/machines.gd")
 const Goals = preload("res://scripts/goals.gd")
 const GoalsPanel = preload("res://scripts/goals_panel.gd")
+const GoodsPanel = preload("res://scripts/goods_panel.gd")
 
 const GOLD := Color(0.96, 0.76, 0.36)
 const CARD_W := 232.0             # research card width
@@ -139,6 +140,7 @@ var research_panel: PanelContainer
 var research_head: Label
 var research_goods: Label         # goods tallies, under the head
 var goals_panel: PanelContainer
+var goods_panel: PanelContainer
 var research_cards := {}          # tech id -> {"button", "state", "bar", "mats"}
 var tier_notes: Array = []        # Label per tier (index 1..4)
 var card_plain: StyleBoxFlat
@@ -163,6 +165,9 @@ func _ready() -> void:
 	goals_panel = GoalsPanel.new()
 	goals_panel.setup(self)
 	root.add_child(goals_panel)
+	goods_panel = GoodsPanel.new()
+	goods_panel.setup(self)
+	root.add_child(goods_panel)
 	perf_label = Label.new()
 	perf_label.visible = false
 	perf_label.add_theme_font_size_override("font_size", 12)
@@ -835,6 +840,7 @@ func refresh() -> void:
 	MC.refresh_buttons(self)
 	research_button.text = _research_line()
 	goals_panel.refresh(g)
+	goods_panel.refresh(g)
 	if research_panel.visible:
 		_refresh_research()
 

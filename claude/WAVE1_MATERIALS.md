@@ -310,8 +310,8 @@ row of the family table and each override, in this order:
 
 - **Count.** Twelve authored plus five derived puts wave 1 at 17, or 16 if A1 already supplies Ice. If the 25
   target for Alpha counts authored materials only, wave 2 grows by five.
-- **Resource yields.** Wave 1 materials yield Stone at worth 6 until goods banks exist. Flux,
-  Ferrite and Quickmire become goods in A3 to A5.
+- **Resource yields.** (A5 part 1: settled.) The wave 1 materials a recipe could want carry `good` in the data and
+  bank as goods under their own id at worth 6; none of them pays Stone or Water any more.
 - **Heat mass.** Rime wants `heat_mass`; confirm against the A1 field list when A1 is pushed.
 - **Body emit.** Ferrite bars need a reaction that creates a rigid body. If A1 does not provide
   one, the ingot fallback stands until A3's Caster.

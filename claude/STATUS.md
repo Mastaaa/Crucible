@@ -6,7 +6,7 @@ history (what shipped when, old numbers, test notes) is the root STATUS.md:
 Claude adds a section at its top each phase and doesn't need to read the rest.
 
 ## Handoff
-- Last done: A4 end, the bot (`--cheat`, alerts, shaft look; tests/autoplay.gd) and what it found: a cheated bot stalls at depth 803 (oil stops the Cutter, then a flooded, caved-in shaft plugs the climb); the fair-pace bot loses its Cutter to cave-ins at 67 min. The Magma-band goal is open, see "Known issues" below. Before it: A4 part 7, the Drone Cage (`haulers/drone_cage.gd`; four drones fetch loose powder from a square round the cage, a click changes the square; scenario_haulers). Before it: A4 part 6, Chute and Conveyor (`logistics/chute.gd` a `pass` pipe; `logistics/conveyor.gd` a belt: powder queue with travel time, bodies driven with `drive_body`, click reverses; scenario_logistics; Bus Hopper to A5). Before it: A4 part 5, Macerator and Press (`processing/macerator.gd` grinds loose bodies at its mouth to what they shatter to and passes it on; `processing/press.gd` squeezes powder into a 96 cell block body; `M.ground_of`, `M.pressed_of`; scenario_processing). Before it: A4 part 4, the tethered Thumper (engine `explode_cone`, `bin/` rebuilt; `excavation/thumper.gd`; the Winch runs a lower / lift / drop cycle for a Thumper load in `winch._thump`, plowing rubble under it as it lowers; scenario_excavators E). Before it: A4 part 3, the full Cutter and the Laser Excavator (Hot rock at Drill Bit 4, a mount face on the
+- Last done: A5 part 1, the goods bank and the Bus Hopper (`game.goods`, `bank_cells`, data `good`; `logistics/bus_hopper.gd`; `goods_panel.gd`; scenario_goods; no engine change). Part 2 is Vault cells (a size for the bank, and the Crucible's power store); the A5 order is in PROJECT_BRIEF. Before it: A4 end, the bot (`--cheat`, alerts, shaft look; tests/autoplay.gd) and what it found: a cheated bot stalls at depth 803 (oil stops the Cutter, then a flooded, caved-in shaft plugs the climb); the fair-pace bot loses its Cutter to cave-ins at 67 min. The Magma-band goal is open, see "Known issues" below. Before it: A4 part 7, the Drone Cage (`haulers/drone_cage.gd`; four drones fetch loose powder from a square round the cage, a click changes the square; scenario_haulers). Before it: A4 part 6, Chute and Conveyor (`logistics/chute.gd` a `pass` pipe; `logistics/conveyor.gd` a belt: powder queue with travel time, bodies driven with `drive_body`, click reverses; scenario_logistics; Bus Hopper to A5). Before it: A4 part 5, Macerator and Press (`processing/macerator.gd` grinds loose bodies at its mouth to what they shatter to and passes it on; `processing/press.gd` squeezes powder into a 96 cell block body; `M.ground_of`, `M.pressed_of`; scenario_processing). Before it: A4 part 4, the tethered Thumper (engine `explode_cone`, `bin/` rebuilt; `excavation/thumper.gd`; the Winch runs a lower / lift / drop cycle for a Thumper load in `winch._thump`, plowing rubble under it as it lowers; scenario_excavators E). Before it: A4 part 3, the full Cutter and the Laser Excavator (Hot rock at Drill Bit 4, a mount face on the
   Cutter, `rig_of` and `powered` set by every mover, `excavation/laser.gd` with Filler; scenario_excavators).
   Before it: A4 part 2, Turntable (`movers/turntable.gd`; the engine's `drive_body` gained a spin, `bin/`
   rebuilt; `MU.drive` takes a spin; the hub holds each joined module on its pose in the hub's frame and stops
@@ -57,7 +57,7 @@ Claude adds a section at its top each phase and doesn't need to read the rest.
     across a load); scenario_run allows 1.5.
   - The Node-as-module question (A3's plan) is settled the cheap way: Node stays a structure
     because the packet network, repairs and fog sight hang off it.
-- Next: Alex decides what answers the shaft hazards (see the bot findings in STATUS.md, "A4 end"), then A5 (needs Alex's separate go).
+- Next: A5 part 2 (Vault cells). Open from A4, Alex's call: what answers the shaft hazards (the bot findings in STATUS.md, "A4 end"); the A5 Pump is a candidate for oil and flooding.
   Plan: claude/ALPHA_PLAN.md. The spawn-region system and the Spoil Heap are in `main` (PR #6).
   The wave 1 rows only place pockets and seams by depth band, with no placement relative to
   aquifers, lava or Sulfur (the table has none); A6's biomes can do better.
@@ -94,8 +94,8 @@ Claude adds a section at its top each phase and doesn't need to read the rest.
   rubble stops refilling it.
 
 ## Test baseline (all must hold before committing)
-- `bash native/run_tests.sh` (about 10 minutes): every scenario (nineteen: power, goals, research, chemistry,
-  light, collapse, bodies, modules, quarry, movers, excavators, processing, logistics, haulers, depth, temperature, wave1, run, spawn) and engine_compare end `FAILURES: 0`. Suites
+- `bash native/run_tests.sh` (about 10 minutes): every scenario (twenty: power, goals, research, chemistry,
+  light, collapse, bodies, modules, quarry, movers, excavators, processing, logistics, goods, haulers, depth, temperature, wave1, run, spawn) and engine_compare end `FAILURES: 0`. Suites
   that build deep set-pieces fix their rows' ambient: scenario_depth's `keep_hot` (hot rock near the
   surface), scenario_bodies' `keep_cool` (a pool in the Magma band).
 - Temperature pass (A1): every 8 ticks, 150 to 200 of the map's 3840 chunks awake in a
@@ -220,6 +220,8 @@ steam: half becomes water, half is lost (Steam's expires_alt/alt_chance), so a b
 a finished tunnel dies away.
 
 Resources: Stone, Glimmer, Obsidian, Water, Power. A unit is 600 cells (CELLS_PER_UNIT).
+Goods (A5): a material with data `good` banks as units under its own id in `game.goods` (a cell pays `worth` / 600; all
+goods have worth 6), listed in the HUD's Goods terminal. Funnels and Bus Hoppers bank them; a Bus Hopper spits them back out.
 Coal pays Stone + Power, sulfur Stone + Glimmer. Deposits are worth more a cell (data
 "worth": glimmer, obsidian, coal, sulfur and their shards 6x; `D.cell_units(m)`).
 
@@ -240,7 +242,7 @@ cells/s^2, up to 400; through liquid at most 100) and relinks where it lands; pa
 it's hurt, up to 75% of its HP at 400, and so is a building it lands on. Placement ghosts snap
 to legal spots within 50.
 
-Modules (Build list buttons, no keys): Cutter Excavator, Tank, Funnel, Winch and Windmill (the
+Modules (Build list buttons, no keys; the Bus Hopper after its tech): Cutter Excavator, Tank, Funnel, Winch and Windmill (the
 starter kit, from the start), Lab (from the start) and Lamp (the Lamp tech). The Lab turns up to 2
 power/s of the Hub's stock into research and takes the goods the tech wants out of it too; a Lamp
 lights 200 cells while the stock pays its 0.1/s. Every module glows a little (30 cells) and watches
