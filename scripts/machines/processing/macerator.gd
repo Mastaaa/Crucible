@@ -44,7 +44,7 @@ static func scan(g, m: Dictionary, def: Dictionary) -> void:
 	if not m["net"]:
 		m["state"] = "No power: no Node or Hub in reach."
 		return
-	var budget := int(p["rate"])
+	var budget := MU.rate(g, int(p["rate"]))
 	for id: int in bodies:
 		if budget <= 0:
 			break

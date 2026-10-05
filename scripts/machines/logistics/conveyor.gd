@@ -70,7 +70,7 @@ static func scan(g, m: Dictionary, def: Dictionary) -> void:
 					m["queue"].append([mat, got[mat], due])
 					room -= got[mat]
 		for mat: int in m["contents"].keys():
-			var n := mini(int(p["rate"]), m["contents"][mat])
+			var n := mini(MU.rate(g, int(p["rate"])), m["contents"][mat])
 			if n > 0:
 				m["queue"].append([mat, n, due])
 				MU.take(m, mat, n)

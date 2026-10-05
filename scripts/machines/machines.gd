@@ -468,7 +468,7 @@ static func _pass_rule(g, m: Dictionary, rule: Dictionary) -> void:
 	var power := float(rule.get("power", 0.0))
 	if power > 0.0 and not MU.networked(g, m, defs[m["def"]]):
 		return
-	var left: int = rule["rate"]
+	var left: int = MU.rate(g, int(rule["rate"]))
 	var held: Dictionary = m["contents"].duplicate()
 	for mat: int in held:
 		if not MU.passes(rule, mat, held):

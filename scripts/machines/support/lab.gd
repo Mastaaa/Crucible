@@ -6,6 +6,7 @@ extends RefCounted
 
 const MU = preload("res://scripts/machines/mu.gd")
 const D = preload("res://scripts/defs.gd")
+const M = preload("res://scripts/materials.gd")
 
 
 static func scan(g, m: Dictionary, def: Dictionary) -> void:
@@ -52,6 +53,17 @@ static func _goods(g, def: Dictionary) -> void:
 		got[r] += n
 		left -= n
 	g.tech_mats[g.current_tech] = got
+	# Goods out of the bank, from the same quota.
+	var bank: Dictionary = g.tech_bank_needed(g.tech_step(g.current_tech))
+	var in_bank: Dictionary = g.tech_bank_got(g.current_tech)
+	for nm: String in bank:
+		var need: float = float(bank[nm]) - in_bank.get(nm, 0.0)
+		if need <= 1e-6 or left <= 0.0:
+			continue
+		var n: float = g.take_good(M.id_of(nm), minf(left, need))
+		if n > 0.0:
+			in_bank[nm] = in_bank.get(nm, 0.0) + n
+			left -= n
 
 
 static func step(_g, _m: Dictionary, _def: Dictionary) -> void:

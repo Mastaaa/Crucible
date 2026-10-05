@@ -76,7 +76,7 @@ static func _import(g, m: Dictionary, def: Dictionary) -> void:
 	var power := float(p["power"])
 	var did := 0
 	# What joined modules passed in.
-	var left := int(p["rate"])
+	var left := MU.rate(g, int(p["rate"]))
 	for mat: int in m["contents"].keys():
 		var n := mini(left, int(m["contents"][mat]))
 		if M.is_good(mat):
@@ -112,7 +112,7 @@ static func _export(g, m: Dictionary, def: Dictionary, mat: int) -> void:
 	var power := float(p["power"])
 	var upc := units_per_cell(mat)
 	var room := MU.capacity(m, def) - MU.stored(m)
-	var n := mini(mini(int(p["rate"]), room), int(floor(banked(g, mat) / upc)))
+	var n := mini(mini(MU.rate(g, int(p["rate"])), room), int(floor(banked(g, mat) / upc)))
 	if n > 0:
 		if not MU.take_power(g, power * n):
 			m["state"] = "Waiting for power."
@@ -135,7 +135,7 @@ static func _pour(g, m: Dictionary, def: Dictionary) -> void:
 	var pt: Vector2 = fo["p"]
 	var nrm := Vector2(fo["n"])
 	var side := Vector2(nrm.y, nrm.x).abs()
-	var left := int(def["params"]["rate"])
+	var left := MU.rate(g, int(def["params"]["rate"]))
 	for mat: int in m["contents"].keys():
 		while left > 0 and m["contents"].get(mat, 0) > 0:
 			var off: float = (g.rng.randf() - 0.5) * float(fo["across"]) * 0.6

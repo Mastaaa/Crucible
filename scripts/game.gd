@@ -133,6 +133,7 @@ var researched := {}              # tech id -> true (for upgrades: at least one 
 var levels := {}                  # upgrade tech id -> levels done
 var tech_power := {}              # tech id -> power put into it so far
 var tech_mats := {}               # tech id -> PackedFloat64Array of materials delivered to Labs
+var tech_bank := {}               # A5: tech id -> {good name: units} delivered to Labs out of the goods bank
 var current_tech := ""            # "" when nothing is picked
 var tiers_open: Array = [false, true, false, false, false]   # by tier number
 var unlocked := {}                # building type -> true, for the build list
@@ -387,6 +388,7 @@ func _reset(s: int) -> void:
 	levels.clear()
 	tech_power.clear()
 	tech_mats.clear()
+	tech_bank.clear()
 	current_tech = ""
 	tiers_open = [false, true, false, false, false]
 	research_rate = 0.0
@@ -2414,6 +2416,18 @@ func tech_done(id: String) -> bool:
 	return level(id) >= tech_levels(id)
 
 
+## Goods a tech wants out of the bank, {good name: units}: its own and its tier's.
+static func tech_bank_needed(t: Dictionary) -> Dictionary:
+	return Goals.research_bank(t)
+
+
+## Goods already delivered to `id`, {good name: units}.
+func tech_bank_got(id: String) -> Dictionary:
+	if not tech_bank.has(id):
+		tech_bank[id] = {}
+	return tech_bank[id]
+
+
 func tech_mats_got(id: String) -> PackedFloat64Array:
 	if not tech_mats.has(id):
 		var a := PackedFloat64Array()
@@ -2462,6 +2476,11 @@ func tech_mats_done(id: String) -> bool:
 	var got := tech_mats_got(id)
 	for r in D.NRES:
 		if got[r] < need[r]:
+			return false
+	var bank := tech_bank_needed(tech_step(id))
+	var in_bank := tech_bank_got(id)
+	for nm: String in bank:
+		if in_bank.get(nm, 0.0) < float(bank[nm]) - 1e-6:
 			return false
 	return true
 
@@ -2513,6 +2532,7 @@ func _finish_research(id: String) -> void:
 		tname = "%s %d" % [t["name"], levels[id]]
 		tech_power.erase(id)
 		tech_mats.erase(id)
+		tech_bank.erase(id)
 	if current_tech == id:
 		current_tech = ""
 	_refresh_unlocks()
