@@ -261,3 +261,24 @@ the machine and resizes as modules change. Feasibility write-up: plans/pocket-si
   (`configure`, `set_fall`, `set_ambient`, `set_size`).
 - Open: where IDs come from and what they cost; what goods leaving a random-chemistry pocket are worth outside;
   whether a dimension survives its builder machine (the registry says yes).
+
+---
+
+## 11. Machines that push and drag what is in their way (logged 2026-10-06)
+Rough phase: after A5 (A7 pacing, or its own engine part). Needs an engine proposal first.
+
+**Alex:** "It may help to have machines be able to push or drag loose pixels and rigid bodies around as
+they're trying to move." He was not sure it fixes the exact stall in front of us (a cave-in plug on the rig's
+climb), and offered it as a general direction.
+- Today the Winch's plow *deletes* what lies in the rig's path (loose powder, and since A5 part 9 static plug
+  rock), and the spoil is lost. Bodies cannot push powder, and a body cannot push another body that is not
+  driven. This entry is about moving the material aside instead of destroying it.
+- Touches: `winch.gd` `_plow` and `_plow_below`, `MU.drive` (movers sum velocities and machines.gd hands them to the
+  engine once a tick), the engine's `drive_body`, `dig_rect`, loose-body handling (the Conveyor drives bodies already).
+- Open: where displaced pixels go (sideways into the tunnel's free air, up behind the rig, into a joined Tank); what
+  happens when there is no free cell; whether a driven body pushes a loose body by contact (a mass and speed rule, as
+  Alex's earlier crush rules) or only drags what is joined; cost in power per cell moved; and whether an engine
+  pass that shifts cells makes the interior sims' counts drift.
+- First step if it goes ahead: replace the deletion in `_plow` with a displacement into free cells beside the rig,
+  and keep deleting only what has nowhere to go.
+

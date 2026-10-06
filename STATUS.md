@@ -4,6 +4,32 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A5 part 9, second half: the rig gets down and up, the oil stays
+
+Tests: twenty-seven scenarios and engine_compare end `FAILURES: 0`; scenario_quarry H and I are new. No engine change.
+Alex picked "Plow breaks plugs" on the decision card for the cave-in plug on the climb. It went in as GDScript only.
+
+- The Winch's plow on the climb now clears static rock as well as powder (`winch.gd` `plow_mask()`: every solid kind but
+  Obsidian and Bedrock), inside the rig's own width; the walls beside the shaft stay and the spoil is lost. scenario_quarry H
+  lays Stone across the shaft over a rig and checks that it docks, that the wall beside the shaft is untouched and that
+  the Tank's casing is whole.
+- Found with the bot: on the way down the Tank stopped at depth 638 in open shaft while the Winch kept driving the rest of
+  the rig, so the Cutter pulled out of its join and fell 100 cells. One rubble cell against the Tank's wall was enough (bodies
+  do not push powder, and the Cutter's own dig window does not reach the Tank's sides). At 659 it was a second cell. The Winch now
+  runs `_plow_down` while the rig is let down: every module but an Excavator (a leading Pump counts as a module here, it
+  stops on any solid cell) clears powder three columns to either side and four rows under it. Static rock stays. scenario_quarry I
+  checks the reach, the Excavator exemption and that the rock is left.
+- tests/autoplay.gd (bot): `_exchange` hangs the new digger with `_hang` (snaps under the Tank, tries a row or two lower, keeps
+  only a placement that joined) and keeps a `pending` swap until there is room; it prints each halt with its depth.
+- Cheated bot, seed 7: now climbs out of the oil at 9:25, swaps to the Pump, drains, swaps back to the Cutter, and goes down
+  the old shaft again. The oil does not stay drained: the Cutter halts on Slick again at depth 778 to 792 each time, the Pump
+  goes down 790 to 816 and drains what it reaches, the Cutter goes back, and it halts again two minutes later. Ten trips
+  in 40 game minutes make no depth and each Cutter costs Stone (19 to 3). Everything points at a pool at about depth 780 that
+  refills the pocket while the rig is up; the Pump on its own removes what the Tank holds and no more.
+- Not done: bot banks goods for research, Crucible delivery, the run itself. The oil pool is the next blocker and it is a design
+  call (see claude/STATUS.md). Alex's idea of machines that push and drag loose pixels and bodies is logged as claude/IDEAS.md
+  entry 11 and needs an engine proposal first.
+
 ## A5 part 9, first half: the Pump leads a rig
 
 Tests: twenty-seven scenarios and engine_compare end `FAILURES: 0`; scenario_fluids F is new. No engine change.
