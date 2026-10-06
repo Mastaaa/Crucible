@@ -4,6 +4,25 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A5 part 9, third piece: the Cutter wades through oil
+
+Tests: twenty-seven scenarios and engine_compare end `FAILURES: 0`; scenario_fluids F now uses Sourwater and G is new. No engine change.
+Alex picked "Wade through" on the decision card for the oil pool at depth 780.
+
+- `cutter.gd` `WADE := ["Slick"]`: `drinkable()` is a stockpile's liquid plus the WADE list, and `bad_liquids()` is every liquid
+  the rig cannot drink. The Cutter sinks into oil without a halt and drinks it like seep water (up to its intake, into the Tank,
+  banked as Slick at the Funnel). Lava, Slag, Sourwater and Quickmire still stop it. Oil only burns; the others melt, corrode or bind.
+- scenario_fluids G: a rig sinks through a 20 row pocket of oil and 10 rows into the floor below it with no halt (600 Slick taken
+  in), and a pocket of Sourwater still halts it. G fails without the rule. F, the Pump swap, moved to Sourwater because oil no
+  longer halts the Cutter.
+- Cheated bot, seed 7: gets through the oil at once (depth 1000 at 14:45, 1500 at 34:25, 2000 at 53:51, 2500 at 78:51). At 78:36
+  Sulfur turns up ("eats buildings and links near it"), at 79:31 the Tank casing is corroding, and at 84:31 the Cutter is lost.
+  Nothing rebuilds it, so the bot sits at the surface from there. The A4 Magma-band goal is still open, but the wall is now
+  corrosion, not oil.
+- Next for part 9 (a plan for Alex, nothing built): the bot rebuilds a lost digger; it banks the goods Plating needs (Ferrite,
+  Glass; Plating is the casing's answer to acid, see `Casing.wear`) and researches it; then it carries the Crucible recipe down
+  the Node chain.
+
 ## A5 part 9, second half: the rig gets down and up, the oil stays
 
 Tests: twenty-seven scenarios and engine_compare end `FAILURES: 0`; scenario_quarry H and I are new. No engine change.

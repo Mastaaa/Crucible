@@ -12,9 +12,11 @@ const M = preload("res://scripts/materials.gd")
 
 const SLICES_PER_SCAN := 3
 const LOOK := 4                 # rows ahead checked for clearance and lava
+const WADE := ["Slick"]         # liquids besides a stockpile's that the rig sinks into and drinks: oil only burns
 
 static var _soft := {}          # hardness threshold and hot rock -> mask of what it digs
 static var _bad := PackedByteArray()
+static var _drink := PackedByteArray()
 
 
 static func level(g) -> int:
@@ -44,14 +46,23 @@ static func soft_mask(def: Dictionary, lvl: int) -> PackedByteArray:
 	return out
 
 
-## Liquids the rig must not be lowered into: everything liquid that isn't a stockpile's water.
+## Liquids the rig drinks as it sinks: a stockpile's water, and what WADE adds.
+static func drinkable() -> PackedByteArray:
+	if _drink.is_empty():
+		_drink = M.mask("worth_liquid").duplicate()
+		for nm: String in WADE:
+			_drink[M.id_of(nm)] = 1
+	return _drink
+
+
+## Liquids the rig must not be lowered into: everything liquid that it can't drink.
 static func bad_liquids() -> PackedByteArray:
 	if _bad.is_empty():
 		var liquid := M.mask("liquid")
-		var water := M.mask("worth_liquid")
+		var drink := drinkable()
 		_bad.resize(256)
 		for mat in 256:
-			_bad[mat] = 1 if liquid[mat] == 1 and water[mat] == 0 else 0
+			_bad[mat] = 1 if liquid[mat] == 1 and drink[mat] == 0 else 0
 	return _bad
 
 
@@ -95,7 +106,7 @@ static func scan(g, m: Dictionary, def: Dictionary) -> void:
 	var n: Vector2i = fo["n"]
 	var lvl := level(g)
 	var soft := soft_mask(def, lvl)
-	var water := M.mask("worth_liquid")
+	var water := drinkable()
 	var solid := M.mask("solid")
 	var bad := bad_liquids()
 	# Clearance ahead, over the body's own width: how many rows the rig may drop.
