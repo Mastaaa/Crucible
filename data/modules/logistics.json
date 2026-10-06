@@ -76,7 +76,7 @@
 		{
 			"id": "pump", "name": "Pump", "kind": "pump", "size": [26, 16], "wall": 2, "interior": true, "front": "down",
 			"tech": "pump", "cost": [10, 2, 0, 0, 0],
-			"blurb": "Lifts liquid. Takes the liquid in front of its mouth into its hollow and passes it up through its top face into a Tank or Chute joined there. Hung on a rig in place of a Cutter it clears water and oil out of the shaft ahead. Needs a Node or the Hub in reach, and a little power a cell.",
+			"blurb": "Lifts liquid. Takes the liquid in front of its mouth into its hollow and passes it up through its top face into a Tank or Chute joined there. Hung under a rig's Tank in place of the Cutter it drains the liquid ahead (the Winch lowers it as the shaft empties, then brings the rig up); put the Cutter back to dig on. A shaft is too narrow for the two side by side. Needs a Node or the Hub in reach, and a little power a cell.",
 			"faces": [
 				{"type": "pixel", "dir": "up", "at": 13, "w": 6, "name": "out"},
 				{"type": "mech", "dir": "up", "at": 4, "w": 4, "name": "mount"},

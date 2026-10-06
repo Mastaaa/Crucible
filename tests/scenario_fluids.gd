@@ -5,6 +5,7 @@ extends SceneTree
 ##  C. the Sieve sends liquids and gases out of its top and solids out of its left face
 ##  D. the Centrifuge sends the lightest material up and the densest out of its left face, the one left goes the heavy way
 ##  E. research gates the three Build buttons; the data has densities
+##  F. a Winch rig: the Cutter halts on oil, the Pump takes its place, drains the pocket and the rig comes up, the Cutter goes on
 ## Run: godot --headless --path . --script tests/scenario_fluids.gd
 
 const D = preload("res://scripts/defs.gd")
@@ -38,6 +39,7 @@ func _process(_d: float) -> bool:
 		scenario_c()
 		scenario_d()
 		scenario_e()
+		scenario_f()
 		print("FAILURES: %d" % fails)
 		return true
 	return false
@@ -211,3 +213,49 @@ func scenario_e() -> void:
 	for t: String in TECHS:
 		var i: int = D.tech_index(t)
 		check(i >= 0 and D.TECHS[i].get("module", "") == t, "%s has its tech" % t)
+
+
+## A shaft of air with a pocket of oil in the bottom of it, over a dirt floor, and the rig above it.
+func scenario_f() -> void:
+	print("F. a Pump rig clears the oil the Cutter stops at")
+	fresh()
+	game.researched["pump"] = true
+	var x0 := 290
+	var cut := place("cutter", x0, SURFACE - 16)
+	var tank := place("tank", x0, SURFACE - 16 - 30)
+	var fun := place("funnel", x0, SURFACE - 16 - 30 - 14)
+	var winch := place("winch", x0 + 14, SURFACE - 16 - 30 - 18)
+	secs(1.0)
+	fill(Rect2i(x0 - 2, SURFACE, 30, 70), 0)           # the shaft is opened under a rig the Winch already holds
+	fill(Rect2i(x0 - 2, SURFACE + 50, 30, 20), SLICK)
+	var w: Dictionary = game.modules[winch]
+	check(until(func() -> bool: return w["halt"] != "" and w["state"] == "docked", 200.0), "the Cutter reaches the oil and the rig comes up")
+	check("Slick" in w["halt"], "the Winch says why: %s" % w["halt"])
+	var oil_before := count_oil()
+	MC.remove(game, cut)
+	var pump := fit("pump", tank)
+	secs(1.0)
+	check(pump != 0 and w["rig"].has(pump), "the Pump takes the Cutter's place under the Tank")
+	check(until(func() -> bool: return w["state"] == "down", 20.0), "swapping the digger lifts the hold")
+	check(until(func() -> bool: return w["halt"] != "" and w["state"] == "docked" and "Pump" in w["halt"], 400.0), "the rig drains the pocket and comes up (%s)" % w["halt"])
+	check(count_oil() < (oil_before >> 2), "most of the oil is gone from the shaft (%d of %d cells left)" % [count_oil(), oil_before])
+	check(game.goods.get(SLICK, 0.0) > 0.5, "and the Funnel banked it (%.1f units of Slick)" % game.goods.get(SLICK, 0.0))
+	MC.remove(game, pump)
+	cut = fit("cutter", tank)
+	secs(1.0)
+	check(until(func() -> bool: return w["state"] == "down", 20.0), "put the Cutter back and the Winch goes down again")
+	check(game.modules.has(tank) and game.modules.has(fun), "(the rig stands)")
+
+
+## A module for the Tank's lower face, snapped on as the cursor would (the Winch parks a docked rig a few cells off where it was built).
+func fit(def: String, tank: int) -> int:
+	var at: Vector2 = game.modules[tank]["at"]
+	var sn := MC.snap(game, def, 0, Vector2i(int(at.x), int(at.y) + 15 + 8))
+	return MC.place(game, def, sn["at"], 0)
+
+
+func count_oil() -> int:
+	var mask := PackedByteArray()
+	mask.resize(256)
+	mask[SLICK] = 1
+	return game.sim.count_in_rect(288, SURFACE, 30, 70, mask)
