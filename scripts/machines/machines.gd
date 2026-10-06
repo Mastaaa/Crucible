@@ -137,6 +137,7 @@ static func place(g, def_id: String, at: Vector2i, turns: int) -> int:
 		g.firsts[def_id] = true
 		g.mark("First %s built" % def["name"], false)
 	_attach(g, id)
+	_join_rig(g, g.modules[id])
 	return id
 
 
@@ -148,6 +149,22 @@ static func _attach(g, id: int) -> void:
 	for oid: int in g.modules:
 		if oid != id:
 			_try_pair(g, m, fr, g.modules[oid], _frame(g, g.modules[oid]))
+
+
+## A module placed against part of a moving rig is driven with it from this tick: the mover's own
+## scan would list it only up to a scan later, and in that time a hot-swapped Pump or Cutter would
+## fall away from the Tank it was just joined to.
+static func _join_rig(g, m: Dictionary) -> void:
+	for f: Dictionary in m["faces"]:
+		var o: Dictionary = g.modules.get(f["link_m"], {})
+		var mover: Dictionary = g.modules.get(o.get("rig_of", 0), {})
+		if mover.is_empty() or defs[m["def"]].get("anchored", false):
+			continue
+		if not mover["rig"].has(m["id"]):
+			mover["rig"].append(m["id"])
+		m["rig_of"] = mover["id"]
+		m["powered"] = mover.get("net", false)
+		return
 
 
 static func _clear_footprint(g, at: Vector2i, size: Vector2i, cells: PackedByteArray) -> void:

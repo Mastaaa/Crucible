@@ -93,7 +93,7 @@ static func step(g, m: Dictionary, def: Dictionary) -> void:
 	match m["state"]:
 		"docked":
 			if m["fill"] <= EMPTY:
-				var stale: bool = m["halt"] != "" and m.get("halt_key", "") == _key(g)
+				var stale: bool = m["halt"] != "" and m.get("halt_key", "") == _key(g, m)
 				if stale:
 					why = m["halt"]
 				elif m["limit"] <= 0:
@@ -109,7 +109,7 @@ static func step(g, m: Dictionary, def: Dictionary) -> void:
 			elif m["cable"] >= float(m["limit"]):
 				_stop(g, m, "The cable is out: Drill Shaft research lengthens it.")
 			elif not dig.is_empty() and dig.get("stuck", "") != "" and dig["room"] == 0:
-				_stop(g, m, "The Excavator stopped: %s ahead." % dig["stuck"])
+				_stop(g, m, dig.get("stop", "The Excavator stopped: %s ahead." % dig["stuck"]))
 			elif not m["net"]:
 				why = "No Node or Hub within reach."
 			else:
@@ -193,7 +193,7 @@ static func _thump(g, m: Dictionary, p: Dictionary, th: Dictionary) -> void:
 	var free := false
 	match m["state"]:
 		"docked":
-			var stale: bool = m["halt"] != "" and m.get("halt_key", "") == _key(g)
+			var stale: bool = m["halt"] != "" and m.get("halt_key", "") == _key(g, m)
 			if stale:
 				why = m["halt"]
 			elif m["limit"] <= 0:
@@ -291,15 +291,16 @@ static func use(g, m: Dictionary, _def: Dictionary) -> void:
 	g.show_banner("Winch: starting again.", 1.5)
 
 
-## What would change the reason a halt holds: Drill Bit (hardness) and Drill Shaft (length).
-static func _key(g) -> String:
-	return "%d/%d" % [g.level("drill_bit"), g.max_reach()]
+## What would change the reason a halt holds: Drill Bit (hardness), Drill Shaft (length) and which
+## module digs (swapping a Cutter for a Pump, or back, lifts the hold).
+static func _key(g, m: Dictionary) -> String:
+	return "%d/%d/%s" % [g.level("drill_bit"), g.max_reach(), _digger(g, m).get("def", "")]
 
 
 # Goes back up (to unload), and stays docked afterwards until research changes.
 static func _stop(g, m: Dictionary, why: String) -> void:
 	m["halt"] = why
-	m["halt_key"] = _key(g)
+	m["halt_key"] = _key(g, m)
 	m["state"] = "up"
 	g.alert("module", "Winch: %s" % why, m["at"])
 

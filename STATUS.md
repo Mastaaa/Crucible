@@ -4,6 +4,30 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A5 part 9, first half: the Pump leads a rig
+
+Tests: twenty-seven scenarios and engine_compare end `FAILURES: 0`; scenario_fluids F is new. No engine change.
+Alex picked "Pump beside Cutter" on the decision card. The geometry does not allow it: a shaft is 30 wide (the
+Cutter's dig window) and each of the two modules is 26, and a Pump's mouth only reaches liquid when it is the lowest
+module. What went in is the closest workable version, the Pump in the Cutter's place on the Tank's lower face.
+
+- The Pump leads its rig like a Cutter: `room` is 0 while liquid sits in its mouth (it drains first), then the clear rows
+  below; dry with rock below it sets `stuck` and a `stop` text, so the Winch brings the rig up ("The Pump has drained what
+  it can reach."). On a rig it is powered through the Winch's network, as the Cutter is.
+- The Winch's hold now keys on which module digs (`_key` adds its definition), so swapping the Cutter for the Pump, or
+  back, lifts a halt that would otherwise wait for research.
+- Fixed: a module placed against a moving rig is added to the mover's rig at once (`machines.gd` `_join_rig`). Before, it
+  fell away from the Tank for up to a scan and lost its join.
+- scenario_fluids F: the Cutter halts on a pocket of oil and the rig comes up; the Pump goes on, drains the pocket to
+  nothing, the Funnel banks the oil as Slick, and the Cutter goes back and the Winch lowers again.
+- tests/autoplay.gd (bot): researches Chute and Pump, and swaps the digger when the Winch halts on a liquid and again
+  when the Pump is done. Cheated bot, seed 7: still no run. The rig halts on Slick at 9:20 (depth 803), starts up, and
+  stalls at about depth 770 with 83 stalls counted, 602 cells of cable out: the shaft above the Tank is plugged with
+  Stone, Dirt and Water from cave-ins, and the Winch's plow only clears loose powder. The swap never gets its turn
+  because the rig does not reach the surface. The next blocker is the plug, not the oil.
+- Not built: anything that clears a static plug on the climb (an up-facing Cutter has no room for its spoil; a Shorer
+  has no way through the Tank's Funnel face; the Winch's plow deleting static rock would be an engine proposal).
+
 ## A5 part 8: Mk upgrades paid in goods
 
 Tests: twenty-seven scenarios and engine_compare end `FAILURES: 0`; scenario_upgrades is new. No engine change.

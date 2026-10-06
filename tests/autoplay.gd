@@ -12,8 +12,9 @@ extends SceneTree
 
 const D = preload("res://scripts/defs.gd")
 const MC = preload("res://scripts/machines/machines.gd")
+const M = preload("res://scripts/materials.gd")
 
-const ORDER := ["drill_bit", "drill_shaft", "tank_size", "drill_shaft", "lamp", "drill_bit", "drill_shaft", "tank_size", "brace"]
+const ORDER := ["drill_bit", "drill_shaft", "chute", "pump", "tank_size", "drill_shaft", "lamp", "drill_bit", "drill_shaft", "tank_size", "brace"]
 
 var game: Node
 var seed_value := 7
@@ -31,6 +32,8 @@ var techs_seen := 0
 var last_report := 0.0
 var alerts_seen := {}
 var cheat := false
+var digger := "cutter"       # what hangs under the Tank: the Cutter, or the Pump while it drains a liquid the Cutter stops at
+var swaps := 0
 
 
 func _initialize() -> void:
@@ -60,6 +63,9 @@ func _process(_d: float) -> bool:
 			game.levels["drill_bit"] = 5
 			game.levels["drill_shaft"] = 8
 			game.levels["tank_size"] = 3
+			game.researched["chute"] = true
+			game.researched["pump"] = true
+			game.stock[D.R_GLIMMER] = 40.0
 		return false
 	if f < 3:
 		return false
@@ -121,6 +127,8 @@ func _play() -> void:
 				var id := _put(p[0], p[1], p[2])
 				if id > 0:
 					rig[p[0]] = id
+					if p[0] == "cutter":
+						rig["digger"] = id
 		_run(1.0)
 		return
 	if lab == 0:
@@ -134,8 +142,56 @@ func _play() -> void:
 			if game.level(id) < int(seen[id]) and game.tech_block(id) == "":
 				game.pick_research(id)
 				break
+	_swap()
 	_run(5.0)
 	_report(false)
+
+
+## When the Winch brings the rig up because a liquid stopped the Cutter, the Pump takes the Cutter's
+## place under the Tank; when the Pump has drained what it can reach, the Cutter goes back.
+func _swap() -> void:
+	if not rig.has("winch") or not game.modules.has(rig["winch"]):
+		return
+	var w: Dictionary = game.modules[rig["winch"]]
+	var halt: String = w.get("halt", "")
+	if w["state"] != "docked" or halt == "":
+		return
+	if digger == "cutter" and game.researched.has("pump") and _liquid_halt(halt):
+		_exchange("pump")
+	elif digger == "pump" and "Pump" in halt:
+		_exchange("cutter")
+
+
+## True for "The Excavator stopped: Slick ahead." when what it names is a liquid.
+func _liquid_halt(halt: String) -> bool:
+	var i := halt.find(": ")
+	var j := halt.find(" ahead")
+	if i < 0 or j < i:
+		return false
+	var id := M.id_of(halt.substr(i + 2, j - i - 2))
+	return id > 0 and M.kinds[id] == M.K_LIQUID
+
+
+## Takes the digger down and hangs `def_id` on the Tank's lower face in its place (paid for like any build).
+func _exchange(def_id: String) -> void:
+	var def: Dictionary = MC.defs[def_id]
+	if not MC.affordable(game, def) or not game.modules.has(rig["tank"]):
+		return
+	MC.remove(game, rig["digger"])
+	var at: Vector2 = game.modules[rig["tank"]]["at"]
+	var size: Vector2i = Vector2i(def["size"][0], def["size"][1])
+	var sn := MC.snap(game, def_id, 0, Vector2i(int(at.x), int(at.y) + 15 + (size.y >> 1)))
+	var id := MC.place(game, def_id, sn["at"], 0)
+	if id == 0:
+		print("%s  swap to %s failed: %s" % [_clock(game.game_time), def_id, MC.check_place(game, def_id, sn["at"], 0)])
+		return
+	var cost: Array = def.get("cost", [])
+	for r in cost.size():
+		game.stock[r] -= cost[r]
+	rig["digger"] = id
+	digger = def_id
+	swaps += 1
+	print("%s  swap %d: the %s goes on the rig" % [_clock(game.game_time), swaps, def_id])
 
 
 func _built_node(x: int) -> bool:

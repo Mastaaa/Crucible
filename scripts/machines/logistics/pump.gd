@@ -2,7 +2,11 @@ extends RefCounted
 ## Pump (A5): lifts liquid. Its mouth, `front`, takes the liquid cells in the `depth` rows in front of it
 ## (a slice at a time, `rate` cells a scan at most) into its hollow, for a little power a cell, and its
 ## `out` face passes them on into a Tank or Chute joined there. Hung from a Winch under a Tank in place of
-## a Cutter, it clears a flooded or oil-filled shaft ahead of the rig; the liquid goes into the Tank. It takes
+## a Cutter (a shaft is 30 wide, too narrow for both), it clears a flooded or oil-filled shaft ahead of the rig;
+## the liquid goes into the Tank and out through the Funnel. It leads the rig the way a Cutter does: it
+## reports `room` (none while liquid is in its mouth, the clear rows below once it is dry) and, dry with rock
+## right below, `stuck` with a `stop` text, so the Winch lowers it as it drains and brings the rig up when it is
+## done. Swapping the digger lifts the Winch's hold (`_key`). It takes
 ## liquid only (powder is the Cutter's and the Bus Hopper's business, gas will be a Blower's). A Node or the
 ## Hub has to be in reach.
 
@@ -15,8 +19,12 @@ const BH = preload("res://scripts/machines/logistics/bus_hopper.gd")
 static func scan(g, m: Dictionary, def: Dictionary) -> void:
 	var p: Dictionary = def["params"]
 	m["cap"] = int(p["cap"])
-	m["net"] = MU.networked(g, m, def)
+	# On a rig it is powered through the rig's mover (what carries it has a Node or the Hub in reach),
+	# as the Cutter is; anywhere else it needs a Node or the Hub in reach itself.
+	m["net"] = bool(m.get("powered", false)) if m.get("rig_of", 0) != 0 else MU.networked(g, m, def)
 	m["state"] = ""
+	m["room"] = 0
+	m["stuck"] = ""
 	if not m["net"]:
 		m["state"] = "No power: no Node or Hub in reach."
 		return
@@ -42,6 +50,28 @@ static func scan(g, m: Dictionary, def: Dictionary) -> void:
 				did += got[mat]
 	m["lifted"] = m.get("lifted", 0) + did
 	m["state"] = "Pumping." if did > 0 else "Nothing to pump."
+	_room(g, m, def, fo)
+
+
+## What the Winch reads when a Pump leads its rig (as it reads a Cutter's): the rows it may drop,
+## which is none while liquid is still in the mouth (it drains first) and the clear rows below
+## once the mouth is dry. Dry with rock right below, it is done: the rig is told to go up.
+static func _room(g, m: Dictionary, def: Dictionary, fo: Dictionary) -> void:
+	var mouth := BH.mouth(g, m, def)
+	var wet: int = g.sim.count_in_rect(mouth.position.x, mouth.position.y, mouth.size.x, mouth.size.y, M.mask("liquid"))
+	if wet > 0:
+		return
+	var solid := M.mask("solid")
+	var room := 0
+	for k in CUT.LOOK:
+		var s := CUT.slice(fo["p"], fo["n"], k, int(fo["across"]), 0)
+		if g.sim.count_in_rect(s.position.x, s.position.y, s.size.x, s.size.y, solid) > 0:
+			break
+		room += 1
+	m["room"] = room
+	if room == 0:
+		m["stuck"] = "Rock"
+		m["stop"] = "The Pump has drained what it can reach."
 
 
 static func step(_g, _m: Dictionary, _def: Dictionary) -> void:
