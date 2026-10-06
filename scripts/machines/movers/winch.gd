@@ -12,6 +12,8 @@ const M = preload("res://scripts/materials.gd")
 
 const EMPTY := 0.02             # a Tank this full or less counts as empty
 const PLOW_AHEAD := 2           # rows above the rig's modules cleared of loose powder on the way up
+const PLOW_BELOW := 4           # rows under each module but the Excavator, cleared of loose powder on the way down
+const PLOW_SIDE := 3            # ... and this many columns to either side of it
 
 
 # --- The rig ---------------------------------------------------------------------
@@ -132,6 +134,8 @@ static func step(g, m: Dictionary, def: Dictionary) -> void:
 	m["why"] = why
 	if v < 0.0:
 		_plow(g, m)
+	elif m["state"] == "down":
+		_plow_down(g, m, dig)
 	for id: int in m["rig"]:
 		var mm: Dictionary = g.modules.get(id, {})
 		if not mm.is_empty():
@@ -152,11 +156,26 @@ static func step(g, m: Dictionary, def: Dictionary) -> void:
 	m["last_cable"] = m["cable"]
 
 
-## A rig hauled up shoves loose powder out of its way. Bodies can't push powder, and sand that
-## has slumped onto the Tank's roof or lodged in its casing would hold the rig for good (the seed 7
-## jam). Only powder goes: the tunnel's own walls stay, and the spoil is lost.
+static var _plug_mask := PackedByteArray()
+
+
+## What a hauled-up rig clears off its path: loose powder, and the static rock of a cave-in plug
+## lying over it. Never a casing (Obsidian) or bedrock.
+static func plow_mask() -> PackedByteArray:
+	if _plug_mask.is_empty():
+		_plug_mask = M.mask("solid").duplicate()
+		_plug_mask[D.OBSIDIAN] = 0
+		_plug_mask[D.BEDROCK] = 0
+	return _plug_mask
+
+
+## A rig hauled up shoves what lies in its way aside. Bodies can't push powder, and sand that has
+## slumped onto the Tank's roof or lodged in its casing would hold the rig for good (the seed 7
+## jam); a cave-in that has set into a plug of Stone or Dirt would hold it just the same (the A4
+## bot's stall at depth 770). All of it goes, inside the rig's own width: the tunnel's walls stay,
+## and the spoil is lost.
 static func _plow(g, m: Dictionary) -> void:
-	var loose := M.mask("powder")
+	var loose := plow_mask()
 	var dug := 0
 	for id: int in m["rig"]:
 		var mm: Dictionary = g.modules.get(id, {})
@@ -164,6 +183,29 @@ static func _plow(g, m: Dictionary) -> void:
 			continue
 		var r := MU.bounds(mm, MU.defs[mm["def"]])
 		var got: PackedInt32Array = g.sim.dig_rect(r.position.x, r.position.y - PLOW_AHEAD, r.size.x, r.size.y + PLOW_AHEAD, loose, 0, 0)
+		for mat in 256:
+			dug += got[mat]
+	m["plowed"] = m.get("plowed", 0) + dug
+
+
+## A rig let down meets powder the Excavator's own span doesn't reach. The Tank is wider than what
+## the Cutter looks at, the shaft only a cell or two wider than the Tank, and rubble lodged along
+## the wall (or under the Tank's corner) held the rig at depth 638 and again at 659 while the
+## Cutter went on and tore loose (the A5 bot, seed 7). An Excavator clears its own span and keeps
+## the spoil, so it is left alone; every other module, a leading Pump included (it takes liquid and
+## stops on any solid cell), shoves the powder at its sides and under its bottom edge aside, and
+## that is lost, like the climb's. Walls are static and stay. It runs while the rig is let down even
+## when it is held, since a Pump that finds powder ahead holds the rig itself.
+static func _plow_down(g, m: Dictionary, dig: Dictionary) -> void:
+	var powder := M.mask("powder")
+	var dug := 0
+	var skip: int = dig.get("id", 0) if MU.defs.get(dig.get("def", ""), {}).get("kind", "") != "pump" else 0
+	for id: int in m["rig"]:
+		var mm: Dictionary = g.modules.get(id, {})
+		if mm.is_empty() or id == skip:
+			continue
+		var r := MU.bounds(mm, MU.defs[mm["def"]])
+		var got: PackedInt32Array = g.sim.dig_rect(r.position.x - PLOW_SIDE, r.position.y, r.size.x + 2 * PLOW_SIDE, r.size.y + PLOW_BELOW, powder, 0, 0)
 		for mat in 256:
 			dug += got[mat]
 	m["plowed"] = m.get("plowed", 0) + dug

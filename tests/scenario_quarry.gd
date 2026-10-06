@@ -12,6 +12,10 @@ extends SceneTree
 ##  F. a save keeps the rig, and it goes on after loading
 ##  G. loose sand slumped into the shaft behind the rig (the seed 7 jam): the Tank's hook stays
 ##     shut, and the rig ploughs up through the sand to the Funnel instead of jamming
+##  H. a static plug (Stone) set across the shaft over the rig (a cave-in): the rig ploughs through it too,
+##     and the shaft's walls and the rig's own casing stay
+##  I. a rubble cell under the Tank's overhang as the rig goes down (the A5 bot's stall at depth 638):
+##     the Winch shoves it aside instead of the Tank stopping on it while the Cutter goes on
 ## Run: godot --headless --path . --script tests/scenario_quarry.gd
 
 const D = preload("res://scripts/defs.gd")
@@ -19,6 +23,7 @@ const F = preload("res://scripts/machines/faces.gd")
 const MC = preload("res://scripts/machines/machines.gd")
 const Save = preload("res://scripts/save.gd")
 const M = preload("res://scripts/materials.gd")
+const Winch = preload("res://scripts/machines/movers/winch.gd")
 var game: Node
 var f := 0
 var fails := 0
@@ -47,6 +52,8 @@ func _process(_d: float) -> bool:
 		scenario_e()
 		scenario_f()
 		scenario_g()
+		scenario_h()
+		scenario_i()
 		print("FAILURES: %d" % fails)
 		return true
 	return false
@@ -294,3 +301,54 @@ func scenario_g() -> void:
 	var inside: int = game.sim.count_in_rect(tb.position.x + 2, tb.position.y + 2, tb.size.x - 4, tb.size.y - 4, M.mask("powder"))
 	check(inside == 0, "and no sand got into the Tank's hollow (%d cells)" % inside)
 	game.levels["tank_size"] = 0
+
+
+func scenario_h() -> void:
+	print("H. a static plug over the rig")
+	fresh()
+	var r := build_rig()
+	var w := winch_of(r)
+	var tank: Dictionary = game.modules[r["tank"]]
+	check(until(func() -> bool: return w["cable"] > 60.0, 150.0), "the rig goes down the shaft (%.0f cells)" % w["cable"])
+	var top := int(MC.bounds(tank).position.y)
+	var stone := 2
+	var laid := 0
+	for y in range(top - 40, top - 10):
+		for x in range(X0 - 4, X0 + 30):
+			if game.sim.get_cell(x, y) == D.AIR and game.sim.get_owner(x, y) == 0:
+				game.sim.set_cell(x, y, stone)
+				laid += 1
+	check(laid > 400, "(%d cells of Stone laid across the shaft)" % laid)
+	var wall_before: int = game.sim.count_in_rect(X0 - 12, top - 40, 8, 30, M.mask("solid"))
+	w["state"] = "up"
+	check(until(func() -> bool: return w["state"] == "docked", 200.0), "the rig climbs through the plug and docks (cable %.0f, %s)" % [w["cable"], w["why"]])
+	check(w.get("plowed", 0) > 300, "by clearing it off its path (%d cells)" % w.get("plowed", 0))
+	var wall_after: int = game.sim.count_in_rect(X0 - 12, top - 40, 8, 30, M.mask("solid"))
+	check(wall_after == wall_before, "and the ground beside the shaft is untouched (%d cells before and after)" % wall_before)
+	check(game.modules.has(r["tank"]) and game.modules[r["tank"]]["integrity"] > 0.99, "with the rig's casing whole (%.2f)" % game.modules[r["tank"]]["integrity"])
+
+
+func scenario_i() -> void:
+	print("I. powder at the rig's sides and under it on the way down")
+	fresh()
+	var r := build_rig()
+	var w := winch_of(r)
+	check(until(func() -> bool: return w["cable"] > 40.0, 150.0), "the rig goes down the shaft (%.0f cells)" % w["cable"])
+	var cut: Dictionary = game.modules[r["cut"]]
+	var tb := MC.bounds(game.modules[r["tank"]])
+	var cb := MC.bounds(cut)
+	var below := Vector2i(cb.position.x + (cb.size.x >> 1), cb.end.y + 1)
+	var beside := Vector2i(tb.end.x + 1, tb.position.y + 10)
+	var powder := M.mask("powder")
+	game.sim.set_cell(below.x, below.y, D.RUBBLE)
+	game.sim.set_cell(below.x + 3, below.y, D.STONE)
+	game.sim.set_cell(beside.x, beside.y, D.RUBBLE)
+	Winch._plow_down(game, w, cut)
+	check(game.sim.count_in_rect(beside.x, beside.y, 1, 1, powder) == 0, "rubble lodged beside the Tank is shoved aside")
+	check(game.sim.count_in_rect(below.x, below.y, 1, 1, powder) == 1, "the Excavator's own span is left to the Excavator")
+	Winch._plow_down(game, w, {})
+	check(game.sim.count_in_rect(below.x, below.y, 1, 1, powder) == 0, "any other module clears the powder under its bottom edge")
+	check(game.sim.get_cell(below.x + 3, below.y) == D.STONE, "rock stays where it is")
+	game.sim.set_cell(below.x + 3, below.y, D.AIR)
+	check(until(func() -> bool: return w["cable"] > 70.0, 150.0), "and the rig goes on down (%.0f cells)" % w["cable"])
+	check(game.modules.has(r["cut"]) and game.modules[r["cut"]]["integrity"] > 0.99, "with the casings whole")

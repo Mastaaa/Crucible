@@ -34,6 +34,9 @@ var alerts_seen := {}
 var cheat := false
 var digger := "cutter"       # what hangs under the Tank: the Cutter, or the Pump while it drains a liquid the Cutter stops at
 var swaps := 0
+var swap_logged := false
+var halt_logged := ""
+var pending := ""            # a digger swap that took the old one down and waits for room to hang the new one
 
 
 func _initialize() -> void:
@@ -152,8 +155,14 @@ func _play() -> void:
 func _swap() -> void:
 	if not rig.has("winch") or not game.modules.has(rig["winch"]):
 		return
+	if pending != "":
+		_exchange(pending)
+		return
 	var w: Dictionary = game.modules[rig["winch"]]
 	var halt: String = w.get("halt", "")
+	if halt != "" and halt != halt_logged:
+		print("%s  halt at depth %d: %s" % [_clock(game.game_time), MC.deepest(game), halt])
+	halt_logged = halt
 	if w["state"] != "docked" or halt == "":
 		return
 	if digger == "cutter" and game.researched.has("pump") and _liquid_halt(halt):
@@ -172,26 +181,52 @@ func _liquid_halt(halt: String) -> bool:
 	return id > 0 and M.kinds[id] == M.K_LIQUID
 
 
-## Takes the digger down and hangs `def_id` on the Tank's lower face in its place (paid for like any build).
+## Takes the digger down and hangs `def_id` on the Tank's lower face in its place (paid for like any
+## build). If the spot is not free yet the swap waits in `pending` and is tried again on the next pass.
 func _exchange(def_id: String) -> void:
 	var def: Dictionary = MC.defs[def_id]
-	if not MC.affordable(game, def) or not game.modules.has(rig["tank"]):
-		return
-	MC.remove(game, rig["digger"])
-	var at: Vector2 = game.modules[rig["tank"]]["at"]
-	var size: Vector2i = Vector2i(def["size"][0], def["size"][1])
-	var sn := MC.snap(game, def_id, 0, Vector2i(int(at.x), int(at.y) + 15 + (size.y >> 1)))
-	var id := MC.place(game, def_id, sn["at"], 0)
+	if pending == "":
+		if not MC.affordable(game, def) or not game.modules.has(rig["tank"]):
+			return
+		MC.remove(game, rig["digger"])
+		pending = def_id
+	var id := _hang(def_id)
 	if id == 0:
-		print("%s  swap to %s failed: %s" % [_clock(game.game_time), def_id, MC.check_place(game, def_id, sn["at"], 0)])
+		if not swap_logged:
+			swap_logged = true
+			print("%s  the %s waits for room under the Tank" % [_clock(game.game_time), def_id])
 		return
+	swap_logged = false
 	var cost: Array = def.get("cost", [])
 	for r in cost.size():
 		game.stock[r] -= cost[r]
 	rig["digger"] = id
 	digger = def_id
+	pending = ""
 	swaps += 1
 	print("%s  swap %d: the %s goes on the rig" % [_clock(game.game_time), swaps, def_id])
+
+
+## Places `def_id` against the Tank's lower face and returns its id, or 0. The Tank's stored position
+## lags its body by a cell or two, so the snapped spot is tried a row or two lower as well, and only
+## a placement that joined the Tank's face is kept.
+func _hang(def_id: String) -> int:
+	var def: Dictionary = MC.defs[def_id]
+	var b: Rect2i = MC.bounds(game.modules[rig["tank"]])
+	var size: Vector2i = Vector2i(def["size"][0], def["size"][1])
+	var sn := MC.snap(game, def_id, 0, Vector2i(b.position.x + (b.size.x >> 1), b.end.y + (size.y >> 1)))
+	for dy in [0, 1, 2]:
+		var at := Vector2i(sn["at"].x, sn["at"].y + dy)
+		if MC.check_place(game, def_id, at, 0) != "":
+			continue
+		var id := MC.place(game, def_id, at, 0)
+		if id == 0:
+			continue
+		if game.modules[id]["faces"][0]["link_m"] != 0:
+			return id
+		MC.remove(game, id)
+	return 0
+
 
 
 func _built_node(x: int) -> bool:
@@ -243,6 +278,7 @@ func _report(final: bool) -> void:
 				print("  %s: %s" % [k, str(md).left(700)])
 		if final and OS.get_cmdline_user_args().has("--dump") and rig.has("tank") and game.modules.has(rig["tank"]):
 			_look_above(game.modules[rig["tank"]])
+			_look_below(game.modules[rig["tank"]])
 		print("%s  depth %d, Stone %d, power %d, tech %s, %s" % [_clock(t), depth, int(game.stock[D.R_STONE]), int(game.stock[D.R_POWER]), game.current_tech, why])
 
 
@@ -262,3 +298,24 @@ func _look_above(tank: Dictionary) -> void:
 			var c: int = game.sim.get_cell(int(at.x) + dx, int(at.y) + dy)
 			row += "." if c == 0 else str(c % 10)
 		print("  y%+d %s" % [dy, row])
+
+
+## The rows round the Tank's bottom edge, for a rig that stopped in open ground: what touches the Tank.
+func _look_below(tank: Dictionary) -> void:
+	var tb: Rect2i = MC.bounds(tank)
+	var sv: PackedFloat32Array = game.sim.body_state(tank["body"])
+	print("  tank bounds %s body (%.2f, %.2f) rot %.4f" % [str(tb), sv[0], sv[1], sv[2]])
+	for yy in range(tb.end.y - 6, tb.end.y + 8):
+		var row := ""
+		for xx in range(tb.position.x - 8, tb.end.x + 9):
+			var c: int = game.sim.get_cell(xx, yy)
+			row += "." if c == 0 else str(c % 10)
+		print("  y%d %s" % [yy, row])
+	var near := []
+	for yy in range(tb.position.y, tb.end.y + 4):
+		for xx in [tb.position.x - 2, tb.position.x - 1, tb.end.x, tb.end.x + 1]:
+			var c: int = game.sim.get_cell(xx, yy)
+			if c != 0:
+				near.append("(%d,%d)=%d" % [xx, yy, c])
+	print("  cells within 2 of the Tank's sides: %s" % ", ".join(near))
+
