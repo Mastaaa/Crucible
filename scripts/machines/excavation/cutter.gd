@@ -128,9 +128,12 @@ static func scan(g, m: Dictionary, def: Dictionary) -> void:
 		zone.size.x = 3
 		if n.x < 0:
 			zone.position.x -= 2
-	var wet: int = g.sim.count_in_rect(zone.position.x, zone.position.y, zone.size.x, zone.size.y, water)
+	# Oil (a good) is drunk only while the bank has room for it: a full bank holds goods back at the
+	# Funnel, and a Tank of Slick that cannot be emptied would hold the rig at the dock for good.
+	var sip := water if g.goods_room() >= 1.0 else M.mask("worth_liquid")
+	var wet: int = g.sim.count_in_rect(zone.position.x, zone.position.y, zone.size.x, zone.size.y, sip)
 	if wet > 0 and wet <= mini(int(p["intake"]), MU.capacity(m, def) - MU.stored(m)):
-		var got: PackedInt32Array = g.sim.dig_rect(zone.position.x, zone.position.y, zone.size.x, zone.size.y, water, 0, 0)
+		var got: PackedInt32Array = g.sim.dig_rect(zone.position.x, zone.position.y, zone.size.x, zone.size.y, sip, 0, 0)
 		for mat in 256:
 			if got[mat] > 0:
 				MU.add(m, def, mat, got[mat])

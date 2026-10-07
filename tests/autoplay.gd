@@ -14,7 +14,7 @@ const D = preload("res://scripts/defs.gd")
 const MC = preload("res://scripts/machines/machines.gd")
 const M = preload("res://scripts/materials.gd")
 
-const ORDER := ["drill_bit", "drill_shaft", "chute", "pump", "tank_size", "drill_shaft", "lamp", "drill_bit", "drill_shaft", "tank_size", "brace"]
+const ORDER := ["drill_bit", "drill_shaft", "chute", "pump", "tank_size", "drill_shaft", "lamp", "drill_bit", "drill_shaft", "tank_size", "brace", "plating", "plating"]
 
 var game: Node
 var seed_value := 7
@@ -69,6 +69,7 @@ func _process(_d: float) -> bool:
 			game.researched["chute"] = true
 			game.researched["pump"] = true
 			game.stock[D.R_GLIMMER] = 40.0
+			game.goods[M.id_of("Ferrite")] = 10.0       # what a Ferrite blob at depth 2400 would bank (Plating Mk I and II)
 		return false
 	if f < 3:
 		return false
@@ -108,6 +109,7 @@ func _put(def_id: String, x: int, y: int) -> int:
 func _play() -> void:
 	if cheat:
 		game.stock[D.R_POWER] = 100.0
+		game.goods.erase(M.id_of("Slick"))          # the oil goes to a Combustor off screen; a full bank would hold the Tank at the Funnel
 	var hub: Rect2i = game.hub.rect()
 	var top := hub.end.y
 	var x0 := hub.position.x - 230 if side < 0 else hub.end.x + 200
@@ -155,6 +157,8 @@ func _play() -> void:
 func _swap() -> void:
 	if not rig.has("winch") or not game.modules.has(rig["winch"]):
 		return
+	if pending == "" and rig.has("digger") and not game.modules.has(rig["digger"]) and game.modules.has(rig["tank"]):
+		pending = digger        # the digger was lost (corroded away): hang a new one
 	if pending != "":
 		_exchange(pending)
 		return
@@ -190,6 +194,8 @@ func _exchange(def_id: String) -> void:
 			return
 		MC.remove(game, rig["digger"])
 		pending = def_id
+	elif not MC.affordable(game, def):
+		return
 	var id := _hang(def_id)
 	if id == 0:
 		if not swap_logged:
@@ -279,6 +285,8 @@ func _report(final: bool) -> void:
 		if final and OS.get_cmdline_user_args().has("--dump") and rig.has("tank") and game.modules.has(rig["tank"]):
 			_look_above(game.modules[rig["tank"]])
 			_look_below(game.modules[rig["tank"]])
+		if final and OS.get_cmdline_user_args().has("--dump"):
+			print("  goods %s, tech power %s, tech bank %s" % [str(game.goods), str(game.tech_power), str(game.tech_bank)])
 		print("%s  depth %d, Stone %d, power %d, tech %s, %s" % [_clock(t), depth, int(game.stock[D.R_STONE]), int(game.stock[D.R_POWER]), game.current_tech, why])
 
 
