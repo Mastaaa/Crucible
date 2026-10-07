@@ -4,6 +4,7 @@ extends SceneTree
 ##     hot rock and stone hold each other up along a row
 ##  B. water on hot rock boils into steam, and slowly quenches it to stone
 ##  G. the Crucible draws 4 power/s while charging; out of power for 5 s it drains
+##  H. a spring tops up at the slowed rate (Alex, A5: a quarter of the first, so a breached aquifer floods a shaft slowly)
 ## Run: godot --headless --path . --script tests/scenario_depth.gd
 
 const D = preload("res://scripts/defs.gd")
@@ -28,6 +29,7 @@ func _process(_d: float) -> bool:
 			return true
 		scenario_b()
 		scenario_g()
+		scenario_h()
 		print("FAILURES: %d" % fails)
 		return true
 	return false
@@ -213,3 +215,17 @@ func scenario_g() -> void:
 	print("  out of power: draining at 8 s %s, at 12 s %s (starved %s); glimmer fed %.2f of 10" % [early, game.c_draining,
 			game.c_starved, game.c_delivered[D.R_GLIMMER]])
 	check(game.c_starved and game.c_draining and game.c_delivered[D.R_GLIMMER] < 10.0, "out of power for 5 s, the charge drains")
+
+
+func scenario_h() -> void:
+	print("H. a spring's pace")
+	fresh()
+	var r := Rect2i(P(128, 60), Vector2i(60, 50))
+	arena(r)
+	game.info["springs"] = [Vector2i(r.position.x + 30, r.end.y - 1)]
+	game.run_ticks(600)
+	var water := count(r, D.WATER)
+	var want := int(D.SPRING_CELLS_PER_S * 10.0)
+	print("  10 s: %d Water cells (the rate gives %d)" % [water, want])
+	check(want == 2 * S * S * 10, "a spring makes %d cells a second, a quarter of the first rate" % int(D.SPRING_CELLS_PER_S))
+	check(absf(float(water - want)) < float(want) * 0.15, "and ten seconds of it put %d cells in the room" % water)

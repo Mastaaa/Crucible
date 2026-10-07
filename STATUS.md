@@ -4,6 +4,22 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A5 part 9, sixth piece: springs at a quarter of their rate
+
+Tests: twenty-seven scenarios and engine_compare end `FAILURES: 0`; scenario_depth gained an H. No engine change.
+Alex's call (10-07, "Slow it" on the card about the flooded shaft): a spring now tops up 2 * S * S cells a second, a quarter of before
+(`D.SPRING_CELLS_PER_S`), so a breached aquifer still floods the shaft but takes far longer to reach the surface. Capping springs at the
+aquifer's roof and leaving it were the other options on the card.
+
+- scenario_depth H: one spring in a walled room puts 2000 cells in it in ten seconds (fails at the old rate, which fills the room).
+- Two older scenarios turned out to lean on the old pace and chance. scenario_power C let a single air bubble sit against the Node's
+  outline, which kept the Node from drowning; it now fills the air round the Node after the flood. scenario_collapse's 150-wide stone roof
+  weathered 14 cells instead of 7 with the shifted random stream; the threshold went from 10 to 20, against 214 for the wide roof.
+- Cheated bot, seed 7, 140 game minutes: no flood. Depth 3000 at 115:10 and 3500 at 118:50 (Hot rock), 3835 at 121:20, where the cable runs out
+  ("Drill Shaft research lengthens it"; the bot cheats Drill Shaft 8). The shaft holds no standing water above depth 2550 and steam below;
+  the surface Nodes were not drowned; Plating Mk I and II (cheated Ferrite) hold the casings. Crucible depth is about 4350, so the next wall
+  is cable length, then the plug in the Crucible chamber's ceiling.
+
 ## A5 part 9, fifth piece: Ferrite moves above the Sulfur, the Funnel takes Throughput, the Cutter stops ignoring its own casing
 
 Tests: twenty-seven scenarios and engine_compare end `FAILURES: 0`; scenario_upgrades C gained a Funnel case and scenario_quarry a J. No engine change.
@@ -25,7 +41,7 @@ Alex's notes (10-07): scoot Ferrite up so a player can reinforce machines before
 - Found with the bot, not fixed: by minute 100 the cheated bot's shaft is full of Water from depth 550 to 2950, and by 121 it spills onto the
   surface pad (659 Water cells at rows 150 to 200), which drowns the Nodes at depth 190 and steams. Cause: `game.gd` `_springs` tops up the
   water standing over every aquifer, pocket and cave spring with no ceiling, so a breached aquifer refills the whole shaft column for good.
-  Candidates for Alex: cap each spring at its aquifer's roof, or leave it and answer with Pumps and a curb.
+  Alex picked "Slow it" (sixth piece).
 - Proposal, not built: the last wave 2 slots (Gall, Vitriol, and Recoil or Hover), in `/mnt/project-files/plans/a5-wave2-draft.md`.
 
 ## A5 part 9, fourth piece: Plating gets the bot past the Sulfur

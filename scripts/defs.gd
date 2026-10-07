@@ -176,7 +176,7 @@ const HUB_POWER_PER_S := 0.2        # the floor: the Hub always makes this much
 const LAMP_POWER_PER_S := 0.1
 const HUB_POWER_CAP := 100.0        # the Hub's power store
 const HUB_GOODS_CAP := 30.0         # A5: units of goods (all kinds together) the Hub holds; Vault cells add to it and to the power store
-const SPRING_CELLS_PER_S := 8.0 * S * S   # a spring tops its aquifer up by this much water
+const SPRING_CELLS_PER_S := 2.0 * S * S   # a spring tops its aquifer up by this much water (A5, Alex: a quarter of the first rate, so a breached aquifer floods a shaft slowly)
 const CAVE_SPRING_CHANCE := 0.4
 
 ## Power a dug cell of `m` costs (the Cutter's base rate, before depth and Drill Bit).
