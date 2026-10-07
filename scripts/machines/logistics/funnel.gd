@@ -8,7 +8,7 @@ const M = preload("res://scripts/materials.gd")
 
 
 static func scan(g, m: Dictionary, def: Dictionary) -> void:
-	var left: int = def["params"]["bank"]
+	var left := MU.rate(g, int(def["params"]["bank"]))
 	for mat: int in m["contents"].keys():
 		var n := mini(left, m["contents"][mat])
 		if M.is_good(mat):

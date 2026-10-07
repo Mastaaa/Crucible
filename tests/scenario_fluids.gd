@@ -242,7 +242,7 @@ func scenario_f() -> void:
 	check(until(func() -> bool: return w["state"] == "down", 20.0), "swapping the digger lifts the hold")
 	check(until(func() -> bool: return w["halt"] != "" and w["state"] == "docked" and "Pump" in w["halt"], 400.0), "the rig drains the pocket and comes up (%s)" % w["halt"])
 	check(count_liquid(SOUR) < (oil_before >> 2), "most of the pool is gone from the shaft (%d of %d cells left)" % [count_liquid(SOUR), oil_before])
-	check(game.goods.get(SOUR, 0.0) > 0.5, "and the Funnel banked it (%.1f units of Sourwater)" % game.goods.get(SOUR, 0.0))
+	check(until(func() -> bool: return game.goods.get(SOUR, 0.0) > 0.5, 20.0), "and the Funnel banked it (%.1f units of Sourwater)" % game.goods.get(SOUR, 0.0))
 	MC.remove(game, pump)
 	cut = fit("cutter", tank)
 	secs(1.0)

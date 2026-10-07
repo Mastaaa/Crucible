@@ -19,6 +19,8 @@
 		"    speckle (a loose scatter of single cells, `density` 0-1 of the disc). aspect: squashes a blob",
 		"    into a seam or vein, `radius` cells either way across and radius / aspect up and down.",
 		"  Wave 1 rows (the second half of the list) follow claude/WAVE1_MATERIALS.md's home table.",
+		"  Ferrite sits above the Sulfur band (A5): three seams anywhere across the world, and a fourth in the Hub's middle",
+		"    third, so a straight shaft meets one before the casing needs Plating. It is the last row, so adding it moved nothing else.",
 		"  enabled: false parks a row."
 	],
 	"areas": {
@@ -51,7 +53,8 @@
 		{"material": "Rime", "x": [0.05, 0.95], "depth": [1800, 2800], "host": ["Stone"], "clumps": [3, 3], "radius": [20, 24], "shape": "blob"},
 		{"material": "Sourwater", "x": [0.05, 0.95], "depth": [2000, 3000], "host": ["Stone"], "clumps": [2, 2], "radius": [26, 30], "shape": "blob"},
 		{"material": "Wisp", "x": [0.05, 0.95], "depth": [2000, 3200], "host": ["Stone"], "clumps": [4, 4], "radius": [18, 20], "shape": "blob"},
-		{"material": "Ferrite", "x": [0.0, 1.0], "depth": [2400, 3600], "host": ["Stone", "Hot rock"], "clumps": [3, 3], "radius": [90, 110], "shape": "blob", "aspect": 5},
-		{"material": "Glass", "x": [0.0, 1.0], "depth": [3000, 3800], "host": ["Hot rock"], "clumps": [6, 8], "radius": [6, 10], "shape": "speckle", "density": 0.5}
+		{"material": "Ferrite", "x": [0.0, 1.0], "depth": [1600, 2300], "host": ["Stone"], "clumps": [3, 3], "radius": [90, 110], "shape": "blob", "aspect": 4},
+		{"material": "Glass", "x": [0.0, 1.0], "depth": [3000, 3800], "host": ["Hot rock"], "clumps": [6, 8], "radius": [6, 10], "shape": "speckle", "density": 0.5},
+		{"material": "Ferrite", "x": [0.38, 0.62], "depth": [1600, 2300], "host": ["Stone"], "clumps": [1, 1], "radius": [90, 110], "shape": "blob", "aspect": 4}
 	]
 }

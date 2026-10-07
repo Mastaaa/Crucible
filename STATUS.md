@@ -4,6 +4,30 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A5 part 9, fifth piece: Ferrite moves above the Sulfur, the Funnel takes Throughput, the Cutter stops ignoring its own casing
+
+Tests: twenty-seven scenarios and engine_compare end `FAILURES: 0`; scenario_upgrades C gained a Funnel case and scenario_quarry a J. No engine change.
+Alex's notes (10-07): scoot Ferrite up so a player can reinforce machines before the Sulfur needs it, and make the Funnel's transfer rate upgradeable.
+
+- Ferrite seams now sit at depth 1600 to 2300 in Stone only (`data/spawn_regions.json`, a little thicker: aspect 4), above the Sulfur band at
+  about 2500: three seams anywhere across the world and a fourth in the Hub's middle third (the last row, so no other row's layout moved).
+  Mk III and IV still want Glass from the Magma band. Where the wave 1 table said "Stone 2400 to Magma 3600", the build now wins.
+  One vertical shaft crosses a seam once, about 2 units of Ferrite (Mk I wants 2, Mk II wants 5 and 2 Flux), so a player gets Mk II by a
+  second shaft along the seam. The bot (no Ferrite cheat) banked 0.38 units, so its cheat stays at 10 Ferrite.
+- `funnel.gd` banks `MU.rate(bank)` cells a scan, so Throughput levels 2 and 4 take it from 40 to 80 and 120 (scenario_upgrades C).
+  Rate was never what held the rig at the dock: the Tank emptied 40 cells a scan and a Tank is about 4800 cells, so a Funnel needs
+  twelve seconds. The hour at the dock was the full-bank hold, which is still Alex's open card.
+- Found with the bot: with Plating not researched, the Cutter stopped for good at depth 2256 to 2297 on "Obsidian ahead". The wall was one
+  corner pixel of its own casing: the body hangs tilted by 0.005 radians, its front edge sat at y.495, and the slice in front of the
+  front rounds into the casing's last row. The rig then stood still (no room, no motion) so the reading never cleared. `Cutter.counts_ahead`
+  now leaves out cells the Cutter owns, in both the clearance check and the dig loop (scenario_quarry J). I first tried making the Winch
+  wait 30 ticks for the reading to last; it did not help, because the stalled rig makes the reading last.
+- Found with the bot, not fixed: by minute 100 the cheated bot's shaft is full of Water from depth 550 to 2950, and by 121 it spills onto the
+  surface pad (659 Water cells at rows 150 to 200), which drowns the Nodes at depth 190 and steams. Cause: `game.gd` `_springs` tops up the
+  water standing over every aquifer, pocket and cave spring with no ceiling, so a breached aquifer refills the whole shaft column for good.
+  Candidates for Alex: cap each spring at its aquifer's roof, or leave it and answer with Pumps and a curb.
+- Proposal, not built: the last wave 2 slots (Gall, Vitriol, and Recoil or Hover), in `/mnt/project-files/plans/a5-wave2-draft.md`.
+
 ## A5 part 9, fourth piece: Plating gets the bot past the Sulfur
 
 Tests: twenty-seven scenarios and engine_compare end `FAILURES: 0`; scenario_fluids G gained a full-bank case. No engine change.
