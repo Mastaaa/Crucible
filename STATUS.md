@@ -4,6 +4,19 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A5 part 9, seventh piece: the bot reaches the chamber's bedrock
+
+Tests: unchanged (the suite does not run the bot; the last full run, 28 lines `FAILURES: 0`, was PR #38). No game change: `tests/autoplay.gd` only.
+
+- With `--cheat` now setting Drill Shaft 9 (a 4350 cable), the seed 7 bot reaches depth 3000 at 115:10, 3500 at 118:50, 4000 at 122:25 and
+  4473 at 126:00, where the Cutter stops on "Bedrock ahead": the chamber's bedrock shell begins near 4500 and the one way through it is the
+  40-cell plug of hot rock (`info["plug_x"]`, 189 on seed 7). The bot's rig stands 75 cells left of that, so a straight shaft cannot get in.
+- New flag `--plug` stands the rig over the plug (`x0 = plug_x + 7`). On seed 7 that rig wedges, tilted 0.068 radians, at depth 461, 25 rows
+  under the surface Stone lumps at x 190 to 200: a new place has its own jams, so `--plug` is untried below that.
+- What a full run still needs: a rig over the plug, a hole through the plug, a Node chain from the Hub down the shaft to under the plug (about
+  55 Nodes at 80 rows each, built by packet), and the delivery (32 Glimmer, 48 Obsidian, 64 Water, 4 power/s). The bot banks its own Ferrite
+  too only if a second shaft crosses a seam.
+
 ## A5 part 9, sixth piece: springs at a quarter of their rate
 
 Tests: twenty-seven scenarios and engine_compare end `FAILURES: 0`; scenario_depth gained an H. No engine change.
