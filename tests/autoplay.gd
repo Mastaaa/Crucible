@@ -7,7 +7,7 @@ extends SceneTree
 ## someone who knows where things are. The full bot comes back at the end of A4.
 ##
 ## godot --headless --path . --script tests/autoplay.gd -- --seed=7 [--max=3600] [--quiet] [--cheat]
-## --cheat starts with the research that bears on depth already done and keeps the Hub's power topped up,
+## --plug stands the rig over the Crucible chamber's plug instead of beside the Hub. --cheat starts with the research that bears on depth already done and keeps the Hub's power topped up,
 ## so a run tests what the machines can dig rather than how fast the economy lets them.
 
 const D = preload("res://scripts/defs.gd")
@@ -65,7 +65,7 @@ func _process(_d: float) -> bool:
 		_flatten()
 		if cheat:
 			game.levels["drill_bit"] = 5
-			game.levels["drill_shaft"] = 8
+			game.levels["drill_shaft"] = 9
 			game.levels["tank_size"] = 3
 			game.researched["chute"] = true
 			game.researched["pump"] = true
@@ -114,6 +114,8 @@ func _play() -> void:
 	var hub: Rect2i = game.hub.rect()
 	var top := hub.end.y
 	var x0 := hub.position.x - 230 if side < 0 else hub.end.x + 200
+	if OS.get_cmdline_user_args().has("--plug"):
+		x0 = int(game.info["plug_x"]) + 7       # the rig stands over the chamber's plug (the one way through the bedrock)
 	# Nodes first: a machine works only with one in reach, and each blueprint waits on the one before.
 	var spots := [hub.position.x - 30, hub.position.x - 110, hub.position.x - 190] if side < 0 else [hub.end.x + 10, hub.end.x + 90, hub.end.x + 170]
 	for k in nodes.size():
