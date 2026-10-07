@@ -82,6 +82,26 @@ static func slice(p: Vector2, n: Vector2i, k: int, width: int, off: int) -> Rect
 	return Rect2i(x0, int(round(p.y)) - (width >> 1) + off, 1, width)
 
 
+## The cell counts of `r` less the cells this module owns. A tilted body's front edge, half a row off a row
+## boundary, can round one corner pixel of its own casing into the slice just past the front, and the rig
+## then stops for a wall that is itself (the A5 bot's "Obsidian ahead" at depth 2256).
+static func counts_ahead(g, m: Dictionary, r: Rect2i) -> PackedInt32Array:
+	var counts: PackedInt32Array = g.sim.rect_counts(r.position.x, r.position.y, r.size.x, r.size.y)
+	for y in range(r.position.y, r.end.y):
+		for x in range(r.position.x, r.end.x):
+			if g.sim.get_owner(x, y) == m["id"]:
+				counts[g.sim.get_cell(x, y)] -= 1
+	return counts
+
+
+## Whether `counts` holds any cell of the `mask`.
+static func holds(counts: PackedInt32Array, mask: PackedByteArray) -> bool:
+	for mat in range(1, 256):
+		if counts[mat] > 0 and mask[mat] == 1:
+			return true
+	return false
+
+
 ## Where the front wall is in the world: {p: its middle, n: the way it faces (an axis),
 ## across: the module's width along the front}.
 static func front_of(g, m: Dictionary, def: Dictionary) -> Dictionary:
@@ -112,9 +132,8 @@ static func scan(g, m: Dictionary, def: Dictionary) -> void:
 	# Clearance ahead, over the body's own width: how many rows the rig may drop.
 	var room := 0
 	for k in LOOK:
-		var s := slice(pt, n, k, fo["across"], 0)
-		if g.sim.count_in_rect(s.position.x, s.position.y, s.size.x, s.size.y, solid) > 0 \
-				or g.sim.count_in_rect(s.position.x, s.position.y, s.size.x, s.size.y, bad) > 0:
+		var ahead := counts_ahead(g, m, slice(pt, n, k, fo["across"], 0))
+		if holds(ahead, solid) or holds(ahead, bad):
 			break
 		room += 1
 	m["room"] = room
@@ -144,7 +163,7 @@ static func scan(g, m: Dictionary, def: Dictionary) -> void:
 	for _i in SLICES_PER_SCAN:
 		var off: int = m.get("off", 0)
 		var r := slice(pt, n, 0, int(p["width"]), off)
-		var counts: PackedInt32Array = g.sim.rect_counts(r.position.x, r.position.y, r.size.x, r.size.y)
+		var counts := counts_ahead(g, m, r)
 		var slowest := INF
 		var power := 0.0
 		var units := 0

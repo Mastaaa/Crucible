@@ -13,6 +13,7 @@ extends SceneTree
 const D = preload("res://scripts/defs.gd")
 const MC = preload("res://scripts/machines/machines.gd")
 const M = preload("res://scripts/materials.gd")
+const Cutter = preload("res://scripts/machines/excavation/cutter.gd")
 
 const ORDER := ["drill_bit", "drill_shaft", "chute", "pump", "tank_size", "drill_shaft", "lamp", "drill_bit", "drill_shaft", "tank_size", "brace", "plating", "plating"]
 
@@ -69,6 +70,7 @@ func _process(_d: float) -> bool:
 			game.researched["chute"] = true
 			game.researched["pump"] = true
 			game.stock[D.R_GLIMMER] = 40.0
+			game.goods[M.id_of("Ferrite")] = 10.0       # the rig's one shaft crosses a seam once (about 2 units); Mk II wants 5 more
 		return false
 	if f < 3:
 		return false
@@ -165,6 +167,9 @@ func _swap() -> void:
 	var halt: String = w.get("halt", "")
 	if halt != "" and halt != halt_logged:
 		print("%s  halt at depth %d: %s" % [_clock(game.game_time), MC.deepest(game), halt])
+		if OS.get_cmdline_user_args().has("--dump") and game.modules.has(rig.get("digger", -1)):
+			_look_below(game.modules[rig["digger"]])
+			_look_front(game.modules[rig["digger"]])
 	halt_logged = halt
 	if w["state"] != "docked" or halt == "":
 		return
@@ -288,6 +293,7 @@ func _report(final: bool) -> void:
 			_shaft_profile()
 		if final and OS.get_cmdline_user_args().has("--dump"):
 			print("  goods %s, tech power %s, tech bank %s" % [str(game.goods), str(game.tech_power), str(game.tech_bank)])
+			print("  winch blips (wall readings that came and went): %d" % game.modules.get(rig.get("winch", -1), {}).get("blips", 0))
 		print("%s  depth %d, Stone %d, power %d, tech %s, %s" % [_clock(t), depth, int(game.stock[D.R_STONE]), int(game.stock[D.R_POWER]), game.current_tech, why])
 
 
@@ -327,6 +333,23 @@ func _look_below(tank: Dictionary) -> void:
 			if c != 0:
 				near.append("(%d,%d)=%d" % [xx, yy, c])
 	print("  cells within 2 of the Tank's sides: %s" % ", ".join(near))
+
+
+## What sits in the slices just ahead of a Cutter's front: material names and counts, the way `scan` reads them.
+func _look_front(m: Dictionary) -> void:
+	var def: Dictionary = MC.defs[m["def"]]
+	if def.get("kind", "") != "cutter":
+		return
+	var fo: Dictionary = Cutter.front_of(game, m, def)
+	print("  front p %s n %s across %d off %d" % [str(fo["p"]), str(fo["n"]), fo["across"], m.get("off", 0)])
+	for k in 6:
+		var r: Rect2i = Cutter.slice(fo["p"], fo["n"], k, int(def["params"]["width"]), m.get("off", 0))
+		var counts: PackedInt32Array = game.sim.rect_counts(r.position.x, r.position.y, r.size.x, r.size.y)
+		var parts := []
+		for mat in range(1, 256):
+			if counts[mat] > 0:
+				parts.append("%s %d" % [M.names[mat], counts[mat]])
+		print("    k%d %s: %s" % [k, str(r), ", ".join(parts)])
 
 
 ## Liquids and gas in the shaft column by depth band: where the water, lava and steam sit.

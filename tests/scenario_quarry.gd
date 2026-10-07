@@ -16,6 +16,8 @@ extends SceneTree
 ##     and the shaft's walls and the rig's own casing stay
 ##  I. a rubble cell under the Tank's overhang as the rig goes down (the A5 bot's stall at depth 638):
 ##     the Winch shoves it aside instead of the Tank stopping on it while the Cutter goes on
+##  J. a corner pixel of the Cutter's own casing, rounded into the slice in front of it by a tilted body (the A5
+##     bot's "Obsidian ahead" at depth 2256), is not a wall; Obsidian that is nobody's still is
 ## Run: godot --headless --path . --script tests/scenario_quarry.gd
 
 const D = preload("res://scripts/defs.gd")
@@ -24,6 +26,7 @@ const MC = preload("res://scripts/machines/machines.gd")
 const Save = preload("res://scripts/save.gd")
 const M = preload("res://scripts/materials.gd")
 const Winch = preload("res://scripts/machines/movers/winch.gd")
+const Cutter = preload("res://scripts/machines/excavation/cutter.gd")
 var game: Node
 var f := 0
 var fails := 0
@@ -54,6 +57,7 @@ func _process(_d: float) -> bool:
 		scenario_g()
 		scenario_h()
 		scenario_i()
+		scenario_j()
 		print("FAILURES: %d" % fails)
 		return true
 	return false
@@ -352,3 +356,24 @@ func scenario_i() -> void:
 	game.sim.set_cell(below.x + 3, below.y, D.AIR)
 	check(until(func() -> bool: return w["cable"] > 70.0, 150.0), "and the rig goes on down (%.0f cells)" % w["cable"])
 	check(game.modules.has(r["cut"]) and game.modules[r["cut"]]["integrity"] > 0.99, "with the casings whole")
+
+
+func scenario_j() -> void:
+	print("J. a Cutter's own casing is not a wall")
+	fresh()
+	var r := build_rig()
+	var w := winch_of(r)
+	check(until(func() -> bool: return w["cable"] > 40.0, 150.0), "the rig goes down the shaft (%.0f cells)" % w["cable"])
+	var cut: Dictionary = game.modules[r["cut"]]
+	var cb := MC.bounds(cut)
+	var row := Rect2i(cb.position.x, cb.end.y - 1, cb.size.x, 1)      # the casing's bottom row
+	var raw: PackedInt32Array = game.sim.rect_counts(row.position.x, row.position.y, row.size.x, row.size.y)
+	check(raw[D.OBSIDIAN] > 0, "the Cutter's bottom row holds casing cells (%d)" % raw[D.OBSIDIAN])
+	check(Cutter.counts_ahead(game, cut, row)[D.OBSIDIAN] == 0, "and none of them counts as ahead of it")
+	var below := Rect2i(cb.position.x, cb.end.y + 1, cb.size.x, 1)
+	game.sim.set_cell(cb.position.x + 3, below.position.y, D.OBSIDIAN)
+	check(Cutter.counts_ahead(game, cut, below)[D.OBSIDIAN] == 1, "an Obsidian cell that is nobody's still does")
+	for x in range(cb.position.x - 4, cb.end.x + 4):
+		for y in range(below.position.y, below.position.y + 6):
+			game.sim.set_cell(x, y, D.OBSIDIAN)
+	check(until(func() -> bool: return w["halt"] != "", 60.0) and "Obsidian" in w["halt"], "a real wall below stops the rig (%s)" % w["halt"])
