@@ -146,7 +146,13 @@ func scenario_c() -> void:
 		for x in range(flood.position.x, flood.end.x):
 			if game.sim.get_cell(x, y) == D.AIR:
 				game.sim.set_cell(x, y, D.WATER)
-	secs(6.0)
+	secs(1.0)
+	# A bubble can sit against the Node's outline for good (a spring's pace used to shake it loose): fill it.
+	for y in range(n2.y - 3, n2.y + n2.h + 3):
+		for x in range(n2.x - 3, n2.x + n2.w + 3):
+			if game.sim.get_cell(x, y) == D.AIR:
+				game.sim.set_cell(x, y, D.WATER)
+	secs(5.0)
 	check(n2.drowned, "the Node in the water is drowned")
 	check(not n3.connected, "the Node below it drops out")
 	check(n1.connected, "the one above it stays linked")
