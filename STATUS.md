@@ -4,6 +4,29 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A5 part 9, fourth piece: Plating gets the bot past the Sulfur
+
+Tests: twenty-seven scenarios and engine_compare end `FAILURES: 0`; scenario_fluids G gained a full-bank case. No engine change.
+Alex's note: the corrosion should be answered by upgrades and repair systems. Upgrades turned out to be enough for this stretch.
+
+- Cheated bot, seed 7, with Plating researched (Mk I at 57:56, Mk II at 76:16): reaches the Sulfur at 77:31 (depth 2500), the
+  Tank casing corrodes at 81:56 and the rig keeps working: trips to 2756 and on, no Cutter lost through minute 121. Without
+  Plating the Cutter was lost at 84:31 in the same seed. The bot now researches Plating twice and rebuilds a lost digger
+  (`_swap`: a digger missing from the rig is hung again, paid for).
+- Plating needs banked Ferrite (2, then 5 and 2 Flux). Ferrite spawns in blobs at depth 2400 to 3600, the same band as the
+  Sulfur, and the bot's straight shaft does not hit one, so the cheat banks 10 Ferrite. Whether a player finds it before the
+  casing goes is a pacing question for the end-of-Alpha tuning.
+- Found and fixed: with oil drunk as a good, the goods bank (30 units) fills with Slick and a full bank holds the Funnel's
+  goods back, so a Tank still holding oil sits "Emptying" at the dock for good (bot: 60 minutes docked). The Cutter now drinks
+  wade liquids only while the bank has room (`cutter.gd`, scenario_fluids G). A Tank that already holds oil when the bank
+  fills still jams; the bot's cheat clears Slick from the bank each pass. This is a design question for Alex: the Funnel
+  voiding what a full bank cannot take, or letting the rig go down with held goods as ballast, instead of holding the rig.
+- Next wall, after minute 117: Nodes at depth 190 drown and a steam scald, and at 123:45 the Cutter stops at the dock on
+  Obsidian ahead (water and lava have met under the rig at the surface). Not looked into yet.
+- No repair module was built. The only repairs in the game are the Node's, for blueprints and structures; a casing repair
+  module (a Mender that relays casing cells from banked Stone, in the Shorer's style) is a proposal for Alex if Plating proves
+  too slow to buy.
+
 ## A5 part 9, third piece: the Cutter wades through oil
 
 Tests: twenty-seven scenarios and engine_compare end `FAILURES: 0`; scenario_fluids F now uses Sourwater and G is new. No engine change.

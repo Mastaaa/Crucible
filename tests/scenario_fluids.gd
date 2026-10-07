@@ -285,6 +285,11 @@ func scenario_g() -> void:
 	check(until(func() -> bool: return w["cable"] > 80.0, 400.0), "the rig sinks through the oil and on into the floor below (%.0f cells of cable, %s)" % [w["cable"], w["halt"]])
 	check(w["halt"] == "", "with no halt on the way")
 	print("  (the Tank took in %d Slick)" % held(r["tank"], SLICK))
+	r = pocket_rig(SLICK)
+	w = r["winch"]
+	game.goods[SAND] = game.goods_cap()                 # a full bank: the Funnel would hold oil back, so the Cutter does not take it
+	check(until(func() -> bool: return w["cable"] > 80.0, 400.0), "with the goods bank full it wades through all the same (%.0f cells, %s)" % [w["cable"], w["halt"]])
+	check(held(r["tank"], SLICK) == 0, "and takes none of the oil into its Tank (%d Slick)" % held(r["tank"], SLICK))
 	r = pocket_rig(SOUR)
 	w = r["winch"]
 	check(until(func() -> bool: return w["halt"] != "", 300.0) and "Sourwater" in w["halt"], "Sourwater still stops it (%s)" % w["halt"])
