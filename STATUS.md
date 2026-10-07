@@ -4,6 +4,19 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A5 part 9, fifth piece: Ferrite moves above the Sulfur, the Funnel takes Throughput
+
+Tests: twenty-seven scenarios and engine_compare end `FAILURES: 0`; scenario_upgrades C gained a Funnel case. No engine change.
+Alex's notes (10-07): scoot Ferrite up so a player can reinforce machines before the Sulfur needs it, and make the Funnel's transfer rate upgradeable.
+
+- Ferrite seams now sit at depth 1600 to 2300 in Stone only (`data/spawn_regions.json`), above the Sulfur band at about 2500: three
+  seams anywhere across the world and a fourth in the Hub's middle third (the last row, so no other row's layout moved). Mk III
+  and IV still want Glass from the Magma band. Where the wave 1 table said "Stone 2400 to Magma 3600", the build now wins.
+- `funnel.gd` banks `MU.rate(bank)` cells a scan, so Throughput levels 2 and 4 take it from 40 to 80 and 120 (scenario_upgrades C).
+  Rate was never what held the rig at the dock: the Tank emptied 40 cells a scan and a Tank is about 4800 cells, so a Funnel needs
+  twelve seconds. The hour at the dock was the full-bank hold, which is still Alex's open card.
+- Proposal, not built: the last wave 2 slots (Gall, Vitriol, and Recoil or Hover), in `/mnt/project-files/plans/a5-wave2-draft.md`.
+
 ## A5 part 9, fourth piece: Plating gets the bot past the Sulfur
 
 Tests: twenty-seven scenarios and engine_compare end `FAILURES: 0`; scenario_fluids G gained a full-bank case. No engine change.

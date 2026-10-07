@@ -2,7 +2,7 @@ extends SceneTree
 ## A5 part 8, Mk upgrades paid in goods, on seed 7:
 ##  A. a level that wants goods waits for them, then takes them out of the bank and finishes
 ##  B. the per-tier goods and a level's own goods add up
-##  C. Throughput lifts a Shorer's cells a scan, level by level
+##  C. Throughput lifts a Shorer's cells a scan, and a Funnel's, level by level
 ##  D. Efficiency takes a tenth off power a level
 ##  E. Plating lifts the temperature a casing stands, and acid wears it less
 ## Run: godot --headless --path . --script tests/scenario_upgrades.gd
@@ -13,6 +13,7 @@ const MU = preload("res://scripts/machines/mu.gd")
 const M = preload("res://scripts/materials.gd")
 const Goals = preload("res://scripts/goals.gd")
 const CS = preload("res://scripts/machines/casing.gd")
+const Funnel = preload("res://scripts/machines/logistics/funnel.gd")
 var game: Node
 var f := 0
 var fails := 0
@@ -135,6 +136,16 @@ func scenario_c() -> void:
 		made.append(count(Rect2i(297, SURFACE - 16, 3, 16), STONE))
 	check(made[0] > 0 and made[1] > made[0] and made[2] > made[1], "cells laid in the first scan climb with the level (%s)" % str(made))
 	check(MU.rate(game, 30) == 90, "level 4 triples a rate of 30 to %d" % MU.rate(game, 30))
+	var took: Array = []
+	for lvl in [0, 2, 4]:
+		fresh()
+		game.levels["throughput"] = lvl
+		var fid := place("funnel", 300, SURFACE - 14)
+		var fm: Dictionary = game.modules[fid]
+		fm["contents"][RUBBLE] = 1000
+		Funnel.scan(game, fm, MC.defs["funnel"])
+		took.append(fm.get("banked", 0))
+	check(took[0] == 40 and took[1] == 80 and took[2] == 120, "a Funnel banks 40, 80, 120 cells a scan at levels 0, 2, 4 (%s)" % str(took))
 
 
 func scenario_d() -> void:

@@ -260,7 +260,7 @@ them something else the rows map one to one.
 | Hush | Stone 1500-3000 | any | cave floor layer | 1 in 3 caves | 4-8 deep |
 | Quickmire | Topsoil 400-1500 | 0.05-0.95 | pocket behind an aquifer lining | 4 | 700 |
 | Flux | Stone 1700-2800 | any | seam | 3-4 seams | 12,000 total |
-| Ferrite | Stone 2400 to Magma 3600 | any | vein within 40 cells of lava | 3 veins | 20,000 total |
+| Ferrite | Stone 2400 to Magma 3600 (moved in A5, see "Built as") | any | vein within 40 cells of lava | 3 veins | 20,000 total |
 | Rattle | Stone 1800-2900 | 0.05-0.95 | sealed pocket in rock | 6 | 400 |
 | Bloat | Topsoil 300-900 | 0.05-0.95 | pocket in Dirt, 20+ from aquifers | 5 | 600 |
 | Glass | Magma 3000-3800 | any | rim, 2 cells, around lava pockets | per lava pocket | crust |
@@ -408,3 +408,8 @@ and Weft near the Hub; both only wake when something wets them.
 Swollen bloat, Ferrite bar): 19 new materials, 47 in all. The 25 target for Alpha counts the
 authored twelve, so wave 2 still wants about thirteen.
 
+**Ferrite moved up (A5, Alex's call).** Plating wants Ferrite before the Sulfur band (about 2500) eats a casing, so
+the seams now sit at depth 1600 to 2300, in Stone only: three anywhere across the world and a fourth within the Hub's
+middle third (`data/spawn_regions.json`, the last row, so no other row's layout moved). A straight shaft from the Hub
+meets Ferrite between depth 1600 and 1900 on seeds 5, 7, 11, 23, 42 and 99. Mk III and IV still want Glass from the
+Magma band.

@@ -69,7 +69,6 @@ func _process(_d: float) -> bool:
 			game.researched["chute"] = true
 			game.researched["pump"] = true
 			game.stock[D.R_GLIMMER] = 40.0
-			game.goods[M.id_of("Ferrite")] = 10.0       # what a Ferrite blob at depth 2400 would bank (Plating Mk I and II)
 		return false
 	if f < 3:
 		return false
@@ -285,6 +284,8 @@ func _report(final: bool) -> void:
 		if final and OS.get_cmdline_user_args().has("--dump") and rig.has("tank") and game.modules.has(rig["tank"]):
 			_look_above(game.modules[rig["tank"]])
 			_look_below(game.modules[rig["tank"]])
+		if OS.get_cmdline_user_args().has("--profile") and t >= 6000.0:
+			_shaft_profile()
 		if final and OS.get_cmdline_user_args().has("--dump"):
 			print("  goods %s, tech power %s, tech bank %s" % [str(game.goods), str(game.tech_power), str(game.tech_bank)])
 		print("%s  depth %d, Stone %d, power %d, tech %s, %s" % [_clock(t), depth, int(game.stock[D.R_STONE]), int(game.stock[D.R_POWER]), game.current_tech, why])
@@ -326,4 +327,29 @@ func _look_below(tank: Dictionary) -> void:
 			if c != 0:
 				near.append("(%d,%d)=%d" % [xx, yy, c])
 	print("  cells within 2 of the Tank's sides: %s" % ", ".join(near))
+
+
+## Liquids and gas in the shaft column by depth band: where the water, lava and steam sit.
+func _shaft_profile() -> void:
+	var tank: Dictionary = game.modules.get(rig.get("tank", -1), {})
+	if tank.is_empty():
+		return
+	var x0: int = int(tank["at"].x) - 15
+	var mats := {"Water": D.WATER, "Lava": D.LAVA, "Slick": D.SLICK, "Steam": D.STEAM}
+	var line := ""
+	for y0 in range(150, 3000, 200):
+		var parts := []
+		for nm: String in mats:
+			var mask := PackedByteArray()
+			mask.resize(256)
+			mask[mats[nm]] = 1
+			if nm == "Steam":
+				for k in range(D.STEAM, D.STEAM_LAST + 1):
+					mask[k] = 1
+			var n: int = game.sim.count_in_rect(x0, y0, 30, 200, mask)
+			if n > 0:
+				parts.append("%s %d" % [nm, n])
+		if not parts.is_empty():
+			line += "  y%d: %s\n" % [y0, ", ".join(parts)]
+	print("  shaft profile at %s:\n%s" % [_clock(game.game_time), line.rstrip("\n")])
 
