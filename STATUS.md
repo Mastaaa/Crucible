@@ -13,6 +13,7 @@ Tests: unchanged (the suite does not run the bot; the last full run, 28 lines `F
   40-cell plug of hot rock (`info["plug_x"]`, 189 on seed 7). The bot's rig stands 75 cells left of that, so a straight shaft cannot get in.
 - New flag `--plug` stands the rig over the plug (`x0 = plug_x + 7`). On seed 7 that rig wedges, tilted 0.068 radians, at depth 461, 25 rows
   under the surface Stone lumps at x 190 to 200: a new place has its own jams, so `--plug` is untried below that.
+- Alex closed part 9 here (10-08, "Stop here"): the delivery waits for a later phase.
 - What a full run still needs: a rig over the plug, a hole through the plug, a Node chain from the Hub down the shaft to under the plug (about
   55 Nodes at 80 rows each, built by packet), and the delivery (32 Glimmer, 48 Obsidian, 64 Water, 4 power/s). The bot banks its own Ferrite
   too only if a second shaft crosses a seam.
