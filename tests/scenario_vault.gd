@@ -6,6 +6,7 @@ extends SceneTree
 ##  D. research: the Vault Cell's Build button waits for its tech
 ## Run: godot --headless --path . --script tests/scenario_vault.gd
 
+# A6: the world is 1024 wide and the Hub moved from x 384 to 512, so every bench x below is the old one plus 128.
 const D = preload("res://scripts/defs.gd")
 const MC = preload("res://scripts/machines/machines.gd")
 const M = preload("res://scripts/materials.gd")
@@ -60,9 +61,9 @@ func fresh() -> void:
 	game.paused = true
 	game.reveal_all = true
 	MC.ensure_defs()
-	fill(Rect2i(200, SURFACE - 120, 144, 120), D.AIR)
-	fill(Rect2i(200, SURFACE, 144, 160), 6)
-	fill(Rect2i(200, SURFACE + 160, 144, 40), D.BEDROCK)
+	fill(Rect2i(328, SURFACE - 120, 144, 120), D.AIR)
+	fill(Rect2i(328, SURFACE, 144, 160), 6)
+	fill(Rect2i(328, SURFACE + 160, 144, 40), D.BEDROCK)
 	game.stock[D.R_POWER] = 90.0
 	for t in ["bus_hopper", "vault"]:
 		game.researched[t] = true
@@ -77,8 +78,8 @@ func place(def: String, x: int, y: int, turns: int = 0) -> int:
 
 ## A cell and a second one snapped to its right.
 func pair() -> Array:
-	var a := place("vault", 296, SURFACE - 40)
-	var sn := MC.snap(game, "vault", 0, Vector2i(296 + 16 + 8, SURFACE - 40 + 8))
+	var a := place("vault", 424, SURFACE - 40)
+	var sn := MC.snap(game, "vault", 0, Vector2i(424 + 16 + 8, SURFACE - 40 + 8))
 	var b := 0
 	if sn["snapped"]:
 		b = MC.place(game, "vault", sn["at"], 0)
@@ -96,7 +97,7 @@ func scenario_a() -> void:
 	check(game.modules[ids[1]]["size_of"] == 2, "each knows its cluster has two cells")
 	# One far from any Node or the Hub adds nothing.
 	fresh()
-	var far := MC.place(game, "vault", Vector2i(240, SURFACE - 40), 0)
+	var far := MC.place(game, "vault", Vector2i(368, SURFACE - 40), 0)
 	game.hub.x = 700
 	secs(1.0)
 	check(far > 0 and game.modules[far].get("live", true) == false and game.power_cap() == D.HUB_POWER_CAP, "a cell with no Node or Hub in reach adds nothing")
@@ -112,21 +113,21 @@ func scenario_b() -> void:
 	# A full goods bank.
 	fresh()
 	game.goods[SLICK] = D.HUB_GOODS_CAP
-	var fun := place("funnel", 240, SURFACE - 30)
+	var fun := place("funnel", 368, SURFACE - 30)
 	game.modules[fun]["contents"][FLUX] = 50
 	game.modules[fun]["contents"][LOOSE] = 50
 	secs(1.0)
 	check(not game.goods.has(FLUX) and int(game.modules[fun]["contents"].get(FLUX, 0)) == 50, "a Funnel holds Flux back while the bank is full")
 	check(int(game.modules[fun]["contents"].get(LOOSE, 0)) == 0, "but still banks the rest")
-	var hop := place("bus_hopper", 290, SURFACE - 40)
+	var hop := place("bus_hopper", 418, SURFACE - 40)
 	secs(0.5)
-	fill(Rect2i(296, SURFACE - 43, 5, 3), FLUX)
-	fill(Rect2i(304, SURFACE - 43, 5, 3), LOOSE)
+	fill(Rect2i(424, SURFACE - 43, 5, 3), FLUX)
+	fill(Rect2i(432, SURFACE - 43, 5, 3), LOOSE)
 	secs(2.0)
 	var flux_left := 0
 	var loose_left := 0
 	for y in range(SURFACE - 60, SURFACE):
-		for x in range(280, 330):
+		for x in range(408, 458):
 			var c: int = game.sim.get_cell(x, y)
 			flux_left += 1 if c == FLUX else 0
 			loose_left += 1 if c == LOOSE else 0

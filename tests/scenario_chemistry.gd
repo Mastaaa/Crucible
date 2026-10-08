@@ -299,6 +299,11 @@ func fresh() -> void:
 	for y in range(heap.position.y, mini(heap.end.y, D.GROUND_Y)):
 		for x in range(heap.position.x, heap.end.x):
 			game.sim.set_cell(x, y, D.AIR)
+	# A one-cell bump in the ground beside the Hub can sit under a Node's spot (the wobble depends on x, which
+	# moved when the world widened): clear the air above the ground there too.
+	for y in range(D.GROUND_Y - 40, D.GROUND_Y):
+		for x in range(game.hub.x + game.hub.w, game.hub.x + game.hub.w + 300):
+			game.sim.set_cell(x, y, D.AIR)
 	game.paused = true
 	game.reveal_all = true
 

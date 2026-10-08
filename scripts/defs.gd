@@ -5,11 +5,11 @@ extends RefCounted
 
 const M = preload("res://scripts/materials.gd")
 
-const W := 768
+const W := 1024        # A6: 768 before; four 256 cell texture tiles across
 const H := 5120
 # Phase 8b: everything built is S times its v2 size against the cells (sizes, ranges,
 # speeds and radii are S times the v2 numbers; amounts counted in cells, S * S times).
-# The world is 3x wider and 5x deeper than v2's 256 x 1024, its features 4x bigger.
+# The world is 4x wider (A6; 3x before) and 5x deeper than v2's 256 x 1024, its features 4x bigger.
 const S := 10
 const GROUND_Y := 200
 const TICKS_PER_S := 60
@@ -429,14 +429,14 @@ static func temp_params() -> Dictionary:
 # The random-sample passes check more cells on the bigger map (15x v2's area), so
 # each cell is checked as often as before.
 # Dirt erosion: random samples every other tick across the Topsoil band.
-const ERODE_SAMPLES := 15
+const ERODE_SAMPLES := int(15.0 * W / 768.0)       # A6: written for a 768 wide map; scaled so each cell is checked as often
 # Weathering: cells checked a tick, anywhere on the map, for a ceiling that
 # crumbles (see "crumble" in the data file). Stone crumbles about a hundred times
 # slower than dirt.
-const WEATHER_SAMPLES := 720
+const WEATHER_SAMPLES := int(720.0 * W / 768.0)
 # Water wear: cells checked a tick for one touching water that washes ("wash" in the
 # data file). With dirt's 0.08, a wet dirt face turns to sand in about 20 minutes.
-const WASH_SAMPLES := 720
+const WASH_SAMPLES := int(720.0 * W / 768.0)
 const FIRE_DPS := 6.0               # to a building with half its outline in flames
 const CORRODE_DPS := 1.0            # to a building with CORRODE_FULL corrosive cells nearby
 const CORRODE_REACH := 3 * S        # how far from a building corrosion counts

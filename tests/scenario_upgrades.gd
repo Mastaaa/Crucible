@@ -7,6 +7,7 @@ extends SceneTree
 ##  E. Plating lifts the temperature a casing stands, and acid wears it less
 ## Run: godot --headless --path . --script tests/scenario_upgrades.gd
 
+# A6: the world is 1024 wide and the Hub moved from x 384 to 512, so every bench x below is the old one plus 128.
 const D = preload("res://scripts/defs.gd")
 const MC = preload("res://scripts/machines/machines.gd")
 const MU = preload("res://scripts/machines/mu.gd")
@@ -65,9 +66,9 @@ func fresh() -> void:
 	game.paused = true
 	game.reveal_all = true
 	MC.ensure_defs()
-	fill(Rect2i(200, SURFACE - 120, 144, 120), D.AIR)
-	fill(Rect2i(200, SURFACE, 144, 160), 6)
-	fill(Rect2i(200, SURFACE + 160, 144, 40), D.BEDROCK)
+	fill(Rect2i(328, SURFACE - 120, 144, 120), D.AIR)
+	fill(Rect2i(328, SURFACE, 144, 160), 6)
+	fill(Rect2i(328, SURFACE + 160, 144, 40), D.BEDROCK)
 	game.stock[D.R_POWER] = 90.0
 	game.researched["shorer"] = true
 
@@ -90,7 +91,7 @@ func scenario_a() -> void:
 	print("A. a level paid in goods")
 	fresh()
 	game.tiers_open[2] = true
-	var lab := place("lab", 290, SURFACE - 30)
+	var lab := place("lab", 418, SURFACE - 30)
 	secs(0.5)
 	game.tech_power["throughput"] = 1199.0
 	game.pick_research("throughput")
@@ -130,17 +131,17 @@ func scenario_c() -> void:
 	for lvl in [0, 2, 4]:
 		fresh()
 		game.levels["throughput"] = lvl
-		var id := place("shorer", 300, SURFACE - 16)
+		var id := place("shorer", 428, SURFACE - 16)
 		MC.add_contents(game, id, RUBBLE, 120)
 		game.run_ticks(7)
-		made.append(count(Rect2i(297, SURFACE - 16, 3, 16), STONE))
+		made.append(count(Rect2i(425, SURFACE - 16, 3, 16), STONE))
 	check(made[0] > 0 and made[1] > made[0] and made[2] > made[1], "cells laid in the first scan climb with the level (%s)" % str(made))
 	check(MU.rate(game, 30) == 90, "level 4 triples a rate of 30 to %d" % MU.rate(game, 30))
 	var took: Array = []
 	for lvl in [0, 2, 4]:
 		fresh()
 		game.levels["throughput"] = lvl
-		var fid := place("funnel", 300, SURFACE - 14)
+		var fid := place("funnel", 428, SURFACE - 14)
 		var fm: Dictionary = game.modules[fid]
 		fm["contents"][RUBBLE] = 1000
 		Funnel.scan(game, fm, MC.defs["funnel"])
@@ -164,7 +165,7 @@ func hot_tank(plating: int) -> Dictionary:
 	fresh()
 	game.levels["plating"] = plating
 	game.researched["tank"] = true
-	var id := place("tank", 300, SURFACE - 30)
+	var id := place("tank", 428, SURFACE - 30)
 	secs(0.3)
 	MC.add_contents(game, id, RUBBLE, 40)
 	var m: Dictionary = game.modules[id]
@@ -186,7 +187,7 @@ func scenario_e() -> void:
 	fresh()
 	game.levels["plating"] = 4
 	game.researched["tank"] = true
-	var id := place("tank", 300, SURFACE - 30)
+	var id := place("tank", 428, SURFACE - 30)
 	secs(0.3)
 	MC.add_contents(game, id, M.id_of("Sourwater"), 400)
 	var worn := false

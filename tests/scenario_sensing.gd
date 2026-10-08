@@ -8,6 +8,7 @@ extends SceneTree
 ##  F. research gates the four Build buttons
 ## Run: godot --headless --path . --script tests/scenario_sensing.gd
 
+# A6: the world is 1024 wide and the Hub moved from x 384 to 512, so every bench x below is the old one plus 128.
 const D = preload("res://scripts/defs.gd")
 const MC = preload("res://scripts/machines/machines.gd")
 const M = preload("res://scripts/materials.gd")
@@ -64,9 +65,9 @@ func fresh() -> void:
 	game.paused = true
 	game.reveal_all = true
 	MC.ensure_defs()
-	fill(Rect2i(200, SURFACE - 120, 144, 120), D.AIR)
-	fill(Rect2i(200, SURFACE, 144, 160), 6)
-	fill(Rect2i(200, SURFACE + 160, 144, 40), D.BEDROCK)
+	fill(Rect2i(328, SURFACE - 120, 144, 120), D.AIR)
+	fill(Rect2i(328, SURFACE, 144, 160), 6)
+	fill(Rect2i(328, SURFACE + 160, 144, 40), D.BEDROCK)
 	game.stock[D.R_POWER] = 10.0
 	for t: String in TECHS:
 		game.researched[t] = true
@@ -86,7 +87,7 @@ func sig(id: int) -> bool:
 func scenario_a() -> void:
 	print("A. Thermometer")
 	fresh()
-	var th := place("thermometer", 300, SURFACE - 60)
+	var th := place("thermometer", 428, SURFACE - 60)
 	secs(0.5)
 	check(not sig(th), "cool air: off (reads %d degrees)" % int(game.modules[th].get("reading", -1)))
 	var mouth: Rect2i = MC.kinds["sensor"].BH.mouth(game, game.modules[th], MC.defs["thermometer"])
@@ -102,10 +103,10 @@ func scenario_a() -> void:
 func scenario_b() -> void:
 	print("B. Material Sensor")
 	fresh()
-	var ms := place("material_sensor", 300, SURFACE - 14)
+	var ms := place("material_sensor", 428, SURFACE - 14)
 	secs(0.5)
 	check(not sig(ms), "nothing in its mouth: off")
-	fill(Rect2i(302, SURFACE, 8, 1), WATER)
+	fill(Rect2i(430, SURFACE, 8, 1), WATER)
 	secs(0.5)
 	check(sig(ms), "8 cells of Water in its mouth: on (sees %d)" % int(game.modules[ms].get("reading", -1)))
 	MC.kinds["sensor"].use(game, game.modules[ms], MC.defs["material_sensor"])
@@ -116,7 +117,7 @@ func scenario_b() -> void:
 func scenario_c() -> void:
 	print("C. Timer")
 	fresh()
-	var tm := place("timer", 300, SURFACE - 60)
+	var tm := place("timer", 428, SURFACE - 60)
 	var ons := 0
 	var offs := 0
 	for _i in 16:
@@ -131,8 +132,8 @@ func scenario_c() -> void:
 ## A Combustor holding Coal chunks on the ground with a Material Sensor against its right face.
 func gated_burner() -> Dictionary:
 	fresh()
-	var comb := place("combustor", 300, SURFACE - 18)
-	var sn := MC.snap(game, "material_sensor", 0, Vector2i(334, SURFACE - 9))
+	var comb := place("combustor", 428, SURFACE - 18)
+	var sn := MC.snap(game, "material_sensor", 0, Vector2i(462, SURFACE - 9))
 	var ms := MC.place(game, "material_sensor", sn["at"], 0)
 	MC.add_contents(game, comb, CHUNKS, 20)
 	secs(0.5)
@@ -151,7 +152,7 @@ func scenario_d() -> void:
 	check(comb.get("burned", 0) >= 2, "Water in sight: it burns (%d cells)" % comb.get("burned", 0))
 	check(not MC.gated(game, comb) and MC.defs["combustor"] != null, "and is no longer gated")
 	fresh()
-	var lone := place("combustor", 300, SURFACE - 18)
+	var lone := place("combustor", 428, SURFACE - 18)
 	MC.add_contents(game, lone, CHUNKS, 20)
 	secs(4.0)
 	check(game.modules[lone].get("burned", 0) >= 2, "a gate face joined to nothing leaves it working (%d burned)" % game.modules[lone].get("burned", 0))
@@ -160,7 +161,7 @@ func scenario_d() -> void:
 func scenario_e() -> void:
 	print("E. Thermoelectric Plate")
 	fresh()
-	var cold := place("thermoelectric", 300, SURFACE - 60)
+	var cold := place("thermoelectric", 428, SURFACE - 60)
 	var before: float = game.stock[D.R_POWER]
 	secs(4.0)
 	var gain_cold: float = game.stock[D.R_POWER] - before

@@ -7,6 +7,7 @@ extends SceneTree
 ##  C. research: both Build buttons wait for their techs
 ## Run: godot --headless --path . --script tests/scenario_logistics.gd
 
+# A6: the world is 1024 wide and the Hub moved from x 384 to 512, so every bench x below is the old one plus 128.
 const D = preload("res://scripts/defs.gd")
 const MC = preload("res://scripts/machines/machines.gd")
 const M = preload("res://scripts/materials.gd")
@@ -59,9 +60,9 @@ func fresh() -> void:
 	game.paused = true
 	game.reveal_all = true
 	MC.ensure_defs()
-	fill(Rect2i(200, SURFACE - 120, 144, 120), D.AIR)
-	fill(Rect2i(200, SURFACE, 144, 160), 6)
-	fill(Rect2i(200, SURFACE + 160, 144, 40), D.BEDROCK)
+	fill(Rect2i(328, SURFACE - 120, 144, 120), D.AIR)
+	fill(Rect2i(328, SURFACE, 144, 160), 6)
+	fill(Rect2i(328, SURFACE + 160, 144, 40), D.BEDROCK)
 	game.stock[D.R_POWER] = 90.0
 	game.researched["chute"] = true
 	game.researched["conveyor"] = true
@@ -111,8 +112,8 @@ func loose_bodies() -> Array:
 func scenario_a() -> void:
 	print("A. Chutes")
 	fresh()
-	var low := place("tank", 300, SURFACE - 30)
-	var sn1 := MC.snap(game, "chute", 0, Vector2i(313, SURFACE - 30 - 12))
+	var low := place("tank", 428, SURFACE - 30)
+	var sn1 := MC.snap(game, "chute", 0, Vector2i(441, SURFACE - 30 - 12))
 	var c1 := MC.place(game, "chute", sn1["at"], 0)
 	var sn2 := MC.snap(game, "chute", 0, Vector2i(sn1["at"].x + 7, sn1["at"].y - 12))
 	var c2 := MC.place(game, "chute", sn2["at"], 0)
@@ -127,14 +128,14 @@ func scenario_a() -> void:
 ## A Conveyor held up off the ground, the belt 50 long over x 284..334 with its top at SURFACE - 18.
 func belt(reversed: bool) -> Dictionary:
 	fresh()
-	var con := place("conveyor", 284, SURFACE - 18)
+	var con := place("conveyor", 412, SURFACE - 18)
 	if reversed:
 		MC.kinds["conveyor"].use(game, game.modules[con], MC.defs["conveyor"])
 	var tank := 0
 	var joined := false
 	if reversed:
 		for t in [1, 3]:
-			var sn := MC.snap(game, "tank", t, Vector2i(269, SURFACE - 13))
+			var sn := MC.snap(game, "tank", t, Vector2i(397, SURFACE - 13))
 			if sn["snapped"]:
 				tank = MC.place(game, "tank", sn["at"], t)
 				joined = true
@@ -150,22 +151,22 @@ func scenario_b() -> void:
 	var tank: int = r["tank"]
 	var con: Dictionary = game.modules[r["con"]]
 	check(con["dir"] == -1, "a click reversed the belt")
-	fill(Rect2i(300, SURFACE - 22, 8, 4), SAND)
+	fill(Rect2i(428, SURFACE - 22, 8, 4), SAND)
 	check(until(func() -> bool: return held(tank, SAND) >= 32, 25.0), "powder on the belt is delivered into the Tank (%d cells)" % held(tank, SAND))
-	check(count_in(Rect2i(284, SURFACE - 22, 50, 4), SAND) == 0, "and none is left on the belt")
+	check(count_in(Rect2i(412, SURFACE - 22, 50, 4), SAND) == 0, "and none is left on the belt")
 	# Nothing joined: it falls off the end.
 	r = belt(false)
 	con = game.modules[r["con"]]
-	fill(Rect2i(300, SURFACE - 22, 8, 4), SAND)
+	fill(Rect2i(428, SURFACE - 22, 8, 4), SAND)
 	secs(15.0)
-	var off := count_in(Rect2i(335, SURFACE - 60, 9, 60), SAND)
-	var all := count_in(Rect2i(200, SURFACE - 120, 144, 120), SAND)
-	check(off >= 10 and all == 32 and count_in(Rect2i(284, SURFACE - 22, 50, 4), SAND) == 0, "with nothing joined it lets the powder fall off the far end (%d cells past it, %d of 32 in all)" % [off, all])
+	var off := count_in(Rect2i(463, SURFACE - 60, 9, 60), SAND)
+	var all := count_in(Rect2i(328, SURFACE - 120, 144, 120), SAND)
+	check(off >= 10 and all == 32 and count_in(Rect2i(412, SURFACE - 22, 50, 4), SAND) == 0, "with nothing joined it lets the powder fall off the far end (%d cells past it, %d of 32 in all)" % [off, all])
 	# A loose body lying on it rides.
 	r = belt(false)
 	con = game.modules[r["con"]]
-	fill(Rect2i(296, SURFACE - 32, 14, 6), STONE)
-	var slab: int = game.sim.make_body(296, SURFACE - 32, 14, 6, 0.0, 0.0, 0.0)
+	fill(Rect2i(424, SURFACE - 32, 14, 6), STONE)
+	var slab: int = game.sim.make_body(424, SURFACE - 32, 14, 6, 0.0, 0.0, 0.0)
 	secs(0.8)
 	var st: PackedFloat32Array = game.sim.body_state(slab)
 	var x0 := st[0]
@@ -175,11 +176,11 @@ func scenario_b() -> void:
 	# No power: nothing moves.
 	r = belt(false)
 	con = game.modules[r["con"]]
-	fill(Rect2i(300, SURFACE - 22, 8, 4), SAND)
+	fill(Rect2i(428, SURFACE - 22, 8, 4), SAND)
 	for _i in 600:
 		game.stock[D.R_POWER] = 0.0
 		game.run_ticks(1)
-	check(count_in(Rect2i(284, SURFACE - 22, 50, 4), SAND) == 32 and con["queue"].is_empty(), "with no power the powder stays on the belt")
+	check(count_in(Rect2i(412, SURFACE - 22, 50, 4), SAND) == 32 and con["queue"].is_empty(), "with no power the powder stays on the belt")
 
 
 func scenario_c() -> void:

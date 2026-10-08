@@ -11,6 +11,7 @@ extends SceneTree
 ##  H. research gates the five Build buttons; the material data names what casts and what burns
 ## Run: godot --headless --path . --script tests/scenario_thermal.gd
 
+# A6: the world is 1024 wide and the Hub moved from x 384 to 512, so every bench x below is the old one plus 128.
 const D = preload("res://scripts/defs.gd")
 const MC = preload("res://scripts/machines/machines.gd")
 const M = preload("res://scripts/materials.gd")
@@ -82,9 +83,9 @@ func fresh() -> void:
 	game.paused = true
 	game.reveal_all = true
 	MC.ensure_defs()
-	fill(Rect2i(200, SURFACE - 120, 144, 120), D.AIR)
-	fill(Rect2i(200, SURFACE, 144, 160), 6)
-	fill(Rect2i(200, SURFACE + 160, 144, 40), D.BEDROCK)
+	fill(Rect2i(328, SURFACE - 120, 144, 120), D.AIR)
+	fill(Rect2i(328, SURFACE, 144, 160), 6)
+	fill(Rect2i(328, SURFACE + 160, 144, 40), D.BEDROCK)
 	game.stock[D.R_POWER] = 90.0
 	for t: String in TECHS:
 		game.researched[t] = true
@@ -113,13 +114,13 @@ func held(id: int, mat: int) -> int:
 ## Tank on top of that.
 func line(def: String, mat: int, n: int, out := true) -> Dictionary:
 	fresh()
-	var tank := place("tank", 300, SURFACE - 30)
+	var tank := place("tank", 428, SURFACE - 30)
 	var tall: bool = MC.defs[def]["size"].y > 20
-	var sn := MC.snap(game, def, 0, Vector2i(313, SURFACE - 30 - (15 if tall else 9)))
+	var sn := MC.snap(game, def, 0, Vector2i(441, SURFACE - 30 - (15 if tall else 9)))
 	var vessel := MC.place(game, def, sn["at"], 0)
 	var top := 0
 	if out:
-		var sn2 := MC.snap(game, "tank", 0, Vector2i(313, SURFACE - 30 - (30 if tall else 18) - 15))
+		var sn2 := MC.snap(game, "tank", 0, Vector2i(441, SURFACE - 30 - (30 if tall else 18) - 15))
 		top = MC.place(game, "tank", sn2["at"], 0)
 	MC.add_contents(game, tank, mat, n)
 	secs(0.5)
@@ -129,7 +130,7 @@ func line(def: String, mat: int, n: int, out := true) -> Dictionary:
 func scenario_a() -> void:
 	print("A. solids lie on the floor, `pass` filters")
 	fresh()
-	var tank := place("tank", 300, SURFACE - 30)
+	var tank := place("tank", 428, SURFACE - 30)
 	MC.add_contents(game, tank, ICE, 20)
 	var m: Dictionary = game.modules[tank]
 	var b: Rect2i = m["box"]
@@ -220,8 +221,8 @@ func scenario_f() -> void:
 	print("F. Combustor")
 	fresh()
 	game.stock[D.R_POWER] = 10.0
-	var tank := place("tank", 300, SURFACE - 30)
-	var sn := MC.snap(game, "combustor", 0, Vector2i(313, SURFACE - 30 - 9))
+	var tank := place("tank", 428, SURFACE - 30)
+	var sn := MC.snap(game, "combustor", 0, Vector2i(441, SURFACE - 30 - 9))
 	var comb := MC.place(game, "combustor", sn["at"], 0)
 	MC.add_contents(game, tank, SLICK, 10)
 	MC.add_contents(game, tank, CHUNKS, 10)
@@ -242,7 +243,7 @@ func scenario_f() -> void:
 func scenario_g() -> void:
 	print("G. casing wear")
 	fresh()
-	var tank := place("tank", 300, SURFACE - 30)
+	var tank := place("tank", 428, SURFACE - 30)
 	MC.add_contents(game, tank, WATER, 20)
 	secs(1.0)
 	var m: Dictionary = game.modules[tank]
@@ -253,7 +254,7 @@ func scenario_g() -> void:
 	check(m["integrity"] < 0.97 and game.modules.has(tank), "heat past the melting point wears the casing away (integrity %.2f)" % m["integrity"])
 	check(m.get("worn", false) and not game.alerts.is_empty(), "and raises an alert")
 	fresh()
-	tank = place("tank", 300, SURFACE - 30)
+	tank = place("tank", 428, SURFACE - 30)
 	MC.add_contents(game, tank, WATER, 20)
 	m = game.modules[tank]
 	var b2: Rect2i = m["box"]
@@ -261,8 +262,8 @@ func scenario_g() -> void:
 	secs(2.0)
 	check(m["integrity"] == 1.0, "a hot room below the melting point does no harm (integrity %.2f)" % m["integrity"])
 	fresh()
-	tank = place("tank", 300, SURFACE - 30)
-	var tank2 := place("tank", 250, SURFACE - 30)
+	tank = place("tank", 428, SURFACE - 30)
+	var tank2 := place("tank", 378, SURFACE - 30)
 	MC.add_contents(game, tank, SOURWATER, 400)
 	MC.add_contents(game, tank2, WATER, 400)
 	secs(40.0)

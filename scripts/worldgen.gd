@@ -20,8 +20,9 @@ const D = preload("res://scripts/defs.gd")
 const SR = preload("res://scripts/spawn_regions.gd")
 const W := D.W
 const H := D.H
-const SX := 3        # layout across, against the v2 map
+const SX := 4        # layout across, against the v2 map (A6: 3 before, W is 1024 now)
 const SY := 5        # layout down
+const WIDE := float(SX) / 3.0   # how much wider than the 768 map the feature counts were written for (A6)
 const F := 4         # features (caves, aquifers, veins, pockets, the lake, the chamber)
 const KSHIFT := 2    # the masks `_near` reads are in blocks of 4 x 4 cells
 const KS := 1 << KSHIFT
@@ -134,12 +135,12 @@ func generate(sim: RefCounted, seed_value: int) -> Dictionary:
 	aquifers.append(_place_blob(D.WATER, [D.DIRT, D.STONE], Vector2i(30, 226) * SX, Vector2i(185, 255) * SY, Vector2i(28, 14) * F))
 
 	# --- Stone: glimmer veins, caves, water pockets ---
-	var glimmer := _veins(2400 * F * F, 318 * SY, 585 * SY)
-	var caves := rng.randi_range(1, 2)
+	var glimmer := _veins(800 * SX * F * F, 318 * SY, 585 * SY)
+	var caves := roundi(rng.randi_range(1, 2) * WIDE)
 	var cave_rects: Array = []
 	for _i in caves:
 		cave_rects.append(_place_blob(D.AIR, [D.STONE, D.GLIMMER], Vector2i(24, 232) * SX, Vector2i(330, 575) * SY, Vector2i(22, 8) * F))
-	var pockets := rng.randi_range(1, 2)
+	var pockets := roundi(rng.randi_range(1, 2) * WIDE)
 	for _i in pockets:
 		aquifers.append(_place_blob(D.WATER, [D.STONE, D.GLIMMER], Vector2i(24, 232) * SX, Vector2i(330, 575) * SY, Vector2i(20, 10) * F))
 
@@ -157,7 +158,7 @@ func generate(sim: RefCounted, seed_value: int) -> Dictionary:
 			crucible_rect.size.x + 12 * D.S, CHAMBER_FLOOR - crucible_rect.end.y)
 
 	# --- Magma: lava pockets ---
-	var pocket_count := rng.randi_range(3, 5)
+	var pocket_count := roundi(rng.randi_range(3, 5) * WIDE)
 	var lava_pockets: Array = []
 	for _i in pocket_count:
 		var rx := rng.randi_range(12, 19) * F

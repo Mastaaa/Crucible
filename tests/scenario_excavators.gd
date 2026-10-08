@@ -10,13 +10,14 @@ extends SceneTree
 ##     cone breaks rock and Obsidian and leaves the sides, and a floor it can't break halts the rig
 ## Run: godot --headless --path . --script tests/scenario_excavators.gd
 
+# A6: the world is 1024 wide and the Hub moved from x 384 to 512, so every bench x below is the old one plus 128.
 const D = preload("res://scripts/defs.gd")
 const MC = preload("res://scripts/machines/machines.gd")
 const M = preload("res://scripts/materials.gd")
 var game: Node
 var f := 0
 var fails := 0
-const X0 := 290          # the rig's left edge (left of the Hub, so the Hub is its network)
+const X0 := 418          # the rig's left edge (left of the Hub, so the Hub is its network)
 const SURFACE := 200     # ground level there (dirt from here down)
 const HOT := 34          # Hot rock
 
@@ -64,9 +65,9 @@ func fresh() -> void:
 	game.paused = true
 	game.reveal_all = true
 	MC.ensure_defs()
-	fill(Rect2i(200, SURFACE - 120, 144, 120), D.AIR)
-	fill(Rect2i(200, SURFACE, 144, 160), 6)
-	fill(Rect2i(200, SURFACE + 160, 144, 40), D.BEDROCK)
+	fill(Rect2i(328, SURFACE - 120, 144, 120), D.AIR)
+	fill(Rect2i(328, SURFACE, 144, 160), 6)
+	fill(Rect2i(328, SURFACE + 160, 144, 40), D.BEDROCK)
 	game.stock[D.R_POWER] = 90.0
 
 
@@ -115,9 +116,9 @@ func scenario_a() -> void:
 func scenario_b() -> void:
 	print("B. a Cutter on a Piston")
 	fresh()
-	fill(Rect2i(326, SURFACE - 100, 18, 100), 6)       # a dirt wall to the right
-	var pis := place("piston", 280, SURFACE - 42, 1)
-	var sn := MC.snap(game, "cutter", 3, Vector2i(314, SURFACE - 36))
+	fill(Rect2i(454, SURFACE - 100, 18, 100), 6)       # a dirt wall to the right
+	var pis := place("piston", 408, SURFACE - 42, 1)
+	var sn := MC.snap(game, "cutter", 3, Vector2i(442, SURFACE - 36))
 	var cut := MC.place(game, "cutter", sn["at"], 3)
 	check(sn["snapped"] and cut > 0, "the Cutter snaps onto the Piston's rod")
 	game.modules[pis]["mode"] = "out"
@@ -132,7 +133,7 @@ func scenario_b() -> void:
 	check("Full" in c["state"], "until it is full, and says so (%s)" % c["state"])
 	var gone := 0
 	for y in range(SURFACE - 60, SURFACE - 20):
-		for x in range(326, 343):
+		for x in range(454, 471):
 			if game.sim.get_cell(x, y) == D.AIR:
 				gone += 1
 	check(gone > 60, "the wall has a hole in it (%d open cells)" % gone)
@@ -141,9 +142,9 @@ func scenario_b() -> void:
 ## A Laser on a held Piston, its beam along a row that starts a vein of Glimmer in a dirt wall.
 func laser_rig(filler: bool) -> Dictionary:
 	fresh()
-	fill(Rect2i(326, SURFACE - 100, 18, 100), 6)
-	var pis := place("piston", 280, SURFACE - 42, 1)
-	var sn := MC.snap(game, "laser", 3, Vector2i(313, SURFACE - 36))
+	fill(Rect2i(454, SURFACE - 100, 18, 100), 6)
+	var pis := place("piston", 408, SURFACE - 42, 1)
+	var sn := MC.snap(game, "laser", 3, Vector2i(441, SURFACE - 36))
 	var las := MC.place(game, "laser", sn["at"], 3)
 	game.modules[pis]["mode"] = "back"
 	var l: Dictionary = game.modules[las]
@@ -151,7 +152,7 @@ func laser_rig(filler: bool) -> Dictionary:
 	secs(1.0)
 	var fo: Dictionary = MC.kinds["laser"].CUT.front_of(game, l, MC.defs["laser"])
 	var row := int(roundf(fo["p"].y))
-	for x in range(326, 336):
+	for x in range(454, 464):
 		game.sim.set_cell(x, row, D.GLIMMER)
 	return {"piston": pis, "laser": las, "row": row, "snapped": sn["snapped"]}
 
@@ -167,10 +168,10 @@ func scenario_c() -> void:
 	check(r["snapped"] and l["rig_of"] == r["piston"], "the Laser sits on the Piston and counts as carried")
 	check(until(func() -> bool: return glimmer_in(l) >= 10, 20.0), "its beam strips the vein (%d cells of Glimmer)" % glimmer_in(l))
 	var open := 0
-	for x in range(326, 336):
+	for x in range(454, 464):
 		if game.sim.get_cell(x, r["row"]) == D.AIR:
 			open += 1
-	check(open == 10 and game.sim.get_cell(336, r["row"]) == 6, "and nothing else: the row is open to the end of the vein, the dirt past it is still there")
+	check(open == 10 and game.sim.get_cell(464, r["row"]) == 6, "and nothing else: the row is open to the end of the vein, the dirt past it is still there")
 	secs(2.0)
 	check("not ore" in l["state"] and "Dirt" in l["state"], "the beam says what it stopped on (%s)" % l["state"])
 	check(glimmer_in(l) == 10 and MC.stored(l) == 10, "and the Laser holds just the ore (%d units)" % MC.stored(l))
@@ -180,7 +181,7 @@ func scenario_c() -> void:
 	var stone0: float = game.stock[D.R_STONE]
 	check(until(func() -> bool: return glimmer_in(l) >= 1, 20.0), "with Filler on it takes the first cell")
 	secs(3.0)
-	check(glimmer_in(l) == 1 and game.sim.get_cell(326, r["row"]) == 2, "and leaves Stone in its place, the rest of the vein behind it")
+	check(glimmer_in(l) == 1 and game.sim.get_cell(454, r["row"]) == 2, "and leaves Stone in its place, the rest of the vein behind it")
 	check(game.stock[D.R_STONE] < stone0 and "not ore" in l["state"], "paid from the Hub's Stone, and the beam stops on the filler (%s)" % l["state"])
 	# A click switches Filler.
 	MC.kinds["laser"].use(game, l, MC.defs["laser"])
@@ -210,17 +211,20 @@ func scenario_e() -> void:
 	print("E. Thumper")
 	fresh()
 	# The engine's cone: a blast aimed down breaks rock below and leaves rock beside.
-	fill(Rect2i(250, SURFACE - 40, 60, 60), 2)
-	var broke: int = game.sim.explode_cone(280, SURFACE - 30, 20.0, 14, PI * 0.5, PI * 0.25)
-	check(broke > 50 and game.sim.get_cell(280, SURFACE - 15) == D.AIR, "a cone blast aimed down breaks rock below it (%d cells)" % broke)
-	check(game.sim.get_cell(280 + 18, SURFACE - 28) == 2 and game.sim.get_cell(280, SURFACE - 38) == 2, "and leaves the rock beside and behind it")
+	fill(Rect2i(378, SURFACE - 40, 60, 60), 2)
+	var broke: int = game.sim.explode_cone(408, SURFACE - 30, 20.0, 14, PI * 0.5, PI * 0.25)
+	check(broke > 50 and game.sim.get_cell(408, SURFACE - 15) == D.AIR, "a cone blast aimed down breaks rock below it (%d cells)" % broke)
+	check(game.sim.get_cell(408 + 18, SURFACE - 28) == 2 and game.sim.get_cell(408, SURFACE - 38) == 2, "and leaves the rock beside and behind it")
 	fresh()
 	game.researched["thumper"] = true
+	# A tilted landing can wedge the Thumper at the shaft floor, and where it lands depends on the
+	# ground: this x is one it lands square at (A6; 418, 420 and 432 wedge).
+	var ex := X0 + 6
 	fill(Rect2i(X0 - 40, SURFACE + 20, 130, 30), 2)
 	fill(Rect2i(X0 - 40, SURFACE + 50, 130, 14), 4)
 	fill(Rect2i(X0 - 40, SURFACE + 64, 130, 60), D.BEDROCK)
-	var winch := place("winch", X0 + 14, SURFACE - 80)
-	var sn := MC.snap(game, "thumper", 0, Vector2i(X0 + 22, SURFACE - 51))
+	var winch := place("winch", ex + 14, SURFACE - 80)
+	var sn := MC.snap(game, "thumper", 0, Vector2i(ex + 22, SURFACE - 51))
 	var th := MC.place(game, "thumper", sn["at"], 0)
 	check(sn["snapped"] and th > 0, "the Thumper hooks onto the Winch's cable")
 	secs(1.0)
@@ -237,18 +241,18 @@ func scenario_e() -> void:
 	check("nothing left" in w["halt"], "and the halt says the floor is unbreakable")
 	var left := 0
 	for y in range(SURFACE + 20, SURFACE + 62):
-		for x in range(303, 322):
+		for x in range(ex + 13, ex + 32):
 			var c: int = game.sim.get_cell(x, y)
 			if (c == 2 or c == 4) and game.sim.get_owner(x, y) == 0:
 				left += 1
 	check(left == 0, "the shaft is clear of Stone and Obsidian all the way down (%d cells left)" % left)
 	for y in rows:
-		for x in [312 - 30, 312 + 30]:
+		for x in [ex + 22 - 24, ex + 22 + 24]:
 			if game.sim.get_cell(x, y) != 6:
 				side_ok = false
 	check(side_ok, "while the dirt to either side of the cone at the top is untouched")
 	var bed := 0
-	for x in range(300, 325):
+	for x in range(ex + 10, ex + 35):
 		if game.sim.get_cell(x, SURFACE + 64) == D.BEDROCK:
 			bed += 1
 	check(bed == 25, "and the bedrock is whole (%d of 25 cells)" % bed)
@@ -261,8 +265,8 @@ func scenario_e() -> void:
 	# Without power the Winch does nothing.
 	fresh()
 	game.researched["thumper"] = true
-	winch = place("winch", X0 + 14, SURFACE - 80)
-	sn = MC.snap(game, "thumper", 0, Vector2i(X0 + 22, SURFACE - 51))
+	winch = place("winch", ex + 14, SURFACE - 80)
+	sn = MC.snap(game, "thumper", 0, Vector2i(ex + 22, SURFACE - 51))
 	th = MC.place(game, "thumper", sn["at"], 0)
 	w = game.modules[winch]
 	for _i in 300:

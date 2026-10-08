@@ -22,6 +22,7 @@ extends SceneTree
 ##     "Emptying."; with room in the bank the Funnel takes the good and the rig goes on
 ## Run: godot --headless --path . --script tests/scenario_quarry.gd
 
+# A6: the world is 1024 wide and the Hub moved from x 384 to 512, so every bench x below is the old one plus 128.
 const D = preload("res://scripts/defs.gd")
 const F = preload("res://scripts/machines/faces.gd")
 const MC = preload("res://scripts/machines/machines.gd")
@@ -33,7 +34,7 @@ var game: Node
 var f := 0
 var fails := 0
 var verbose := false
-const X0 := 290          # the rig's left edge
+const X0 := 418          # the rig's left edge
 const SURFACE := 200     # ground level there (dirt from here down)
 
 

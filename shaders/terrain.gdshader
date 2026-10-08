@@ -17,7 +17,7 @@ uniform float use_light = 0.0;                                  // 0: no per-cel
 uniform sampler2DArray mem_tex : filter_nearest, repeat_disable;    // the map as last seen, tiled the same
 uniform float time_s = 0.0;
 uniform float ground_y = 200.0;
-uniform ivec2 map_size = ivec2(768, 5120);
+uniform ivec2 map_size = ivec2(1024, 5120);
 uniform int tiles_across = 3;
 
 // Where a cell lives in the tiled arrays.

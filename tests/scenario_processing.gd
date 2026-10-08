@@ -7,6 +7,7 @@ extends SceneTree
 ##  C. research: both Build buttons wait for their techs
 ## Run: godot --headless --path . --script tests/scenario_processing.gd
 
+# A6: the world is 1024 wide and the Hub moved from x 384 to 512, so every bench x below is the old one plus 128.
 const D = preload("res://scripts/defs.gd")
 const MC = preload("res://scripts/machines/machines.gd")
 const M = preload("res://scripts/materials.gd")
@@ -59,9 +60,9 @@ func fresh() -> void:
 	game.paused = true
 	game.reveal_all = true
 	MC.ensure_defs()
-	fill(Rect2i(200, SURFACE - 120, 144, 120), D.AIR)
-	fill(Rect2i(200, SURFACE, 144, 160), 6)
-	fill(Rect2i(200, SURFACE + 160, 144, 40), D.BEDROCK)
+	fill(Rect2i(328, SURFACE - 120, 144, 120), D.AIR)
+	fill(Rect2i(328, SURFACE, 144, 160), 6)
+	fill(Rect2i(328, SURFACE + 160, 144, 40), D.BEDROCK)
 	game.stock[D.R_POWER] = 90.0
 	game.researched["macerator"] = true
 	game.researched["press"] = true
@@ -89,18 +90,18 @@ func held(id: int, mat: int) -> int:
 ## A Macerator on the ground with a Tank joined to its side, and a Stone slab dropped on its mouth.
 func grinder() -> Dictionary:
 	fresh()
-	var mac := place("macerator", 316, SURFACE - 18)
+	var mac := place("macerator", 444, SURFACE - 18)
 	var sn := {"snapped": false}
 	var turns := 1
 	for t in [1, 3]:
-		sn = MC.snap(game, "tank", t, Vector2i(301, SURFACE - 15))
+		sn = MC.snap(game, "tank", t, Vector2i(429, SURFACE - 15))
 		turns = t
 		if sn["snapped"]:
 			break
 	var tank := MC.place(game, "tank", sn["at"], turns)
 	secs(1.0)
-	fill(Rect2i(323, SURFACE - 28, 16, 6), STONE)
-	var slab: int = game.sim.make_body(323, SURFACE - 28, 16, 6, 0.0, 0.0, 0.0)
+	fill(Rect2i(451, SURFACE - 28, 16, 6), STONE)
+	var slab: int = game.sim.make_body(451, SURFACE - 28, 16, 6, 0.0, 0.0, 0.0)
 	return {"mac": mac, "tank": tank, "slab": slab, "snapped": sn["snapped"]}
 
 
@@ -117,9 +118,9 @@ func scenario_a() -> void:
 	# A big one is eaten away a few cells at a time and doesn't settle back into the ground.
 	r = grinder()
 	game.sim.remove_body(r["slab"])
-	fill(Rect2i(323, SURFACE - 28, 16, 6), D.AIR)
-	fill(Rect2i(317, SURFACE - 34, 24, 14), STONE)
-	game.sim.make_body(317, SURFACE - 34, 24, 14, 0.0, 0.0, 0.0)
+	fill(Rect2i(451, SURFACE - 28, 16, 6), D.AIR)
+	fill(Rect2i(445, SURFACE - 34, 24, 14), STONE)
+	game.sim.make_body(445, SURFACE - 34, 24, 14, 0.0, 0.0, 0.0)
 	until(func() -> bool: return held(r["tank"], RUBBLE) >= 336, 40.0)
 	secs(2.0)
 	check(held(r["tank"], RUBBLE) >= 336 and loose_bodies() == 0, "a 336 cell block is ground away whole (%d cells of Rubble)" % held(r["tank"], RUBBLE))
@@ -128,7 +129,7 @@ func scenario_a() -> void:
 	for _i in 600:
 		game.stock[D.R_POWER] = 0.0
 		game.run_ticks(1)
-	check(held(r["tank"], RUBBLE) == 0 and game.sim.get_cell(330, SURFACE - 21) == STONE, "with no power it grinds nothing, and the slab is still there")
+	check(held(r["tank"], RUBBLE) == 0 and game.sim.get_cell(458, SURFACE - 21) == STONE, "with no power it grinds nothing, and the slab is still there")
 	# With nowhere to put the powder it stops, and says why.
 	r = grinder()
 	MC.add_contents(game, r["tank"], RUBBLE, 1144)
@@ -140,8 +141,8 @@ func scenario_a() -> void:
 ## A Press with a Tank of Rubble under it, a Stone-free arena to its right.
 func presser(rubble: int) -> Dictionary:
 	fresh()
-	var tank := place("tank", 300, SURFACE - 30)
-	var sn := MC.snap(game, "press", 0, Vector2i(313, SURFACE - 30 - 9))
+	var tank := place("tank", 428, SURFACE - 30)
+	var sn := MC.snap(game, "press", 0, Vector2i(441, SURFACE - 30 - 9))
 	var press := MC.place(game, "press", sn["at"], 0)
 	MC.add_contents(game, tank, RUBBLE, rubble)
 	secs(1.0)
@@ -166,7 +167,13 @@ func scenario_b() -> void:
 	var r := presser(100)
 	check(r["snapped"], "the Press sits on the Tank's top face")
 	var p: Dictionary = game.modules[r["press"]]
-	check(until(func() -> bool: return p.get("blocks", 0) >= 1, 30.0), "it presses a block (%s)" % p["state"])
+	# A pressed block that lands in the ground settles back into it after 30 still ticks,
+	# so this waits a tick at a time and looks at the body the tick the block appears.
+	for _i in 1800:
+		if p.get("blocks", 0) >= 1:
+			break
+		game.run_ticks(1)
+	check(p.get("blocks", 0) >= 1, "it presses a block (%s)" % p["state"])
 	check(loose_bodies() == 1, "which is a loose body (%d)" % loose_bodies())
 	var left: int = held(r["tank"], RUBBLE) + held(r["press"], RUBBLE)
 	check(left == 4, "paid for with 96 cells of powder (%d left)" % left)

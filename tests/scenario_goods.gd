@@ -8,6 +8,7 @@ extends SceneTree
 ##  F. research: the Bus Hopper's Build button waits for its tech
 ## Run: godot --headless --path . --script tests/scenario_goods.gd
 
+# A6: the world is 1024 wide and the Hub moved from x 384 to 512, so every bench x below is the old one plus 128.
 const D = preload("res://scripts/defs.gd")
 const MC = preload("res://scripts/machines/machines.gd")
 const M = preload("res://scripts/materials.gd")
@@ -67,9 +68,9 @@ func fresh() -> void:
 	game.paused = true
 	game.reveal_all = true
 	MC.ensure_defs()
-	fill(Rect2i(200, SURFACE - 120, 144, 120), D.AIR)
-	fill(Rect2i(200, SURFACE, 144, 160), 6)
-	fill(Rect2i(200, SURFACE + 160, 144, 40), D.BEDROCK)
+	fill(Rect2i(328, SURFACE - 120, 144, 120), D.AIR)
+	fill(Rect2i(328, SURFACE, 144, 160), 6)
+	fill(Rect2i(328, SURFACE + 160, 144, 40), D.BEDROCK)
 	game.stock[D.R_POWER] = 90.0
 	game.researched["chute"] = true
 	game.researched["bus_hopper"] = true
@@ -110,7 +111,7 @@ func good(mat: int) -> float:
 func scenario_a() -> void:
 	print("A. A Funnel banks goods")
 	fresh()
-	var fun := place("funnel", 300, SURFACE - 30)
+	var fun := place("funnel", 428, SURFACE - 30)
 	var stone0: float = game.stock[D.R_STONE]
 	game.modules[fun]["contents"][FLUX] = 30
 	secs(1.0)
@@ -129,7 +130,7 @@ func scenario_a() -> void:
 
 func hopper() -> int:
 	fresh()
-	var h := place("bus_hopper", 290, SURFACE - 40)
+	var h := place("bus_hopper", 418, SURFACE - 40)
 	secs(0.5)
 	return h
 
@@ -138,7 +139,7 @@ func hopper() -> int:
 ## or its out face (on its right). The Tank goes down first, the bolted hopper snaps to it.
 func hopper_by_tank(feeds: bool) -> Dictionary:
 	fresh()
-	var x := 262 if feeds else 312
+	var x := 390 if feeds else 440
 	var tank := place("tank", x, SURFACE - 26, 1)
 	var cx := x + 30 + 13 if feeds else x - 13
 	var sn := MC.snap(game, "bus_hopper", 0, Vector2i(cx, SURFACE - 20))
@@ -154,14 +155,14 @@ func scenario_b() -> void:
 	print("B. A Bus Hopper imports")
 	var h := hopper()
 	var hm: Dictionary = game.modules[h]
-	var mouth := Rect2i(290 + 2, SURFACE - 40 - 4, 22, 4)
-	fill(Rect2i(296, SURFACE - 43, 10, 3), FLUX)
+	var mouth := Rect2i(418 + 2, SURFACE - 40 - 4, 22, 4)
+	fill(Rect2i(424, SURFACE - 43, 10, 3), FLUX)
 	check(until(func() -> bool: return good(FLUX) > 0.0, 5.0), "Flux lying in its mouth is banked (%.2f units)" % good(FLUX))
-	check(absf(good(FLUX) - 0.3) < 0.06 and count_in(Rect2i(280, SURFACE - 80, 60, 80), FLUX) == 0, "all 30 cells of it, and none is left in the world (%.2f units)" % good(FLUX))
+	check(absf(good(FLUX) - 0.3) < 0.06 and count_in(Rect2i(408, SURFACE - 80, 60, 80), FLUX) == 0, "all 30 cells of it, and none is left in the world (%.2f units)" % good(FLUX))
 	check(hm["state"].begins_with("Importing"), "it says it is importing (%s)" % hm["state"])
 	# Water in the mouth goes to the stockpile.
 	var w0: float = game.stock[D.R_WATER]
-	fill(Rect2i(296, SURFACE - 43, 8, 2), WATER)
+	fill(Rect2i(424, SURFACE - 43, 8, 2), WATER)
 	secs(2.0)
 	check(game.stock[D.R_WATER] > w0, "Water in the mouth banks into the Water stockpile (%.3f)" % (game.stock[D.R_WATER] - w0))
 	# A Tank joined to its in face passes in.
@@ -174,11 +175,11 @@ func scenario_b() -> void:
 		check(until(func() -> bool: return good(FLUX) - before > 0.55, 12.0), "what the Tank passes in is banked too (%.2f units)" % (good(FLUX) - before))
 	# No power: nothing is taken.
 	h = hopper()
-	fill(Rect2i(296, SURFACE - 43, 10, 3), FLUX)
+	fill(Rect2i(424, SURFACE - 43, 10, 3), FLUX)
 	for _i in 300:
 		game.stock[D.R_POWER] = 0.0
 		game.run_ticks(1)
-	check(good(FLUX) == 0.0 and count_in(Rect2i(280, SURFACE - 80, 60, 80), FLUX) == 30, "with no power it takes nothing")
+	check(good(FLUX) == 0.0 and count_in(Rect2i(408, SURFACE - 80, 60, 80), FLUX) == 30, "with no power it takes nothing")
 	check(mouth.size.x > 0, "(mouth is %dx%d)" % [mouth.size.x, mouth.size.y])
 
 
@@ -214,7 +215,7 @@ func scenario_d() -> void:
 	game.goods[FLUX] = 1.0
 	hm["mode"] = FLUX
 	secs(6.0)
-	var poured := count_in(Rect2i(270, SURFACE - 90, 90, 130), FLUX)
+	var poured := count_in(Rect2i(398, SURFACE - 90, 90, 130), FLUX)
 	check(good(FLUX) < 1.0 and poured > 20, "it pours Flux out of its mouth with nothing joined (%d cells in the world, %.2f banked)" % [poured, good(FLUX)])
 	check(absf(good(FLUX) + float(poured) * 6.0 / 600.0 - 1.0) < 0.1, "and what is poured plus what is banked is about what there was (%.3f)" % (good(FLUX) + float(poured) * 0.01))
 	# Hand over to a joined Tank.
@@ -226,21 +227,21 @@ func scenario_d() -> void:
 		game.goods[FLUX] = 1.0
 		hm["mode"] = FLUX
 		check(until(func() -> bool: return held(tank, FLUX) >= 60, 15.0), "the Flux goes into the joined Tank (%d cells)" % held(tank, FLUX))
-		check(count_in(Rect2i(270, SURFACE - 90, 90, 130), FLUX) == 0, "and none is poured out of the mouth")
+		check(count_in(Rect2i(398, SURFACE - 90, 90, 130), FLUX) == 0, "and none is poured out of the mouth")
 	# Water.
 	h = hopper()
 	hm = game.modules[h]
 	game.stock[D.R_WATER] = 1.0
 	hm["mode"] = WATER
 	secs(4.0)
-	var wet := count_in(Rect2i(270, SURFACE - 90, 90, 130), WATER)
+	var wet := count_in(Rect2i(398, SURFACE - 90, 90, 130), WATER)
 	check(wet > 20 and game.stock[D.R_WATER] < 1.0, "Water is exported the same way (%d cells, %.2f left)" % [wet, game.stock[D.R_WATER]])
 	# Nothing banked: nothing comes out.
 	h = hopper()
 	hm = game.modules[h]
 	hm["mode"] = FLUX
 	secs(2.0)
-	check(count_in(Rect2i(270, SURFACE - 90, 90, 130), FLUX) == 0 and hm["state"].contains("none banked"), "with none banked it says so (%s)" % hm["state"])
+	check(count_in(Rect2i(398, SURFACE - 90, 90, 130), FLUX) == 0 and hm["state"].contains("none banked"), "with none banked it says so (%s)" % hm["state"])
 	check(kind.info(game, hm, def).contains("Exporting Flux"), "the panel line names what it exports")
 
 
