@@ -49,6 +49,9 @@ which keeps a quarter (`PLATING_STRONG`).
 
 ## Choices to know about
 
+- The Cutter wades through Brine as it does through oil (`WADE` in `cutter.gd`): Brine only salts, so the rig sinks into it
+  and drinks it while the goods bank has room. Gall, Lye, Chillant and Pitch still halt it, and the Pump takes over. Found
+  when a Brine pocket at depth 2714 on seed 7 stopped the cheated bot for good (pumping out a pocket takes many Tank trips).
 - Gall is not boiled away by the Magma band's 550 degrees, unlike what the draft's 140 would have done; it boils at 800.
 - Lumen glows and shows through the fog, and does nothing else. The draft also had it turn an impact into power (a Plate
   under it); that needs a new hook and was left out.
@@ -66,4 +69,4 @@ which keeps a quarter (`PLATING_STRONG`).
 
 `tests/scenario_wave2.gd`: eleven bench scenarios (one per material family of behaviour) and the machines on seed 7:
 Boiler residue, Chiller, Furnace Wire, the Electrolyser with three Tanks, the Combustor's Pitch, casing wear by acid, and
-Plating IV against Sourwater and Gall. `scenario_quarry` K covers the Winch's "goods bank is full" message.
+Plating IV against Sourwater and Gall. `scenario_quarry` K covers the Winch's "goods bank is full" message; `scenario_fluids` G covers the Cutter wading through Brine and halting on Gall.

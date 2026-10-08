@@ -12,7 +12,7 @@ const M = preload("res://scripts/materials.gd")
 
 const SLICES_PER_SCAN := 3
 const LOOK := 4                 # rows ahead checked for clearance and lava
-const WADE := ["Slick"]         # liquids besides a stockpile's that the rig sinks into and drinks: oil only burns
+const WADE := ["Slick", "Brine"]  # liquids besides a stockpile's that the rig sinks into and drinks: oil only burns, brine only salts
 
 static var _soft := {}          # hardness threshold and hot rock -> mask of what it digs
 static var _bad := PackedByteArray()

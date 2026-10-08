@@ -6,7 +6,7 @@ Claude reads each session is claude/STATUS.md.
 
 ## A5 part 3: wave 2 materials and the Electrolyser
 
-Tests: the full suite is 29 lines `FAILURES: 0` (new: scenario_wave2; scenario_quarry gained K). No engine change: `bin/` is as PR #26 left it.
+Tests: the full suite is 29 lines `FAILURES: 0` (new: scenario_wave2; scenario_quarry gained K; scenario_fluids G grew; scenario_run D walls in Stone). No engine change: `bin/` is as PR #26 left it.
 Design: claude/WAVE2_MATERIALS.md (the table, the machines, the choices). Alex's call on the draft: "skip the exotic materials for now and
 just stick with the rest of the list", so Recoil and Hover are not built and Pumice and Cinder stayed out.
 
@@ -23,6 +23,13 @@ just stick with the rest of the list", so Recoil and Hover are not built and Pum
   "Emptying." (Alex's pick on the full-bank card was "Leave it"). scenario_quarry K.
 - Left out of the draft, on purpose: Lumen's impact-to-power (no hook for it), Chlor killing mites (there are none), Pitch sealing a casing leak (no such
   mechanic). Gall boils at 800 rather than 140, or the Magma band's 550 degrees would have boiled it away.
+- Cutter: `WADE` gains Brine, so the rig sinks into it and drinks it as it does oil (Gall, Lye, Chillant and Pitch still halt it). Found with the bot: on
+  seed 7 a Brine pocket at depth 2714 stopped the cheated bot for good, because the Pump takes many Tank trips to empty a pocket. scenario_fluids G.
+- Cheated bot, seed 7, with wave 2: depth 3000 at 103:15, then Gall at 3391 halts the Cutter (106:20); the Pump goes on at 112:20, drains what it can reach
+  at 121:20, the Cutter goes back at 127:25, and the rig stops on "Bedrock ahead" at depth 4493 at 144:15. Part 9 got there at 126:00, so the Gall
+  detour costs about 18 minutes. The bot's column crosses Salt (75:51), Brine, Lumen (103:30), Veinstone (105:40) and the Gall pocket.
+- `scenario_run` D walls its shaft in Stone: dirt walls shed loose pixels, a Node placed against one fell with it, and the new spawn rows shifted the RNG
+  stream enough to make that happen on seed 7.
 - Gotchas found: a vessel sizes its interior at its first scan and a gas added before that can vent out of the top row (wait half a second after
   placing); a Tank is a free body, so a side Tank must rest on ground at the face's height; `ages_exposed` gases (Hush, Chlor, Lift) age whenever air touches them
   in a half empty Tank.
