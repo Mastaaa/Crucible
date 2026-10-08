@@ -30,14 +30,15 @@ static func load_table(path: String = PATH) -> Dictionary:
 ## (-1 if unknown). Returns {"areas": name -> Rect2i, "placed": name -> cells,
 ## "skipped": names the material table doesn't know, "shapes": patch name -> its
 ## ragged ellipse (see `inside`), "sides": patch name -> -1 left or 1 right,
-## "recipe": patch name -> cells its ground recipe changed}.
+## "recipe": patch name -> cells its ground recipe changed, "springs": the cells of a `spring`
+## row's clumps that a spring sits on (the floor of the clump's middle column)}.
 static func place(g: PackedByteArray, w: int, h: int, table: Dictionary, seed_value: int,
 		ctx: Dictionary, resolve: Callable = Callable()) -> Dictionary:
 	if not resolve.is_valid():
 		resolve = Mats.id_of
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value * 7919 + 13
-	var out := {"areas": {}, "placed": {}, "skipped": [], "shapes": {}, "sides": {}, "recipe": {}}
+	var out := {"areas": {}, "placed": {}, "skipped": [], "shapes": {}, "sides": {}, "recipe": {}, "springs": []}
 	var areas: Dictionary = table.get("areas", {})
 	for nm: String in areas:
 		if nm.begins_with("_"):
@@ -87,10 +88,23 @@ static func place(g: PackedByteArray, w: int, h: int, table: Dictionary, seed_va
 				cy = rng.randi_range(box.position.y, box.end.y - 1)
 				if g[cy * w + cx] in hosts and (shape.is_empty() or inside(shape, cx, cy)):
 					break
-			cells += _clump(g, w, h, mat, hosts, cx, cy, rad, row.get("shape", "blob"), float(row.get("density", 0.5)), rng, float(row.get("aspect", 1.0)), shape)
+			var added := _clump(g, w, h, mat, hosts, cx, cy, rad, row.get("shape", "blob"), float(row.get("density", 0.5)), rng, float(row.get("aspect", 1.0)), shape)
+			cells += added
+			if added > 0 and row.get("spring", false):
+				var floor_y := _floor(g, w, h, mat, cx, cy, rad)
+				if floor_y >= 0:
+					out["springs"].append(Vector2i(cx, floor_y))
 		var key: String = str(row["material"])
 		out["placed"][key] = out["placed"].get(key, 0) + cells
 	return out
+
+
+## The lowest cell of `mat` in column `x`, looking `rad` rows either side of `cy`, or -1.
+static func _floor(g: PackedByteArray, w: int, h: int, mat: int, x: int, cy: int, rad: int) -> int:
+	for y in range(mini(cy + rad, h - 1), cy - rad - 1, -1):
+		if y >= 0 and g[y * w + x] == mat:
+			return y
+	return -1
 
 
 static func _count(rng: RandomNumberGenerator, pair: Array) -> int:

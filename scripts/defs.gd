@@ -260,6 +260,10 @@ const TIER_FOUND := ["", "", "Glimmer", "Lava", "The Crucible"]
 const TECHS := [
 	{"id": "lamp", "name": "Lamp", "tier": 1, "needs": [], "power": 120, "module": "lamp",
 		"text": "A module that lights 200 cells round it for 0.1 power/s. Everywhere else underground stays dark."},
+	{"id": "solar", "name": "Solar Panel", "tier": 1, "needs": [], "power": 300, "module": "solar",
+		"text": "A bolted panel that makes steady power in a clear line to the sky: more over the Dunes. A panel at the bottom of an open pit works."},
+	{"id": "waterwheel", "name": "Waterwheel", "tier": 1, "needs": [], "power": 250, "module": "waterwheel",
+		"text": "A bolted wheel that makes power from water falling through it, with no sky needed: a spring in the Fen keeps one turning."},
 	{"id": "piston", "name": "Piston", "tier": 1, "needs": [], "power": 150, "module": "piston",
 		"text": "A bolted module that pushes whatever is joined to its mechanical face 20 cells out along it, and back."},
 	{"id": "gantry", "name": "Gantry", "tier": 1, "needs": [], "power": 200, "module": "gantry",

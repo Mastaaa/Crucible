@@ -195,6 +195,15 @@ func scenario_f() -> void:
 			if ids.has(c) and SR.biome_at(sp, i % D.W, int(i / float(D.W))) != HOMES[ids[c]]:
 				outside[ids[c]] = outside.get(ids[c], 0) + 1
 		check(outside.is_empty(), "seed %d: residents stay in their biome (strays: %s)" % [s, outside])
+		# The Fen's Water pockets each carry a spring on their floor (A6 part 4: a Waterwheel's source).
+		var fen_springs := 0
+		var dry := 0
+		for c: Vector2i in info["springs"]:
+			if SR.biome_at(sp, c.x, c.y) == "fen" and cells[c.y * D.W + c.x] == D.WATER:
+				fen_springs += 1
+				dry += 1 if cells[(c.y + 1) * D.W + c.x] == D.WATER else 0
+		check(fen_springs >= 2 and dry == 0, "seed %d: %d springs on the floors of Fen pockets (%d not on a floor)" % [s, fen_springs, dry])
+		check(not sp.has("springs"), "seed %d: the springs are in the world's list, not left in the spawn record" % s)
 		# Level 1 of every Mk upgrade stays a straight shaft: Flux, Rime and Ferrite in the middle third, below the Topsoil.
 		for nm in ["Flux", "Rime", "Ferrite"]:
 			var mid := 0
@@ -249,6 +258,19 @@ func scenario_g() -> void:
 	check(coal_in > 200 and outside_n == 0, "a resident much wider than its patch is cut at the rim (%d Coal in, %d out)" % [coal_in, outside_n])
 	check(out["recipe"]["p"] == inside_n, "and the recipe's count matches (%d)" % out["recipe"]["p"])
 	check(SR.biome_at(out, int(shape["cx"]), int(shape["cy"])) == "p" and SR.biome_at(out, 5, 5) == "", "biome_at names the patch and nothing elsewhere")
+	rock["spawns"][0]["spring"] = true
+	g.fill(D.STONE)
+	out = SR.place(g, w, h, rock, 3, {})
+	var floors := 0
+	var off_floor := 0
+	for c: Vector2i in out["springs"]:
+		floors += 1
+		off_floor += 0 if g[c.y * w + c.x] == D.COAL and g[(c.y + 1) * w + c.x] != D.COAL else 1
+	check(floors >= 2 and off_floor == 0, "a row marked `spring` lists the floor of each clump it painted (%d springs, %d off a floor)" % [floors, off_floor])
+	rock["spawns"][0].erase("spring")
+	g.fill(D.STONE)
+	out = SR.place(g, w, h, rock, 3, {})
+	check(out["springs"].is_empty(), "and a row without it lists none")
 	rock["spawns"][0]["clip"] = false
 	g.fill(D.STONE)
 	out = SR.place(g, w, h, rock, 3, {})
