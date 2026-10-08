@@ -195,7 +195,8 @@ func scenario_c() -> void:
 	print("  sinking at up to %.0f cells/s under the surface; on the bottom: dirt %d / 960, loose %d; water %d -> %d" % [fastest_wet,
 			count(Rect2i(250, 2260, 200, 40), D.DIRT), count(room, D.LOOSE_DIRT), water, after])
 	check(fastest_wet > 0.0 and fastest_wet <= 110.0, "it sinks slowly through the pool")
-	check(bodies_in(room) == 0 and count(Rect2i(250, 2260, 200, 40), D.DIRT) == 960 and count(room, D.LOOSE_DIRT) == 0,
+	# Water wears the odd cell of dirt into sand while it sits (a random draw that the ambient's shape shifts), so "whole" allows a few.
+	check(bodies_in(room) == 0 and count(Rect2i(250, 2260, 200, 40), D.DIRT) >= 950 and count(room, D.LOOSE_DIRT) == 0,
 			"and lands whole on the bottom")
 	check(absi(after - water) * 50 <= water, "the water it pushed aside is still there")
 

@@ -387,15 +387,19 @@ const HOT_TOP := 3000               # hot rock from here down (wobbling by up to
 # --- Temperature (A1) --------------------------------------------------------------
 # Every cell has a temperature (degrees) that the engine leaks between neighbours
 # and pulls back toward the depth's ambient (data/materials.json has the material
-# side). The ambient climbs with depth and steps up to the Magma band's just above
-# HOT_TOP's wobble, so hot rock stays hot rock (it cools to stone under 250) and
-# stone stays stone (it heats to hot rock over 800: only next to lava).
+# side). The ambient climbs with depth: from AMBIENT_RAMP_START (A6; it was a 50 row
+# step just above the hot rock) the Stone band warms by a smoothstep over 400 rows to
+# the Magma band's, so no single row is the line to cross. Hot rock stays hot rock (it
+# cools to stone under 250: its top, HOT_TOP wobbling by up to 24, sits at 540 or more)
+# and stone stays stone (it heats to hot rock over 800: only next to lava). Water boils
+# at 100, which this reaches near row 2630, so worldgen keeps its water pockets and
+# caves (and their springs) above AMBIENT_RAMP_START.
 const AMBIENT_SURFACE := 15
 const AMBIENT_TOPSOIL_BOTTOM := 30
-const AMBIENT_STONE_BOTTOM := 90    # under water's boiling point: the Stone band's pockets keep
+const AMBIENT_STONE_BOTTOM := 90    # where the ramp starts, under water's boiling point
 const AMBIENT_MAGMA := 550
-const AMBIENT_RAMP := 50            # rows over which the Stone band's ambient climbs to the Magma band's
-const AMBIENT_RAMP_END := HOT_TOP - 30
+const AMBIENT_RAMP_START := 2600
+const AMBIENT_RAMP_END := HOT_TOP
 const TEMP_EVERY := 8               # ticks between temperature passes
 const TEMP_SINK_EVERY := 1          # passes between pulls toward the ambient
 const TEMP_SINK := 1.0 / 256        # the fraction of the gap each pull closes (none within 32 degrees)
@@ -407,11 +411,10 @@ static func ambient_at(y: int) -> int:
 	var topsoil_end: int = LAYERS[1]["bottom"]
 	if y < topsoil_end:
 		return int(lerpf(AMBIENT_SURFACE, AMBIENT_TOPSOIL_BOTTOM, (y - GROUND_Y) / float(topsoil_end - GROUND_Y)))
-	var ramp_start := AMBIENT_RAMP_END - AMBIENT_RAMP
-	if y < ramp_start:
-		return int(lerpf(AMBIENT_TOPSOIL_BOTTOM, AMBIENT_STONE_BOTTOM, (y - topsoil_end) / float(ramp_start - topsoil_end)))
+	if y < AMBIENT_RAMP_START:
+		return int(lerpf(AMBIENT_TOPSOIL_BOTTOM, AMBIENT_STONE_BOTTOM, (y - topsoil_end) / float(AMBIENT_RAMP_START - topsoil_end)))
 	if y < AMBIENT_RAMP_END:
-		return int(lerpf(AMBIENT_STONE_BOTTOM, AMBIENT_MAGMA, smoothstep(0.0, 1.0, (y - ramp_start) / float(AMBIENT_RAMP))))
+		return int(lerpf(AMBIENT_STONE_BOTTOM, AMBIENT_MAGMA, smoothstep(0.0, 1.0, (y - AMBIENT_RAMP_START) / float(AMBIENT_RAMP_END - AMBIENT_RAMP_START))))
 	return AMBIENT_MAGMA
 
 ## The ambient per row, for the engine (a flat one at `flat` degrees on the bench).

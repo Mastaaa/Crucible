@@ -12,6 +12,7 @@ extends SceneTree
 ##   I. a falling hot slab keeps its heat
 ##   J. temperatures save and load, and 1 and 4 threads agree
 ##   K. the pass stays cheap on a fresh world
+##   M. the ambient ramps up over 400 rows (A6) and worldgen leaves no liquid in rows hot enough to boil it
 ##  In the game:
 ##   L. the lab bench: an open room, the brush paints and heats, nothing is saved
 ## Run: godot --headless --path . --script tests/scenario_temperature.gd
@@ -50,6 +51,7 @@ func _process(_d: float) -> bool:
 		scenario_i()
 		scenario_j()
 		scenario_k()
+		scenario_m()
 		scenario_l()
 		print("FAILURES: %d" % fails)
 		return true
@@ -389,3 +391,36 @@ func scenario_l() -> void:
 	check(not game.save_run() and Save.exists() == had_save, "the bench is never saved")
 	game.new_game(7)
 	check(not game.bench, "a new run isn't the bench")
+
+
+func scenario_m() -> void:
+	print("M. the ambient ramp")
+	var rising := true
+	var step_max := 0
+	var prev := D.ambient_at(0)
+	for y in range(1, D.H):
+		var a := D.ambient_at(y)
+		rising = rising and a >= prev
+		step_max = maxi(step_max, a - prev)
+		prev = a
+	check(rising and step_max <= 8, "it never falls with depth and never climbs more than 8 degrees a row (%d at most)" % step_max)
+	check(D.ambient_at(D.AMBIENT_RAMP_START) == D.AMBIENT_STONE_BOTTOM and D.ambient_at(D.HOT_TOP) == D.AMBIENT_MAGMA, "it is %d at row %d and %d at the hot rock's top" % [D.AMBIENT_STONE_BOTTOM, D.AMBIENT_RAMP_START, D.AMBIENT_MAGMA])
+	check(D.ambient_at(2800) > 250 and D.ambient_at(2800) < 400, "and warm half way (%d at row 2800)" % D.ambient_at(2800))
+	check(D.ambient_at(D.HOT_TOP - 24) > 250 and D.ambient_at(D.HOT_TOP - 24) <= D.AMBIENT_MAGMA, "the hot rock's wobbled top stays over the 250 it cools to stone at (%d)" % D.ambient_at(D.HOT_TOP - 24))
+	# Where each liquid boils or turns, the first row at least that warm; none of it may be generated there.
+	var limits := {"Water": 100, "Sourwater": 105, "Brine": 200, "Slick": 260, "Quickmire": 350}
+	for sd in [5, 7, 11, 23]:
+		var sim = SimFactory.create(1)
+		WorldGen.new().generate(sim, sd)
+		var bad := {}
+		for nm: String in limits:
+			var row := 0
+			while D.ambient_at(row) < limits[nm]:
+				row += 1
+			var mask := PackedByteArray()
+			mask.resize(256)
+			mask[Mats.id_of(nm)] = 1
+			var n: int = sim.count_in_rect(0, row, D.W, D.H - row, mask)
+			if n > 0:
+				bad[nm] = n
+		check(bad.is_empty(), "seed %d: no liquid starts in rows warm enough to boil it (%s)" % [sd, bad])
