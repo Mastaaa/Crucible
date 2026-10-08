@@ -24,6 +24,7 @@ const SX := 4        # layout across, against the v2 map (A6: 3 before, W is 102
 const SY := 5        # layout down
 const WIDE := float(SX) / 3.0   # how much wider than the 768 map the feature counts were written for (A6)
 const F := 4         # features (caves, aquifers, veins, pockets, the lake, the chamber)
+const WET_BOTTOM := 505   # v2 rows: caves, water pockets and their springs stay above D.AMBIENT_RAMP_START (505 * 5 + a blob's half height < 2600), so none boils (A6)
 const KSHIFT := 2    # the masks `_near` reads are in blocks of 4 x 4 cells
 const KS := 1 << KSHIFT
 
@@ -139,10 +140,10 @@ func generate(sim: RefCounted, seed_value: int) -> Dictionary:
 	var caves := roundi(rng.randi_range(1, 2) * WIDE)
 	var cave_rects: Array = []
 	for _i in caves:
-		cave_rects.append(_place_blob(D.AIR, [D.STONE, D.GLIMMER], Vector2i(24, 232) * SX, Vector2i(330, 575) * SY, Vector2i(22, 8) * F))
+		cave_rects.append(_place_blob(D.AIR, [D.STONE, D.GLIMMER], Vector2i(24, 232) * SX, Vector2i(330, WET_BOTTOM) * SY, Vector2i(22, 8) * F))
 	var pockets := roundi(rng.randi_range(1, 2) * WIDE)
 	for _i in pockets:
-		aquifers.append(_place_blob(D.WATER, [D.STONE, D.GLIMMER], Vector2i(24, 232) * SX, Vector2i(330, 575) * SY, Vector2i(20, 10) * F))
+		aquifers.append(_place_blob(D.WATER, [D.STONE, D.GLIMMER], Vector2i(24, 232) * SX, Vector2i(330, WET_BOTTOM) * SY, Vector2i(20, 10) * F))
 
 	# --- Chamber, plug and lake (the plug decides where the lake and the Crucible go) ---
 	var spread := int(CHAMBER_RX * PLUG_SPREAD)

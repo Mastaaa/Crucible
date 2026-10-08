@@ -22,6 +22,7 @@
 		"  Ferrite sits above the Sulfur band (A5): seams in the Ferrite hills and a fourth in the Hub's middle third, so a straight shaft meets one",
 		"    before the casing needs Plating.",
 		"  Wave 2 rows (A5 part 3): Brine, Salt and Chlor in the Salt flats, Lumen, Veinstone, Gall and Vitriol in the Gall caverns (A6). Lye, Lift, Pitch, Chillant and Filings are made, not found.",
+		"  Liquids stay clear of the warm rows: Brine (boils to Salt at 200) is kept above row 2650 and the worldgen caves and water pockets above 2525, where the ambient (D.ambient_at) is still under 100.",
 		"  Biomes (A6 part 2): a patch with a few more keys. Six of them, two to a band, each about a fifth of the width, on a flank of the world:",
 		"    anchor: box (the default, a centre anywhere in the range), surface (the centre on the ground) or lava_pocket (the centre of the pocket nearest the flank).",
 		"    side: random takes a flank per seed (x is written for the left one and mirrors for the right); opposite: <patch> takes the flank that patch did not.",
@@ -60,7 +61,7 @@
 		{"material": "Water", "area": "fen", "depth": [700, 1400], "host": ["Dirt", "Packed dirt", "Clay"], "clumps": [3, 4], "radius": [8, 12], "shape": "blob"},
 
 		{"material": "Salt", "area": "salt_flats", "aspect": 8, "depth": [1500, 2600], "host": ["Stone"], "clumps": [2, 3], "radius": [60, 80], "shape": "blob"},
-		{"material": "Brine", "area": "salt_flats", "depth": [1800, 2900], "host": ["Stone"], "clumps": [3, 3], "radius": [20, 26], "shape": "blob"},
+		{"material": "Brine", "area": "salt_flats", "depth": [1800, 2650], "host": ["Stone"], "clumps": [3, 3], "radius": [20, 26], "shape": "blob"},
 		{"material": "Chlor", "area": "salt_flats", "depth": [2200, 2950], "host": ["Stone"], "clumps": [3, 3], "radius": [14, 18], "shape": "blob"},
 		{"material": "Rime", "area": "salt_flats", "depth": [1800, 2800], "host": ["Stone"], "clumps": [3, 3], "radius": [20, 24], "shape": "blob"},
 		{"material": "Flux", "area": "salt_flats", "aspect": 8, "depth": [1700, 2800], "host": ["Stone"], "clumps": [3, 4], "radius": [70, 95], "shape": "blob"},
