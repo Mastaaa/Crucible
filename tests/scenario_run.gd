@@ -233,11 +233,12 @@ func scenario_d() -> void:
 	print("D. dragged lines")
 	fresh()
 	game.stock[D.R_STONE] = 400.0
-	# A shaft 30 wide and 700 deep left of the Hub, walled in dirt.
+	# A shaft 30 wide and 700 deep left of the Hub, walled in Stone (dirt walls shed loose pixels into
+	# the shaft, and a Node can land on a single one of them and fall with it).
 	var hub = game.hub
 	var top: int = hub.y + hub.h
 	var x0: int = hub.x - 80
-	fill(Rect2i(x0 - 60, top, 140, 760), D.DIRT)
+	fill(Rect2i(x0 - 60, top, 140, 760), D.STONE)
 	fill(Rect2i(x0, top, 30, 700), D.AIR)
 	var a := Vector2i(x0 + 15, top + 12)
 	var b := Vector2i(x0 + 15, top + 690)

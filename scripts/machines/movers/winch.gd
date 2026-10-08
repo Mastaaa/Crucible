@@ -75,6 +75,10 @@ static func scan(g, m: Dictionary, def: Dictionary) -> void:
 	var tank: Dictionary = g.modules[t]
 	var cap: int = maxi(1, MU.capacity(tank, MU.defs[tank["def"]]))
 	m["fill"] = float(MU.stored(tank)) / float(cap)
+	m["bank_full"] = false              # the Funnel holds a good back while the goods bank has no room for it
+	for mat: int in tank["contents"]:
+		if M.is_good(mat) and g.good_room_cells(mat) <= 0:
+			m["bank_full"] = true
 
 
 # --- Step: the motion, every tick ---------------------------------------------------
@@ -104,7 +108,7 @@ static func step(g, m: Dictionary, def: Dictionary) -> void:
 					m["halt"] = ""
 					m["state"] = "down"
 			else:
-				why = "Emptying."
+				why = "The goods bank is full: free room in it to unload the Tank." if m.get("bank_full", false) else "Emptying."
 		"down":
 			if m["fill"] >= float(p["full"]):
 				m["state"] = "up"

@@ -11,7 +11,7 @@
 		{
 			"id": "combustor", "name": "Combustor", "kind": "combustor", "size": [26, 18], "wall": 2, "interior": true, "anchored": true,
 			"tech": "combustor", "cost": [12, 4, 0, 0, 0],
-			"blurb": "Bolted in place. Fuel joined into its bottom face (Coal, Coal chunks, Slick) is burnt a cell a second for 2 to 3 power each, added to the Hub's store while a Node or the Hub is in reach. It burns nothing while the store is full.",
+			"blurb": "Bolted in place. Fuel joined into its bottom face (Coal, Coal chunks, Slick, Pitch, Lift) is burnt a cell a second for 1 to 4 power each, added to the Hub's store while a Node or the Hub is in reach. It burns nothing while the store is full.",
 			"faces": [
 				{"type": "pixel", "dir": "down", "at": 6, "w": 6, "name": "in"},
 				{"type": "signal", "dir": "right", "at": 9, "w": 4, "name": "gate"}

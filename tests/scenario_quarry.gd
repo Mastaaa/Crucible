@@ -18,6 +18,8 @@ extends SceneTree
 ##     the Winch shoves it aside instead of the Tank stopping on it while the Cutter goes on
 ##  J. a corner pixel of the Cutter's own casing, rounded into the slice in front of it by a tilted body (the A5
 ##     bot's "Obsidian ahead" at depth 2256), is not a wall; Obsidian that is nobody's still is
+##  K. a docked Tank that holds a good the full goods bank cannot take says so ("The goods bank is full"), not just
+##     "Emptying."; with room in the bank the Funnel takes the good and the rig goes on
 ## Run: godot --headless --path . --script tests/scenario_quarry.gd
 
 const D = preload("res://scripts/defs.gd")
@@ -58,6 +60,7 @@ func _process(_d: float) -> bool:
 		scenario_h()
 		scenario_i()
 		scenario_j()
+		scenario_k()
 		print("FAILURES: %d" % fails)
 		return true
 	return false
@@ -377,3 +380,24 @@ func scenario_j() -> void:
 		for y in range(below.position.y, below.position.y + 6):
 			game.sim.set_cell(x, y, D.OBSIDIAN)
 	check(until(func() -> bool: return w["halt"] != "", 60.0) and "Obsidian" in w["halt"], "a real wall below stops the rig (%s)" % w["halt"])
+
+
+func scenario_k() -> void:
+	print("K. a full goods bank says why the rig waits")
+	fresh()
+	var cut := place("cutter", X0, SURFACE - 16)
+	var tank := place("tank", X0, SURFACE - 16 - 30)
+	var fun := place("funnel", X0, SURFACE - 16 - 30 - 14)
+	secs(1.0)
+	var salt := M.id_of("Salt")
+	game.goods[M.id_of("Flux")] = game.goods_cap()
+	MC.add_contents(game, tank, salt, 900)               # more than the Funnel holds, so the Tank keeps some
+	var winch := place("winch", X0 + 14, SURFACE - 16 - 30 - 18)
+	var w: Dictionary = game.modules[winch]
+	secs(1.0)
+	check(w["state"] == "docked" and "bank is full" in w["why"], "with the bank full the docked rig says so (%s: %s)" % [w["state"], w["why"]])
+	check(game.modules[tank]["contents"].get(salt, 0) > 0, "and the Tank keeps Salt it cannot unload (%d)" % game.modules[tank]["contents"].get(salt, 0))
+	game.goods.erase(M.id_of("Flux"))
+	check(until(func() -> bool: return w["state"] == "down", 40.0), "with room in the bank the Funnel empties the Tank and the rig goes down (%s)" % w["why"])
+	check(game.goods.get(salt, 0.0) > 0.0, "the Salt is banked (%.3f units)" % game.goods.get(salt, 0.0))
+	check(cut != 0 and fun != 0, "(rig placed)")

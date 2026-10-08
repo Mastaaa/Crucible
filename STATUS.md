@@ -4,6 +4,36 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A5 part 3: wave 2 materials and the Electrolyser
+
+Tests: the full suite is 29 lines `FAILURES: 0` (new: scenario_wave2; scenario_quarry gained K; scenario_fluids G grew; scenario_run D walls in Stone). No engine change: `bin/` is as PR #26 left it.
+Design: claude/WAVE2_MATERIALS.md (the table, the machines, the choices). Alex's call on the draft: "skip the exotic materials for now and
+just stick with the rest of the list", so Recoil and Hover are not built and Pumice and Cinder stayed out.
+
+- Twelve materials, ids 54 to 68 with three derived (Pitch stone, Wire, Vitriol grit): Brine, Salt, Lye, Chlor, Lift, Pitch, Chillant, Filings,
+  Veinstone, Lumen, Gall, Vitriol. 35 reactions, in `data/materials.json`. Brine, Salt, Chlor, Lumen, Veinstone, Gall and Vitriol are in the ground
+  (seven spawn rows added last in `spawn_regions.json`, so no earlier row moved); the rest are made.
+- Chains: a Boiler on Brine leaves Salt, on Slick leaves Pitch (a new `residue` face on its left); a Chiller turns Brine into Chillant;
+  a Furnace smelts Veinstone with Flux into Wire bodies; a Macerator grinds a Ferrite bar to Filings; the Combustor burns Pitch (4 power a cell) and
+  Lift (1). The Electrolyser (`processing/electrolyser.gd`, tech Tier 3 after the Boiler) splits Brine into Lye, Chlor and Lift and Water into Lift, each out of its own face.
+- Casing: `acid` in the data weighs a corrosive material (Gall 2, Chlor 1.5, Vitriol 0.5, Sourwater 1). `casing.wear` scales a scan's chance by the worst
+  acid present, so Gall costs twice Sourwater; Plating Mk IV still removes Sourwater's wear and leaves a quarter of Gall's.
+- Ferrite bar and Rime changed: a bar now shatters to Filings, and Rime joins the Cold family (its own reactions are unchanged).
+- Winch: a docked rig whose Tank holds a good the full bank cannot take says "The goods bank is full: free room in it to unload the Tank." instead of
+  "Emptying." (Alex's pick on the full-bank card was "Leave it"). scenario_quarry K.
+- Left out of the draft, on purpose: Lumen's impact-to-power (no hook for it), Chlor killing mites (there are none), Pitch sealing a casing leak (no such
+  mechanic). Gall boils at 800 rather than 140, or the Magma band's 550 degrees would have boiled it away.
+- Cutter: `WADE` gains Brine, so the rig sinks into it and drinks it as it does oil (Gall, Lye, Chillant and Pitch still halt it). Found with the bot: on
+  seed 7 a Brine pocket at depth 2714 stopped the cheated bot for good, because the Pump takes many Tank trips to empty a pocket. scenario_fluids G.
+- Cheated bot, seed 7, with wave 2: depth 3000 at 103:15, then Gall at 3391 halts the Cutter (106:20); the Pump goes on at 112:20, drains what it can reach
+  at 121:20, the Cutter goes back at 127:25, and the rig stops on "Bedrock ahead" at depth 4493 at 144:15. Part 9 got there at 126:00, so the Gall
+  detour costs about 18 minutes. The bot's column crosses Salt (75:51), Brine, Lumen (103:30), Veinstone (105:40) and the Gall pocket.
+- `scenario_run` D walls its shaft in Stone: dirt walls shed loose pixels, a Node placed against one fell with it, and the new spawn rows shifted the RNG
+  stream enough to make that happen on seed 7.
+- Gotchas found: a vessel sizes its interior at its first scan and a gas added before that can vent out of the top row (wait half a second after
+  placing); a Tank is a free body, so a side Tank must rest on ground at the face's height; `ages_exposed` gases (Hush, Chlor, Lift) age whenever air touches them
+  in a half empty Tank.
+
 ## A5 part 9, seventh piece: the bot reaches the chamber's bedrock
 
 Tests: unchanged (the suite does not run the bot; the last full run, 28 lines `FAILURES: 0`, was PR #38). No game change: `tests/autoplay.gd` only.

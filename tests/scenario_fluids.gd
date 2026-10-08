@@ -6,7 +6,7 @@ extends SceneTree
 ##  D. the Centrifuge sends the lightest material up and the densest out of its left face, the one left goes the heavy way
 ##  E. research gates the three Build buttons; the data has densities
 ##  F. a Winch rig: the Cutter halts on Sourwater, the Pump takes its place, drains the pocket and the rig comes up, the Cutter goes on
-##  G. the Cutter wades through oil (Slick) without a halt, and is still stopped by a liquid that would hurt it (Sourwater)
+##  G. the Cutter wades through oil (Slick) and Brine without a halt, and is still stopped by a liquid that would hurt it (Sourwater, Gall)
 ## Run: godot --headless --path . --script tests/scenario_fluids.gd
 
 const D = preload("res://scripts/defs.gd")
@@ -20,6 +20,8 @@ const WATER := 9
 const SAND := 31
 const SLICK := 35
 const SOUR := 36
+const BRINE := 54
+const GALL := 64
 const STONE := 2
 const TECHS := ["pump", "sieve", "centrifuge"]
 
@@ -279,7 +281,7 @@ func pocket_rig(mat: int) -> Dictionary:
 
 
 func scenario_g() -> void:
-	print("G. the Cutter wades through oil")
+	print("G. the Cutter wades through oil and brine")
 	var r := pocket_rig(SLICK)
 	var w: Dictionary = r["winch"]
 	check(until(func() -> bool: return w["cable"] > 80.0, 400.0), "the rig sinks through the oil and on into the floor below (%.0f cells of cable, %s)" % [w["cable"], w["halt"]])
@@ -290,6 +292,13 @@ func scenario_g() -> void:
 	game.goods[SAND] = game.goods_cap()                 # a full bank: the Funnel would hold oil back, so the Cutter does not take it
 	check(until(func() -> bool: return w["cable"] > 80.0, 400.0), "with the goods bank full it wades through all the same (%.0f cells, %s)" % [w["cable"], w["halt"]])
 	check(held(r["tank"], SLICK) == 0, "and takes none of the oil into its Tank (%d Slick)" % held(r["tank"], SLICK))
+	r = pocket_rig(BRINE)
+	w = r["winch"]
+	check(until(func() -> bool: return w["cable"] > 80.0, 400.0), "the rig sinks through Brine too (%.0f cells of cable, %s)" % [w["cable"], w["halt"]])
+	check(w["halt"] == "", "with no halt on the way")
+	r = pocket_rig(GALL)
+	w = r["winch"]
+	check(until(func() -> bool: return w["halt"] != "", 300.0) and "Gall" in w["halt"], "Gall stops it (%s)" % w["halt"])
 	r = pocket_rig(SOUR)
 	w = r["winch"]
 	check(until(func() -> bool: return w["halt"] != "", 300.0) and "Sourwater" in w["halt"], "Sourwater still stops it (%s)" % w["halt"])
