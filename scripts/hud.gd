@@ -497,6 +497,7 @@ func _build_help() -> void:
 		["Esc", "Close what's open; with nothing open, the title screen (the run is saved)"],
 		["F9, [ ], Shift + [ ]", "Sandbox brush: materials, Coal, Sulfur, Fire, Heat, Cool, Blast (right-drag erases); its size"],
 		["F6", "Temperature view: the heat of everything you've seen, cold blue to white hot"],
+		["F7", "Biome view: the six biomes outlined and named"],
 		["F3 / F10 / F11", "Performance / reveal the map / fullscreen"],
 	]
 	for row in rows:

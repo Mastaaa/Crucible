@@ -12,6 +12,7 @@ const SimFactory = preload("res://scripts/sim_factory.gd")
 const Mats = preload("res://scripts/materials.gd")
 const Vault = preload("res://scripts/machines/logistics/vault.gd")
 const WorldGen = preload("res://scripts/worldgen.gd")
+const SpawnRegions = preload("res://scripts/spawn_regions.gd")
 const Building = preload("res://scripts/building.gd")
 const Overlay = preload("res://scripts/overlay.gd")
 const Hud = preload("res://scripts/hud.gd")
@@ -244,6 +245,7 @@ var painting := 0
 var bench := false                # the lab bench (A1): an open room to paint and heat, never saved
 var bench_mats: Array = []        # what the bench's brush offers: every material, then the tools
 var temp_view := false            # the temperature painted over the map (F6)
+var biome_view := false           # the biomes outlined and named over the map (F7)
 var show_perf := false
 var perf_sim_ms := 0.0
 var perf_tick_ms := 0.0
@@ -438,6 +440,7 @@ func _reset(s: int) -> void:
 		reveal_all = false
 		brush_mode = false
 		temp_view = false
+	biome_view = false
 	bench = false
 
 
@@ -2616,6 +2619,11 @@ func _update_crucible() -> void:
 # Knowledge maps
 # ================================================================================
 
+## The biome (a patch of the spawn table, A6) a cell lies in, by name, or "" in none.
+func biome_at(x: int, y: int) -> String:
+	return SpawnRegions.biome_at(info.get("spawned", {}), x, y)
+
+
 func is_known(x: int, y: int) -> bool:
 	if reveal_all:
 		return true
@@ -3166,6 +3174,8 @@ func _key(e: InputEventKey) -> void:
 		restart(not e.shift_pressed)
 	elif k == KEY_F6:
 		temp_view = not temp_view
+	elif k == KEY_F7:
+		biome_view = not biome_view
 	elif k == KEY_F9:
 		brush_mode = not brush_mode
 		tool_type = -1

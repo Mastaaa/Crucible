@@ -9,6 +9,9 @@ extends SceneTree
 ##      and a new name once the resolver knows it
 ##   D. world rows keep to their home range (x fractions, depth band) and their hosts
 ##   E. the Heap holds still for a second of sim
+##   F. biomes (A6): six per seed, opposite flanks in each band, clear of the Hub's middle third, ground recipes
+##      applied, residents found only in their own biome (bar the outliers kept in the middle third)
+##   G. the patch machinery on a plain grid: clipping, flanks, the surface anchor, the recipe, biome_at
 ## Run: godot --headless --path . --script tests/scenario_spawn.gd
 
 const D = preload("res://scripts/defs.gd")
@@ -27,6 +30,8 @@ func _initialize() -> void:
 		return
 	scenario_a_b_e()
 	scenario_c_d()
+	scenario_f()
+	scenario_g()
 	print("FAILURES: %d" % fails)
 	quit()
 
@@ -50,7 +55,7 @@ func scenario_a_b_e() -> void:
 	var empty := {"areas": {}, "spawns": []}
 	var full := SR.load_table()
 	# The Heap's own rows (the first four), kept apart from the wave 1 rows after them.
-	var heap_rows := {"areas": full["areas"], "spawns": full["spawns"].filter(func(r): return r.get("area", "") == "spoil_heap" and r["material"] in ["Sulfur", "Coal", "Clay", "Sand"])}
+	var heap_rows := {"areas": {"spoil_heap": full["areas"]["spoil_heap"]}, "spawns": full["spawns"].filter(func(r): return r.get("area", "") == "spoil_heap" and r["material"] in ["Sulfur", "Coal", "Clay", "Sand"])}
 	for s in [5, 7, 11, 23]:
 		var a := build(s, heap_rows)
 		var b := build(s, empty)
@@ -82,18 +87,18 @@ func scenario_a_b_e() -> void:
 				if not (ca[y * D.W + x] in hosts + [D.DIRT, D.STONE]):
 					stray += 1
 		check(stray == 0, "seed %d: %d odd cells in the Heap's box" % [s, stray])
-		# The full table adds wave 1 on top: its cells, plus what worldgen's arching clears under them.
+		# The full table adds the rest on top (wave 1 and 2 rows, biome ground): its cells, plus what worldgen's arching clears under them (Air).
 		var wave := build(s, full)
 		var cw: PackedByteArray = wave[0].get_cells()
 		var fallout := 0
 		var added := 0
 		for i in D.W * D.H:
 			if cw[i] != ca[i]:
-				if cw[i] >= D.SLICK:
-					added += 1
-				else:
+				if cw[i] == D.AIR:
 					fallout += 1
-		check(added > 20000 and fallout < 1000, "seed %d: wave 1 places %d cells and shifts %d others" % [s, added, fallout])
+				else:
+					added += 1
+		check(added > 100000 and fallout < 2500, "seed %d: the full table places %d cells and shifts %d others" % [s, added, fallout])
 		if s == 7:
 			for _t in 60:
 				a[0].step()
@@ -135,3 +140,174 @@ func scenario_c_d() -> void:
 	check(out2["skipped"].is_empty() and out2["placed"].get("Moonglass", 0) > 0 and g.has(77), "a new material places once the resolver knows it")
 	var untouched := g.count(D.STONE)
 	check(untouched > 0 and g.count(D.COAL) == 0, "hosts only: nothing but Stone was replaced")
+
+
+const BIOMES := ["dunes", "fen", "salt_flats", "ferrite_hills", "sulfur_vents", "gall_caverns"]
+const PAIRS := [["dunes", "fen"], ["salt_flats", "ferrite_hills"], ["sulfur_vents", "gall_caverns"]]
+## Materials the table places only in one biome (the Heap and the outliers aside, none of these are anywhere else).
+const HOMES := {"Quickmire": "fen", "Bloat": "fen", "Brine": "salt_flats", "Chlor": "salt_flats", "Rattle": "ferrite_hills", "Sourwater": "ferrite_hills",
+		"Gall": "gall_caverns", "Vitriol": "gall_caverns", "Veinstone": "gall_caverns", "Lumen": "gall_caverns"}
+
+
+func scenario_f() -> void:
+	print("F. biomes")
+	var dune_sides := {}
+	for s in [5, 7, 11, 23]:
+		var w := build(s, SR.load_table())
+		var info: Dictionary = w[1]
+		var sp: Dictionary = info["spawned"]
+		var shapes: Dictionary = sp["shapes"]
+		var cells: PackedByteArray = w[0].get_cells()
+		check(shapes.size() == 6, "seed %d: six biomes (%s)" % [s, ", ".join(shapes.keys())])
+		for pair in PAIRS:
+			check(sp["sides"][pair[0]] != 0 and sp["sides"][pair[0]] == -sp["sides"][pair[1]], "seed %d: %s and %s take opposite flanks (%d, %d)" % [s, pair[0], pair[1], sp["sides"][pair[0]], sp["sides"][pair[1]]])
+		dune_sides[sp["sides"]["dunes"]] = true
+		var lo := D.W / 3.0
+		var hi := D.W * 2.0 / 3.0
+		for nm in BIOMES:
+			var sh: Dictionary = shapes[nm]
+			check(SR.biome_at(sp, int(sh["cx"]), int(sh["cy"])) == nm, "seed %d: %s is at its own centre (%d, %d)" % [s, nm, sh["cx"], sh["cy"]])
+			if nm != "sulfur_vents":   # that one sits on a lava pocket, wherever the pocket is
+				var reach: float = sh["rx"] * 1.1
+				check(sh["cx"] + reach < lo or sh["cx"] - reach > hi, "seed %d: %s keeps out of the Hub's middle third (x %d to %d)" % [s, nm, sh["cx"] - reach, sh["cx"] + reach])
+		for nm in ["dunes", "fen", "salt_flats", "ferrite_hills", "sulfur_vents"]:
+			check(sp["recipe"][nm] > 1000, "seed %d: the %s ground recipe changed %d cells" % [s, nm, sp["recipe"][nm]])
+		# The Dunes: no Dirt left inside, and no Water.
+		var dunes: Dictionary = shapes["dunes"]
+		var dirt := 0
+		var water := 0
+		var sand := 0
+		for y in range(maxi(int(dunes["cy"] - dunes["ry"] * 1.1), 0), mini(int(dunes["cy"] + dunes["ry"] * 1.1), D.H)):
+			for x in range(maxi(int(dunes["cx"] - dunes["rx"] * 1.1), 0), mini(int(dunes["cx"] + dunes["rx"] * 1.1), D.W)):
+				if SR.inside(dunes, x, y):
+					var c := cells[y * D.W + x]
+					dirt += 1 if c == D.DIRT or c == D.PACKED_DIRT else 0
+					water += 1 if c == D.WATER else 0
+					sand += 1 if c == D.SAND else 0
+		check(dirt == 0 and water == 0 and sand > 10000, "seed %d: the Dunes are sand all through (%d Sand, %d Dirt, %d Water)" % [s, sand, dirt, water])
+		# Residents sit in their own biome.
+		var outside := {}
+		var ids := {}
+		for nm: String in HOMES:
+			ids[D.M.id_of(nm)] = nm
+		for i in D.W * D.H:
+			var c := cells[i]
+			if ids.has(c) and SR.biome_at(sp, i % D.W, int(i / float(D.W))) != HOMES[ids[c]]:
+				outside[ids[c]] = outside.get(ids[c], 0) + 1
+		check(outside.is_empty(), "seed %d: residents stay in their biome (strays: %s)" % [s, outside])
+		# Level 1 of every Mk upgrade stays a straight shaft: Flux, Rime and Ferrite in the middle third, below the Topsoil.
+		for nm in ["Flux", "Rime", "Ferrite"]:
+			var mid := 0
+			var id: int = D.M.id_of(nm)
+			for y in range(1500, 3000):
+				for x in range(int(lo), int(hi)):
+					mid += 1 if cells[y * D.W + x] == id else 0
+			check(mid > 600, "seed %d: %d cells of %s in the Hub's middle third" % [s, mid, nm])
+		# Beyond that, each lives on its biome's flank and not the other. Hills right: nothing of Salt flats' goods on the right, and the reverse.
+		var salt_right: bool = sp["sides"]["salt_flats"] > 0
+		var stray := 0
+		for y in range(1000, 3000):
+			for x in range(0, D.W):
+				var left: bool = x < D.W * 0.25
+				var right: bool = x > D.W * 0.75
+				var c := cells[y * D.W + x]
+				if (left and salt_right) or (right and not salt_right):
+					stray += 1 if (c == D.M.id_of("Flux") or c == D.M.id_of("Rime")) else 0
+				if (left and not salt_right) or (right and salt_right):
+					stray += 1 if c == D.M.id_of("Ferrite") else 0
+		check(stray == 0, "seed %d: Flux and Rime stay on the Salt flats' flank, Ferrite on the hills' (%d strays)" % [s, stray])
+	check(dune_sides.size() == 2, "the Dunes took both flanks over four seeds")
+
+
+func scenario_g() -> void:
+	print("G. patch machinery")
+	var w := 1024
+	var h := 1024
+	var rock := {"areas": {"p": {"shape": "patch", "x": [0.4, 0.5], "depth": [300, 500], "size": [40, 30], "label": "P", "color": [1, 0, 0],
+				"ground": [{"from": ["Stone"], "to": "Sand", "density": 0.5}]}},
+			"spawns": [{"material": "Coal", "area": "p", "host": ["Stone"], "clumps": [6, 6], "radius": [30, 40], "shape": "blob"}]}
+	var g := PackedByteArray()
+	g.resize(w * h)
+	g.fill(D.STONE)
+	var out := SR.place(g, w, h, rock, 3, {})
+	var shape: Dictionary = out["shapes"]["p"]
+	var inside_n := 0
+	var outside_n := 0
+	var coal_in := 0
+	var sand_out := 0
+	for y in h:
+		for x in w:
+			var c := g[y * w + x]
+			var in_p := SR.inside(shape, x, y)
+			if c == D.SAND:
+				sand_out += 0 if in_p else 1
+				inside_n += 1
+			if c == D.COAL:
+				coal_in += 1 if in_p else 0
+				outside_n += 0 if in_p else 1
+	check(inside_n > 500 and sand_out == 0, "the recipe turns about half the patch to Sand and touches nothing outside (%d Sand, %d outside)" % [inside_n, sand_out])
+	check(coal_in > 200 and outside_n == 0, "a resident much wider than its patch is cut at the rim (%d Coal in, %d out)" % [coal_in, outside_n])
+	check(out["recipe"]["p"] == inside_n, "and the recipe's count matches (%d)" % out["recipe"]["p"])
+	check(SR.biome_at(out, int(shape["cx"]), int(shape["cy"])) == "p" and SR.biome_at(out, 5, 5) == "", "biome_at names the patch and nothing elsewhere")
+	rock["spawns"][0]["clip"] = false
+	g.fill(D.STONE)
+	out = SR.place(g, w, h, rock, 3, {})
+	shape = out["shapes"]["p"]
+	outside_n = 0
+	for y in h:
+		for x in w:
+			if g[y * w + x] == D.COAL and not SR.inside(shape, x, y):
+				outside_n += 1
+	check(outside_n > 100, "with clip off the same row spills out of it (%d Coal out)" % outside_n)
+	# Flanks: x is written for the left one, `opposite` takes the other, the surface anchor stands on the ground.
+	var lefts := 0
+	var ok_sides := true
+	var ok_x := true
+	for sd in range(1, 9):
+		var table := {"areas": {
+				"a": {"shape": "patch", "x": [0.1, 0.2], "depth": [400, 400], "size": [30, 20], "side": "random"},
+				"b": {"shape": "patch", "x": [0.1, 0.2], "depth": [400, 400], "size": [30, 20], "opposite": "a"}}, "spawns": []}
+		g.fill(D.STONE)
+		var o := SR.place(g, w, h, table, sd, {})
+		ok_sides = ok_sides and o["sides"]["a"] == -o["sides"]["b"] and o["sides"]["a"] != 0
+		lefts += 1 if o["sides"]["a"] < 0 else 0
+		for nm in ["a", "b"]:
+			var cx: float = o["shapes"][nm]["cx"]
+			var left_range: bool = cx >= 0.1 * w - 1 and cx <= 0.2 * w + 1
+			var right_range: bool = cx >= 0.8 * w - 1 and cx <= 0.9 * w + 1
+			ok_x = ok_x and (left_range if o["sides"][nm] < 0 else right_range)
+	check(ok_sides and lefts > 0 and lefts < 8, "a patch takes a flank per seed and its opposite the other (%d of 8 seeds on the left)" % lefts)
+	check(ok_x, "the right flank mirrors the home range")
+	var ground := PackedInt32Array()
+	ground.resize(w)
+	for x in w:
+		ground[x] = 300 + (x >> 4)
+	var surf := {"areas": {"s": {"shape": "patch", "x": [0.3, 0.6], "size": [20, 20], "anchor": "surface"}}, "spawns": []}
+	g.fill(D.STONE)
+	var os := SR.place(g, w, h, surf, 4, {"ground": ground})
+	var sh: Dictionary = os["shapes"]["s"]
+	check(int(sh["cy"]) == ground[int(sh["cx"])], "the surface anchor puts the centre on the ground (%d vs %d)" % [sh["cy"], ground[int(sh["cx"])]])
+	# Avoiding: a rectangle over the whole home range can't be dodged, a small one can.
+	var dodge := {"areas": {"d": {"shape": "patch", "x": [0.0, 1.0], "depth": [200, 800], "size": [30, 20], "avoid": ["aquifers"]}}, "spawns": []}
+	var hits := 0
+	for sd in range(1, 9):
+		g.fill(D.STONE)
+		var od := SR.place(g, w, h, dodge, sd, {"aquifers": [Rect2i(400, 300, 200, 300)]})
+		hits += 1 if od["areas"]["d"].intersects(Rect2i(400, 300, 200, 300)) else 0
+	check(hits == 0, "a patch looks for ground clear of what it avoids (%d of 8 seeds overlap)" % hits)
+	# A rule with not_near keeps clear of what it names.
+	var shy := {"areas": {"q": {"shape": "patch", "x": [0.5, 0.5], "depth": [400, 400], "size": [50, 40],
+			"ground": [{"from": ["Stone"], "to": "Sand", "not_near": ["Coal"], "gap": 3}]}}, "spawns": []}
+	g.fill(D.STONE)
+	for y in range(380, 420):
+		for x in range(500, 520):
+			g[y * w + x] = D.COAL
+	var oq := SR.place(g, w, h, shy, 5, {})
+	var touching := 0
+	for y in range(370, 430):
+		for x in range(490, 530):
+			if g[y * w + x] == D.SAND:
+				for yy in range(y - 1, y + 2):
+					for xx in range(x - 1, x + 2):
+						touching += 1 if g[yy * w + xx] == D.COAL else 0
+	check(oq["recipe"]["q"] > 1000 and touching == 0, "not_near keeps the recipe off the cells beside what it names (%d changed, %d touching)" % [oq["recipe"]["q"], touching])

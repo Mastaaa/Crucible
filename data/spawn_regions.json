@@ -19,21 +19,29 @@
 		"    speckle (a loose scatter of single cells, `density` 0-1 of the disc). aspect: squashes a blob",
 		"    into a seam or vein, `radius` cells either way across and radius / aspect up and down.",
 		"  Wave 1 rows (the second half of the list) follow claude/WAVE1_MATERIALS.md's home table.",
-		"  Ferrite sits above the Sulfur band (A5): three seams anywhere across the world, and a fourth in the Hub's middle",
-		"    third, so a straight shaft meets one before the casing needs Plating. It is the last row, so adding it moved nothing else.",
-		"  Wave 2 rows (A5 part 3, the last seven): Brine, Salt and Chlor in the Stone band, Lumen, Veinstone, Gall and Vitriol in and under the",
-		"    Magma band's top. Lye, Lift, Pitch, Chillant and Filings are made, not found. Added last, so no earlier row moved.",
+		"  Ferrite sits above the Sulfur band (A5): seams in the Ferrite hills and a fourth in the Hub's middle third, so a straight shaft meets one",
+		"    before the casing needs Plating.",
+		"  Wave 2 rows (A5 part 3): Brine, Salt and Chlor in the Salt flats, Lumen, Veinstone, Gall and Vitriol in the Gall caverns (A6). Lye, Lift, Pitch, Chillant and Filings are made, not found.",
+		"  Biomes (A6 part 2): a patch with a few more keys. Six of them, two to a band, each about a fifth of the width, on a flank of the world:",
+		"    anchor: box (the default, a centre anywhere in the range), surface (the centre on the ground) or lava_pocket (the centre of the pocket nearest the flank).",
+		"    side: random takes a flank per seed (x is written for the left one and mirrors for the right); opposite: <patch> takes the flank that patch did not.",
+		"    avoid: ['aquifers'] and the like, rectangles the patch tries not to cover.  size: [rx, ry] cells, the rim wobbles by a fifth.",
+		"    ground: the recipe, rules {from: [names], to: name, density, not_near: [names], gap} tried in order on every cell inside (not_near keeps `gap` cells clear of those); label and color are the biome view's.",
+		"    A row with `area` set to a patch starts its clumps inside it and cuts them off at its rim (clip: false lets them spill), and may carry a `depth`",
+		"    to keep to part of the patch. Residents therefore are found there and nowhere else, except the small outliers kept in the Hub's middle third:",
+		"    Ferrite's fourth seam, a Flux seam and a Rime blob, so level 1 of every Mk upgrade is a straight shaft and the rest send a rig to a flank.",
+		"    The flanks (centres at 0.13 to 0.20 of the width, or mirrored) keep clear of the middle third. Moving the rows changed the stream, so every",
+		"    seed's spawned layout differs from A5's.",
 		"  enabled: false parks a row."
 	],
 	"areas": {
-		"spoil_heap": {
-			"shape": "mound",
-			"anchor": "hub",
-			"dx": [230, 290],
-			"width": [64, 84],
-			"height": [9, 13],
-			"fill": "Gravel"
-		}
+		"spoil_heap": {"shape": "mound", "anchor": "hub", "dx": [230, 290], "width": [64, 84], "height": [9, 13], "fill": "Gravel"},
+		"dunes": {"shape": "patch", "label": "Dunes", "color": [0.93, 0.82, 0.45], "x": [0.13, 0.19], "size": [110, 120], "anchor": "surface", "side": "random", "avoid": ["aquifers"], "ground": [{"from": ["Dirt", "Packed dirt"], "to": "Sand"}]},
+		"fen": {"shape": "patch", "label": "Fen", "color": [0.35, 0.62, 0.42], "x": [0.13, 0.19], "size": [110, 330], "depth": [850, 1100], "opposite": "dunes", "ground": [{"from": ["Dirt"], "to": "Clay", "density": 0.5}]},
+		"salt_flats": {"shape": "patch", "label": "Salt flats", "color": [0.85, 0.92, 0.98], "x": [0.14, 0.2], "size": [105, 520], "depth": [1950, 2300], "side": "random", "ground": [{"from": ["Stone"], "to": "Salt", "density": 0.1}]},
+		"ferrite_hills": {"shape": "patch", "label": "Ferrite hills", "color": [0.72, 0.46, 0.34], "x": [0.14, 0.19], "size": [130, 400], "depth": [1800, 2100], "opposite": "salt_flats", "ground": [{"from": ["Stone"], "to": "Ferrite", "density": 0.03}]},
+		"sulfur_vents": {"shape": "patch", "label": "Sulfur vents", "color": [0.95, 0.85, 0.2], "x": [0.13, 0.19], "size": [105, 170], "anchor": "lava_pocket", "side": "random", "ground": [{"from": ["Hot rock"], "to": "Sulfur", "density": 0.06, "not_near": ["Lava"], "gap": 3}]},
+		"gall_caverns": {"shape": "patch", "label": "Gall caverns", "color": [0.55, 0.85, 0.45], "x": [0.14, 0.2], "size": [110, 330], "depth": [3350, 3650], "opposite": "sulfur_vents"}
 	},
 	"spawns": [
 		{"material": "Sulfur", "area": "spoil_heap", "host": ["Gravel"], "clumps": [2, 3], "radius": [3, 5], "shape": "blob"},
@@ -45,25 +53,33 @@
 		{"material": "Rime", "area": "spoil_heap", "host": ["Gravel"], "clumps": [1, 1], "radius": [1, 2], "shape": "blob"},
 		{"material": "Weft", "area": "spoil_heap", "host": ["Gravel"], "clumps": [1, 1], "radius": [2, 3], "shape": "blob"},
 
-		{"material": "Quickmire", "x": [0.05, 0.95], "depth": [400, 1500], "host": ["Dirt", "Packed dirt"], "clumps": [4, 4], "radius": [13, 17], "shape": "blob"},
-		{"material": "Slick", "x": [0.05, 0.95], "depth": [700, 1500], "host": ["Dirt", "Packed dirt"], "clumps": [3, 4], "radius": [24, 30], "shape": "blob"},
-		{"material": "Bloat", "x": [0.05, 0.95], "depth": [300, 900], "host": ["Dirt"], "clumps": [5, 5], "radius": [12, 16], "shape": "blob"},
-		{"material": "Weft", "x": [0.05, 0.95], "depth": [300, 1300], "host": ["Dirt"], "clumps": [2, 2], "radius": [6, 8], "shape": "blob"},
+		{"material": "Quickmire", "area": "fen", "depth": [600, 1500], "host": ["Dirt", "Packed dirt", "Clay"], "clumps": [3, 4], "radius": [13, 17], "shape": "blob"},
+		{"material": "Slick", "area": "fen", "depth": [700, 1500], "host": ["Dirt", "Packed dirt", "Clay"], "clumps": [2, 3], "radius": [24, 30], "shape": "blob"},
+		{"material": "Bloat", "area": "fen", "depth": [600, 1000], "host": ["Dirt", "Clay"], "clumps": [2, 3], "radius": [12, 16], "shape": "blob"},
+		{"material": "Weft", "area": "fen", "depth": [600, 1300], "host": ["Dirt", "Clay"], "clumps": [2, 2], "radius": [6, 8], "shape": "blob"},
+		{"material": "Water", "area": "fen", "depth": [700, 1400], "host": ["Dirt", "Packed dirt", "Clay"], "clumps": [3, 4], "radius": [8, 12], "shape": "blob"},
+
+		{"material": "Salt", "area": "salt_flats", "aspect": 8, "depth": [1500, 2600], "host": ["Stone"], "clumps": [2, 3], "radius": [60, 80], "shape": "blob"},
+		{"material": "Brine", "area": "salt_flats", "depth": [1800, 2900], "host": ["Stone"], "clumps": [3, 3], "radius": [20, 26], "shape": "blob"},
+		{"material": "Chlor", "area": "salt_flats", "depth": [2200, 2950], "host": ["Stone"], "clumps": [3, 3], "radius": [14, 18], "shape": "blob"},
+		{"material": "Rime", "area": "salt_flats", "depth": [1800, 2800], "host": ["Stone"], "clumps": [3, 3], "radius": [20, 24], "shape": "blob"},
+		{"material": "Flux", "area": "salt_flats", "aspect": 8, "depth": [1700, 2800], "host": ["Stone"], "clumps": [3, 4], "radius": [70, 95], "shape": "blob"},
+
+		{"material": "Ferrite", "area": "ferrite_hills", "aspect": 4, "depth": [1600, 2300], "host": ["Stone"], "clumps": [3, 3], "radius": [75, 95], "shape": "blob"},
+		{"material": "Rattle", "area": "ferrite_hills", "depth": [1800, 2900], "host": ["Stone"], "clumps": [3, 4], "radius": [10, 12], "shape": "blob"},
+		{"material": "Sourwater", "area": "ferrite_hills", "depth": [2000, 3000], "host": ["Stone"], "clumps": [1, 2], "radius": [26, 30], "shape": "blob"},
+
+		{"material": "Glass", "area": "sulfur_vents", "density": 0.5, "host": ["Hot rock"], "clumps": [5, 6], "radius": [7, 11], "shape": "speckle"},
+
+		{"material": "Gall", "area": "gall_caverns", "depth": [3100, 3800], "host": ["Hot rock"], "clumps": [2, 3], "radius": [18, 24], "shape": "blob"},
+		{"material": "Vitriol", "area": "gall_caverns", "aspect": 3, "depth": [3100, 3900], "host": ["Hot rock"], "clumps": [3, 4], "radius": [30, 45], "shape": "blob"},
+		{"material": "Veinstone", "area": "gall_caverns", "aspect": 4, "depth": [3000, 4000], "host": ["Hot rock"], "clumps": [4, 5], "radius": [45, 60], "shape": "blob"},
+		{"material": "Lumen", "area": "gall_caverns", "depth": [2800, 3600], "host": ["Stone", "Hot rock"], "clumps": [4, 5], "radius": [6, 9], "shape": "blob"},
+
 		{"material": "Hush", "x": [0.0, 1.0], "depth": [1500, 3000], "host": ["Air"], "clumps": [6, 9], "radius": [7, 12], "shape": "blob"},
-		{"material": "Flux", "x": [0.0, 1.0], "depth": [1700, 2800], "host": ["Stone"], "clumps": [3, 4], "radius": [70, 95], "shape": "blob", "aspect": 8},
-		{"material": "Rattle", "x": [0.05, 0.95], "depth": [1800, 2900], "host": ["Stone"], "clumps": [6, 6], "radius": [10, 12], "shape": "blob"},
-		{"material": "Rime", "x": [0.05, 0.95], "depth": [1800, 2800], "host": ["Stone"], "clumps": [3, 3], "radius": [20, 24], "shape": "blob"},
-		{"material": "Sourwater", "x": [0.05, 0.95], "depth": [2000, 3000], "host": ["Stone"], "clumps": [2, 2], "radius": [26, 30], "shape": "blob"},
 		{"material": "Wisp", "x": [0.05, 0.95], "depth": [2000, 3200], "host": ["Stone"], "clumps": [4, 4], "radius": [18, 20], "shape": "blob"},
-		{"material": "Ferrite", "x": [0.0, 1.0], "depth": [1600, 2300], "host": ["Stone"], "clumps": [3, 3], "radius": [90, 110], "shape": "blob", "aspect": 4},
-		{"material": "Glass", "x": [0.0, 1.0], "depth": [3000, 3800], "host": ["Hot rock"], "clumps": [6, 8], "radius": [6, 10], "shape": "speckle", "density": 0.5},
 		{"material": "Ferrite", "x": [0.38, 0.62], "depth": [1600, 2300], "host": ["Stone"], "clumps": [1, 1], "radius": [90, 110], "shape": "blob", "aspect": 4},
-		{"material": "Brine", "x": [0.05, 0.95], "depth": [1800, 2900], "host": ["Stone"], "clumps": [3, 3], "radius": [20, 26], "shape": "blob"},
-		{"material": "Salt", "x": [0.0, 1.0], "depth": [1500, 2600], "host": ["Stone"], "clumps": [2, 3], "radius": [60, 80], "shape": "blob", "aspect": 8},
-		{"material": "Chlor", "x": [0.05, 0.95], "depth": [2200, 2950], "host": ["Stone"], "clumps": [3, 3], "radius": [14, 18], "shape": "blob"},
-		{"material": "Lumen", "x": [0.05, 0.95], "depth": [2800, 3600], "host": ["Stone", "Hot rock"], "clumps": [4, 5], "radius": [6, 9], "shape": "blob"},
-		{"material": "Veinstone", "x": [0.0, 1.0], "depth": [3000, 4000], "host": ["Hot rock"], "clumps": [4, 5], "radius": [45, 60], "shape": "blob", "aspect": 4},
-		{"material": "Gall", "x": [0.05, 0.95], "depth": [3100, 3800], "host": ["Hot rock"], "clumps": [2, 3], "radius": [18, 24], "shape": "blob"},
-		{"material": "Vitriol", "x": [0.0, 1.0], "depth": [3100, 3900], "host": ["Hot rock"], "clumps": [3, 4], "radius": [30, 45], "shape": "blob", "aspect": 3}
+		{"material": "Flux", "x": [0.38, 0.62], "depth": [1700, 2800], "host": ["Stone"], "clumps": [1, 1], "radius": [50, 60], "shape": "blob", "aspect": 3},
+		{"material": "Rime", "x": [0.38, 0.62], "depth": [1800, 2800], "host": ["Stone"], "clumps": [1, 1], "radius": [22, 26], "shape": "blob"}
 	]
 }

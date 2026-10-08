@@ -34,6 +34,12 @@ index as [Stone, Glimmer, Obsidian, Water, Power].
   worldgen's grid; worldgen calls it once, after `_heat`, and returns its report as `spawned`.
   Rows are blobs, speckles, or seams (`aspect`); the second half of the table is wave 1's home
   ranges. Cells come out of `set_cells` at their `placed` temperature (Rime is cold).
+  A6 part 2: a `patch` is a biome: `_patch` draws a ragged ellipse (`shapes[name]`: cx, cy, rx, ry, phase;
+  `inside`, `biome_at`), on a flank (`side`, `opposite`), anchored on the surface or a lava pocket,
+  avoiding rectangles, and `_recipe` rewrites its ground (`ground` rules: from, to, density). Rows
+  that name a patch as `area` start in it and are clipped to it. `game.biome_at(x, y)` asks it; F7
+  (`game.biome_view`, `overlay._draw_biomes`) outlines the biomes; `tests/mapdump.gd --biomes` and
+  `tests/shot_biomes.gd` draw them.
 - `scripts/interior_layer.gd` (interiors, part 2): a child of the overlay, drawn behind it; the open box of each module's interior sim as an R8 texture of material ids (`_texture`, refreshed when `sim.get_changed()`), a canvas shader that looks the ids up in the palette image, drawn into the cavity as a textured quad.
 - `scripts/hud.gd`: top bar (speed buttons, `speed_label` when the sim can't keep up),
   Build list (structures by key, then `MC.add_build_buttons` for the modules; `MC.refresh_buttons`

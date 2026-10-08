@@ -1,7 +1,8 @@
 extends SceneTree
 ## Dumps the generated map (fog off) to a PNG: one pixel per `step` cells (default
 ## 4, the whole map), or a crop at a pixel a cell.
-## godot --headless --path . --script tests/mapdump.gd -- --seed=123 --out=/path.png [--step=4] [--rect=x,y,w,h]
+## godot --headless --path . --script tests/mapdump.gd -- --seed=123 --out=/path.png [--step=4] [--rect=x,y,w,h] [--biomes]
+## --biomes outlines each biome (A6) in its own colour and prints the legend.
 
 const D = preload("res://scripts/defs.gd")
 const SimFactory = preload("res://scripts/sim_factory.gd")
@@ -18,10 +19,13 @@ func _initialize() -> void:
 	var out := "/tmp/map.png"
 	var step := 4
 	var rect := Rect2i(0, 0, D.W, D.H)
+	var biomes := false
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--seed="): seed_value = int(a.substr(7))
 		elif a.begins_with("--out="): out = a.substr(6)
 		elif a.begins_with("--step="): step = maxi(int(a.substr(7)), 1)
+		elif a == "--biomes":
+			biomes = true
 		elif a.begins_with("--rect="):
 			var p := a.substr(7).split(",")
 			rect = Rect2i(int(p[0]), int(p[1]), int(p[2]), int(p[3])).intersection(Rect2i(0, 0, D.W, D.H))
@@ -49,6 +53,18 @@ func _initialize() -> void:
 			c.a = 1.0
 			if m == 0 and y < D.GROUND_Y: c = Color("#2a2f55")
 			img.set_pixel(px, py, c)
+	if biomes:
+		var shapes: Dictionary = info["spawned"]["shapes"]
+		for nm: String in shapes:
+			var sh: Dictionary = shapes[nm]
+			print("biome %s (%s): centre %d,%d  half-size %d x %d  recipe %d cells" % [nm, sh["label"], sh["cx"], sh["cy"], sh["rx"], sh["ry"], info["spawned"]["recipe"].get(nm, 0)])
+			for k in 1440:
+				var ang := TAU * k / 1440.0
+				var e := sqrt(1.0 + 0.2 * sin(ang * 3.0 + sh["phase"]))
+				var px := int((sh["cx"] + cos(ang) * sh["rx"] * e - rect.position.x) / step)
+				var py := int((sh["cy"] + sin(ang) * sh["ry"] * e - rect.position.y) / step)
+				if px >= 0 and py >= 0 and px < iw and py < ih:
+					img.set_pixel(px, py, sh["color"])
 	img.save_png(out)
 	print("saved ", out)
 	quit()

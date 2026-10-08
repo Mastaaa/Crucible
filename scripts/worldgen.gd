@@ -186,7 +186,7 @@ func generate(sim: RefCounted, seed_value: int) -> Dictionary:
 	_heat(wobble)
 	if spawn_table.is_empty():
 		spawn_table = SR.load_table()
-	var spawned := SR.place(g, W, H, spawn_table, seed_value, {"hub": HUB_RECT, "ground": ground})
+	var spawned := SR.place(g, W, H, spawn_table, seed_value, {"hub": HUB_RECT, "ground": ground, "aquifers": aquifers, "lava_pockets": lava_pockets})
 
 	sim.set_cells(g)
 	g = PackedByteArray()
