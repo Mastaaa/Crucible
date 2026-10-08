@@ -4,6 +4,24 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A6 part 4: the surface generators
+
+Tests: the full suite is 30 lines `FAILURES: 0` (scenario_generators is new; scenario_spawn F and G gained spring checks). No engine change: `bin/` is as PR #26 left it.
+Design: plans/a6-draft.md part 4, "Solar and Waterwheel", which Alex picked. Both are researched (tier 1, no prerequisite); the Windmill stays in the starter kit.
+
+- Solar Panel (`power/solar.gd`, data `solar` in power.json, 24 x 8, bolted, Stone 10 and Glimmer 3): makes `power` 0.4 a second, steady, while nothing solid stands between it and the top of the map
+  (a column the panel's width, rows 0 to its top) and a Node or the Hub is in reach. A panel at the bottom of an open pit works; a cave-in, a Brace or another module over it shades it. The biome under its
+  middle multiplies the output by `params.biomes[name]` (1.0 for a name not listed): Dunes 1.8, so 0.72 power/s there, a long Node chain from the Hub.
+- Waterwheel (`power/waterwheel.gd`, data `waterwheel`, 16 x 14, bolted, Stone 16): takes Water from the 4 rows over its casing, up to 40 cells a second (`MU.rate`, so Throughput speeds it), sets each cell down in the first open
+  cell along its bottom edge and makes 0.0125 power a cell: 0.5 power/s at full rate. No sky needed, so it works at depth. Water pooled under it stalls it ("Water is pooled under it."), as does none over it. It
+  was the old game's Waterwheel with the Hub's stockpile as its store.
+- Where the water comes from: a spawn row may carry `spring: true`. `spawn_regions.gd` lists the floor of the middle column of each clump of that row (`place()` returns `springs`; worldgen appends them to the
+  world's spring list and drops the key from `spawned`). The Fen's Water row has it, so 3 or 4 Fen pockets per seed have a spring that refills them (`D.SPRING_CELLS_PER_S`, 50 cells a second spread over 5 columns). No new random draws: the layouts
+  are the ones part 3 left. A shaft into a Fen pocket with a wheel under the opening and a drain below it is a steady half power a second.
+- The Hub's help text names the new generators. scenario_generators A to D: steady output, a roof shades it, a pit works, out of reach feeds nothing; the Dunes multiplier and a named-but-absent biome; the wheel passes
+  80 cells in 2 s and the power matches, a full slot stalls it, a drained slot restarts it, a spring keeps it at the cap for 10 s; both are locked until researched.
+- Not done: the bot (tests/autoplay.gd) builds neither; Solar and Waterwheel have no art beyond a band and four spokes; weather over the Dunes is not modelled.
+
 ## A6 part 3, first half: the ambient ramp
 
 Tests: the full suite is 29 lines `FAILURES: 0` (scenario_temperature gained M; scenario_bodies C and engine_compare C needed their allowances widened, see below). No engine change: `bin/` is as PR #26 left it.

@@ -188,6 +188,8 @@ func generate(sim: RefCounted, seed_value: int) -> Dictionary:
 	if spawn_table.is_empty():
 		spawn_table = SR.load_table()
 	var spawned := SR.place(g, W, H, spawn_table, seed_value, {"hub": HUB_RECT, "ground": ground, "aquifers": aquifers, "lava_pockets": lava_pockets})
+	springs.append_array(spawned["springs"])   # the Fen's pockets have one each (A6)
+	spawned.erase("springs")
 
 	sim.set_cells(g)
 	g = PackedByteArray()

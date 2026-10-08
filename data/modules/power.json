@@ -9,6 +9,20 @@
 			"params": {"power": 0.3, "gust": 0.5, "period": 14.0, "sky": 60}
 		},
 		{
+			"id": "solar", "name": "Solar Panel", "kind": "solar", "size": [24, 8], "wall": 2, "anchored": true,
+			"tech": "solar", "cost": [10, 3, 0, 0, 0],
+			"blurb": "Bolted in place. Needs a clear line up to the sky (a panel at the bottom of an open pit works) and feeds the Hub's store while a Node or the Hub is within reach. Steady, with no gusts; the biome under it sets how much, and Dunes pay best.",
+			"faces": [],
+			"params": {"power": 0.4, "biomes": {"dunes": 1.8}}
+		},
+		{
+			"id": "waterwheel", "name": "Waterwheel", "kind": "waterwheel", "size": [16, 14], "wall": 2, "anchored": true,
+			"tech": "waterwheel", "cost": [16, 0, 0, 0, 0],
+			"blurb": "Bolted in place. Water falling onto its top runs through it and out underneath, about 0.0125 power a cell up to 40 cells a second, into the Hub's store while a Node or the Hub is within reach. It needs no sky, so it earns at depth under a spring (the Fen's pockets have them); water pooled under it stalls it.",
+			"faces": [],
+			"params": {"cells": 40, "per_cell": 0.0125, "catch": 4}
+		},
+		{
 			"id": "combustor", "name": "Combustor", "kind": "combustor", "size": [26, 18], "wall": 2, "interior": true, "anchored": true,
 			"tech": "combustor", "cost": [12, 4, 0, 0, 0],
 			"blurb": "Bolted in place. Fuel joined into its bottom face (Coal, Coal chunks, Slick, Pitch, Lift) is burnt a cell a second for 1 to 4 power each, added to the Hub's store while a Node or the Hub is in reach. It burns nothing while the store is full.",

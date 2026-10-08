@@ -46,6 +46,8 @@ const K_WINCH = preload("res://scripts/machines/movers/winch.gd")
 const K_SLIDE = preload("res://scripts/machines/movers/slide.gd")
 const K_TURNTABLE = preload("res://scripts/machines/movers/turntable.gd")
 const K_WINDMILL = preload("res://scripts/machines/power/windmill.gd")
+const K_SOLAR = preload("res://scripts/machines/power/solar.gd")
+const K_WATERWHEEL = preload("res://scripts/machines/power/waterwheel.gd")
 const K_LAB = preload("res://scripts/machines/support/lab.gd")
 const K_LAMP = preload("res://scripts/machines/support/lamp.gd")
 
@@ -67,7 +69,7 @@ static func register(def: Dictionary) -> void:
 ## The module data files' definitions, then the throwaway test modules, registered once.
 static func ensure_defs() -> void:
 	if defs.is_empty():
-		kinds = {"tank": K_TANK, "funnel": K_FUNNEL, "cutter": K_CUTTER, "winch": K_WINCH, "windmill": K_WINDMILL,
+		kinds = {"tank": K_TANK, "funnel": K_FUNNEL, "cutter": K_CUTTER, "winch": K_WINCH, "windmill": K_WINDMILL, "solar": K_SOLAR, "waterwheel": K_WATERWHEEL,
 				"lab": K_LAB, "lamp": K_LAMP, "slide": K_SLIDE, "turntable": K_TURNTABLE, "laser": K_LASER, "thumper": K_THUMPER,
 				"macerator": K_MACERATOR, "press": K_PRESS, "thermal": K_THERMAL, "caster": K_CASTER, "combustor": K_COMBUSTOR, "separator": K_SEPARATOR, "electrolyser": K_ELECTROLYSER, "pump": K_PUMP, "shorer": K_SHORER, "sensor": K_SENSOR, "thermoelectric": K_THERMOELECTRIC,
 				"chute": K_CHUTE, "conveyor": K_CONVEYOR, "bus_hopper": K_BUS_HOPPER, "vault": K_VAULT,

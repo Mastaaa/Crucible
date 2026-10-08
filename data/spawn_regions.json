@@ -33,6 +33,7 @@
 		"    Ferrite's fourth seam, a Flux seam and a Rime blob, so level 1 of every Mk upgrade is a straight shaft and the rest send a rig to a flank.",
 		"    The flanks (centres at 0.13 to 0.20 of the width, or mirrored) keep clear of the middle third. Moving the rows changed the stream, so every",
 		"    seed's spawned layout differs from A5's.",
+		"  spring: true puts a spring on the floor of each clump of the row (the Fen's Water pockets, so a Waterwheel has a source that refills; A6 part 4).",
 		"  enabled: false parks a row."
 	],
 	"areas": {
@@ -58,7 +59,7 @@
 		{"material": "Slick", "area": "fen", "depth": [700, 1500], "host": ["Dirt", "Packed dirt", "Clay"], "clumps": [2, 3], "radius": [24, 30], "shape": "blob"},
 		{"material": "Bloat", "area": "fen", "depth": [600, 1000], "host": ["Dirt", "Clay"], "clumps": [2, 3], "radius": [12, 16], "shape": "blob"},
 		{"material": "Weft", "area": "fen", "depth": [600, 1300], "host": ["Dirt", "Clay"], "clumps": [2, 2], "radius": [6, 8], "shape": "blob"},
-		{"material": "Water", "area": "fen", "depth": [700, 1400], "host": ["Dirt", "Packed dirt", "Clay"], "clumps": [3, 4], "radius": [8, 12], "shape": "blob"},
+		{"material": "Water", "area": "fen", "depth": [700, 1400], "host": ["Dirt", "Packed dirt", "Clay"], "clumps": [3, 4], "radius": [8, 12], "shape": "blob", "spring": true},
 
 		{"material": "Salt", "area": "salt_flats", "aspect": 8, "depth": [1500, 2600], "host": ["Stone"], "clumps": [2, 3], "radius": [60, 80], "shape": "blob"},
 		{"material": "Brine", "area": "salt_flats", "depth": [1800, 2650], "host": ["Stone"], "clumps": [3, 3], "radius": [20, 26], "shape": "blob"},
