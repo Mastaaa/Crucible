@@ -9,6 +9,7 @@ extends SceneTree
 ##  G. the Cutter wades through oil (Slick) and Brine without a halt, and is still stopped by a liquid that would hurt it (Sourwater, Gall)
 ## Run: godot --headless --path . --script tests/scenario_fluids.gd
 
+# A6: the world is 1024 wide and the Hub moved from x 384 to 512, so every bench x below is the old one plus 128.
 const D = preload("res://scripts/defs.gd")
 const MC = preload("res://scripts/machines/machines.gd")
 const M = preload("res://scripts/materials.gd")
@@ -71,9 +72,9 @@ func fresh() -> void:
 	game.paused = true
 	game.reveal_all = true
 	MC.ensure_defs()
-	fill(Rect2i(200, SURFACE - 120, 144, 120), D.AIR)
-	fill(Rect2i(200, SURFACE, 144, 160), 6)
-	fill(Rect2i(200, SURFACE + 160, 144, 40), D.BEDROCK)
+	fill(Rect2i(328, SURFACE - 120, 144, 120), D.AIR)
+	fill(Rect2i(328, SURFACE, 144, 160), 6)
+	fill(Rect2i(328, SURFACE + 160, 144, 40), D.BEDROCK)
 	game.stock[D.R_POWER] = 90.0
 	for t: String in TECHS:
 		game.researched[t] = true
@@ -103,9 +104,9 @@ func pumping(mat: int, dead := false) -> Dictionary:
 	fresh()
 	if dead:
 		game.stock[D.R_POWER] = 0.0
-	fill(Rect2i(303, SURFACE, 20, 6), mat)
-	var pump := place("pump", 300, SURFACE - 16)
-	var sn := MC.snap(game, "tank", 0, Vector2i(313, SURFACE - 16 - 15))
+	fill(Rect2i(431, SURFACE, 20, 6), mat)
+	var pump := place("pump", 428, SURFACE - 16)
+	var sn := MC.snap(game, "tank", 0, Vector2i(441, SURFACE - 16 - 15))
 	var tank := MC.place(game, "tank", sn["at"], 0)
 	for _i in 30:
 		if dead:
@@ -118,7 +119,7 @@ func pit_left(mat: int) -> int:
 	var mask := PackedByteArray()
 	mask.resize(256)
 	mask[mat] = 1
-	return game.sim.count_in_rect(303, SURFACE, 20, 6, mask)
+	return game.sim.count_in_rect(431, SURFACE, 20, 6, mask)
 
 
 func scenario_a() -> void:
@@ -150,14 +151,14 @@ func sorter(def: String, mix: Dictionary, dead := false) -> Dictionary:
 	fresh()
 	if dead:
 		game.stock[D.R_POWER] = 0.0
-	fill(Rect2i(300, SURFACE - 7, 26, 7), STONE)
-	var s := place(def, 300, SURFACE - 7 - 30)
-	var top_sn := MC.snap(game, "tank", 0, Vector2i(313, SURFACE - 7 - 30 - 15))
+	fill(Rect2i(428, SURFACE - 7, 26, 7), STONE)
+	var s := place(def, 428, SURFACE - 7 - 30)
+	var top_sn := MC.snap(game, "tank", 0, Vector2i(441, SURFACE - 7 - 30 - 15))
 	var top := MC.place(game, "tank", top_sn["at"], 0)
 	var side_sn := {"snapped": false, "at": Vector2i()}
 	var turns := 1
 	for t in [1, 3]:
-		side_sn = MC.snap(game, "tank", t, Vector2i(284, SURFACE - 13))
+		side_sn = MC.snap(game, "tank", t, Vector2i(412, SURFACE - 13))
 		turns = t
 		if side_sn["snapped"]:
 			break
@@ -225,7 +226,7 @@ func scenario_f() -> void:
 	print("F. a Pump rig clears the Sourwater the Cutter stops at")
 	fresh()
 	game.researched["pump"] = true
-	var x0 := 290
+	var x0 := 418
 	var cut := place("cutter", x0, SURFACE - 16)
 	var tank := place("tank", x0, SURFACE - 16 - 30)
 	var fun := place("funnel", x0, SURFACE - 16 - 30 - 14)
@@ -263,13 +264,13 @@ func count_liquid(mat: int) -> int:
 	var mask := PackedByteArray()
 	mask.resize(256)
 	mask[mat] = 1
-	return game.sim.count_in_rect(288, SURFACE, 30, 70, mask)
+	return game.sim.count_in_rect(416, SURFACE, 30, 70, mask)
 
 
 ## The shaft of F with a pocket of `mat` in the bottom of it, a rig the Winch already holds above it.
 func pocket_rig(mat: int) -> Dictionary:
 	fresh()
-	var x0 := 290
+	var x0 := 418
 	var cut := place("cutter", x0, SURFACE - 16)
 	var tank := place("tank", x0, SURFACE - 16 - 30)
 	place("funnel", x0, SURFACE - 16 - 30 - 14)

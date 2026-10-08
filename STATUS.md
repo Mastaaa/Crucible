@@ -4,6 +4,26 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A6 part 1: the world is 1024 wide
+
+Tests: the full suite is 29 lines `FAILURES: 0`. No engine change: `bin/` is as PR #26 left it. Save version 3 (a 768 wide save does not load).
+Alex's calls on the A6 draft (plans/a6-draft.md): "Engine grid" (a local ambient temperature grid, shown to her before it is built, part 3) and
+"Solar and Waterwheel" (surface generators, part 4). Width 1024 and six biomes were the draft's defaults and stand.
+
+- `D.W` 768 to 1024; the Hub, the pad and the Crucible chamber stay centred, so the Hub moves from x 384 to x 512. `terrain.gdshader` `map_size`
+  follows; the terrain tiles are 256 cells, so 1024 is exactly four.
+- Worldgen: `SX` 3 to 4 stretches the v2 map across. Features that are counted per world (Glimmer veins, caves, pockets, hot rock pockets) scale by 4/3
+  so the density per cell holds. `spawn_regions.gd` scales a `world` row's clump count by `W / 768` (`REF_W`) for the same reason; patch and mound rows
+  keep theirs.
+- The per area sampling constants in `defs.gd` (`ERODE_SAMPLES`, `WEATHER_SAMPLES`, `WASH_SAMPLES`) grow with the width so every cell is checked as often.
+- Benches that stood at an absolute x moved +128 with the Hub (14 scenarios; a module needs a Node or the Hub within about 80 cells of the Hub's centre).
+  scenario_processing B now waits a tick at a time: a pressed block that lands on the ground settles into it after 30 still ticks, and the old one
+  second polling missed the window at the new x. scenario_excavators E moved 6 cells right: a Thumper that lands tilted wedges at the shaft floor
+  and cannot lift, and where it wedges depends on the ground (418, 420 and 432 wedge, 416, 424 and 428 do not). The same wedge can happen in play and is listed under the known issues in claude/STATUS.md.
+  scenario_depth's roof check loosened by 200 cells (the wider roof sheds a few more), scenario_wave1 ignites its Slick film at three points,
+  scenario_chemistry I clears the air above the ground beside the Hub (the Node spot sat on a one cell bump).
+- Cost, from the draft's bench: quiet step about 0.6 ms more, the light pass about 3 ms more, engine memory 58 MB.
+
 ## A5 part 3: wave 2 materials and the Electrolyser
 
 Tests: the full suite is 29 lines `FAILURES: 0` (new: scenario_wave2; scenario_quarry gained K; scenario_fluids G grew; scenario_run D walls in Stone). No engine change: `bin/` is as PR #26 left it.

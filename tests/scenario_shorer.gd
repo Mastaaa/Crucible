@@ -7,6 +7,7 @@ extends SceneTree
 ##  E. research gates the Build button
 ## Run: godot --headless --path . --script tests/scenario_shorer.gd
 
+# A6: the world is 1024 wide and the Hub moved from x 384 to 512, so every bench x below is the old one plus 128.
 const D = preload("res://scripts/defs.gd")
 const MC = preload("res://scripts/machines/machines.gd")
 const M = preload("res://scripts/materials.gd")
@@ -65,9 +66,9 @@ func fresh() -> void:
 	game.paused = true
 	game.reveal_all = true
 	MC.ensure_defs()
-	fill(Rect2i(200, SURFACE - 120, 144, 120), D.AIR)
-	fill(Rect2i(200, SURFACE, 144, 160), 6)
-	fill(Rect2i(200, SURFACE + 160, 144, 40), D.BEDROCK)
+	fill(Rect2i(328, SURFACE - 120, 144, 120), D.AIR)
+	fill(Rect2i(328, SURFACE, 144, 160), 6)
+	fill(Rect2i(328, SURFACE + 160, 144, 40), D.BEDROCK)
 	game.stock[D.R_POWER] = 90.0
 	game.researched["shorer"] = true
 
@@ -93,12 +94,12 @@ func count(r: Rect2i, mat: int) -> int:
 ## A Shorer on the ground at x 300 (front left, so its strip is the 3 columns to its left, 16 rows).
 func shorer_on_ground() -> int:
 	fresh()
-	var id := place("shorer", 300, SURFACE - 16)
+	var id := place("shorer", 428, SURFACE - 16)
 	secs(0.3)
 	return id
 
 
-const STRIP := Rect2i(297, SURFACE - 16, 3, 16)
+const STRIP := Rect2i(425, SURFACE - 16, 3, 16)
 
 
 func scenario_a() -> void:
@@ -118,11 +119,11 @@ func scenario_a() -> void:
 func scenario_b() -> void:
 	print("B. what it leaves alone and refuses")
 	var id := shorer_on_ground()
-	game.sim.set_cell(298, SURFACE - 5, WATER)
-	game.sim.set_cell(299, SURFACE - 3, 6)
+	game.sim.set_cell(426, SURFACE - 5, WATER)
+	game.sim.set_cell(427, SURFACE - 3, 6)
 	MC.add_contents(game, id, RUBBLE, 60)
 	secs(1.1)
-	check(game.sim.get_cell(299, SURFACE - 3) == 6, "a lump of ground in the strip stays")
+	check(game.sim.get_cell(427, SURFACE - 3) == 6, "a lump of ground in the strip stays")
 	check(count(STRIP, STONE) <= 46 and count(STRIP, STONE) >= 40, "the rest fills round them (%d Stone)" % count(STRIP, STONE))
 	check(MC.add_contents(game, id, WATER, 10) == 0 and MC.add_contents(game, id, ASH, 10) == 0, "Water and Ash are refused")
 	id = shorer_on_ground()
@@ -134,8 +135,8 @@ func scenario_b() -> void:
 func scenario_c() -> void:
 	print("C. fed from a Tank")
 	fresh()
-	var tank := place("tank", 300, SURFACE - 30)
-	var sn := MC.snap(game, "shorer", 0, Vector2i(309, SURFACE - 30 - 8))
+	var tank := place("tank", 428, SURFACE - 30)
+	var sn := MC.snap(game, "shorer", 0, Vector2i(437, SURFACE - 30 - 8))
 	var sh := MC.place(game, "shorer", sn["at"], 0)
 	MC.add_contents(game, tank, RUBBLE, 40)
 	secs(6.0)

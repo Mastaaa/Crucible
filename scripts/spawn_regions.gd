@@ -8,6 +8,7 @@ const Mats = preload("res://scripts/materials.gd")
 const PATH := "res://data/spawn_regions.json"
 const EDGE := 4          # clumps keep this far from the map's sides and floor
 const TOP := D.GROUND_Y + 20 * 4   # world spawns stay under the surface layer
+const REF_W := 768        # the width a row's clump counts were written for; a wider world gets proportionally more clumps (A6)
 
 
 static func load_table(path: String = PATH) -> Dictionary:
@@ -63,6 +64,8 @@ static func place(g: PackedByteArray, w: int, h: int, table: Dictionary, seed_va
 		else:
 			continue
 		var n := _count(rng, row.get("clumps", [1, 1]))
+		if area_name == "world":
+			n = maxi(1, roundi(n * float(w) / REF_W))
 		var cells := 0
 		for _i in n:
 			var rad := _count(rng, row.get("radius", [3, 5]))

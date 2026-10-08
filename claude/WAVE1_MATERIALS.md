@@ -249,7 +249,7 @@ brush available as heat sources.
 ## Home table for the spawn-region data
 
 Depth bands are the worldgen bands: Topsoil y 200-1500, Stone 1500-3000, Magma 3000-4500,
-Bedrock below. W is 768 today and widens slightly in A6, so x is in fractions of width. The
+Bedrock below. W was 768 and is 1024 since A6, so x is in fractions of width. The
 region kind names are the ones the spawn-region thread should support; where its schema calls
 them something else the rows map one to one.
 

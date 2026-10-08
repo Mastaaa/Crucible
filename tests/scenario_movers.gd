@@ -10,14 +10,15 @@ extends SceneTree
 ##  E. research: the Build buttons wait for their techs
 ## Run: godot --headless --path . --script tests/scenario_movers.gd
 
+# A6: the world is 1024 wide and the Hub moved from x 384 to 512, so every bench x below is the old one plus 128.
 const D = preload("res://scripts/defs.gd")
 const MC = preload("res://scripts/machines/machines.gd")
 const Save = preload("res://scripts/save.gd")
 var game: Node
 var f := 0
 var fails := 0
-const X0 := 310          # the Piston's left edge (the Hub's link reach ends about 80 cells from its centre, 384, 170)
-const RAIL := 240        # the Gantry's
+const X0 := 438          # the Piston's left edge (the Hub's link reach ends about 80 cells from its centre, 384, 170)
+const RAIL := 368        # the Gantry's
 const SURFACE := 200     # ground level there (dirt from here down)
 
 
@@ -64,9 +65,9 @@ func fresh() -> void:
 	game.paused = true
 	game.reveal_all = true
 	MC.ensure_defs()
-	fill(Rect2i(200, SURFACE - 120, 144, 120), D.AIR)
-	fill(Rect2i(200, SURFACE, 144, 160), 6)
-	fill(Rect2i(200, SURFACE + 160, 144, 40), D.BEDROCK)
+	fill(Rect2i(328, SURFACE - 120, 144, 120), D.AIR)
+	fill(Rect2i(328, SURFACE, 144, 160), 6)
+	fill(Rect2i(328, SURFACE + 160, 144, 40), D.BEDROCK)
 	game.stock[D.R_POWER] = 90.0
 
 
@@ -185,8 +186,8 @@ func scenario_b() -> void:
 	check(m["mode"] == "out", "a click on the rail switches it to out")
 	# Turned a quarter, the rail runs up and down: a Gantry stood on its end.
 	fresh()
-	var up := place("gantry", 300, SURFACE - 118, 1)
-	var t2 := place("tank", 270, SURFACE - 118 - 12, 1)
+	var up := place("gantry", 428, SURFACE - 118, 1)
+	var t2 := place("tank", 398, SURFACE - 118 - 12, 1)
 	var m2: Dictionary = game.modules[up]
 	m2["mode"] = "back"
 	secs(1.0)
@@ -216,8 +217,8 @@ func scenario_c() -> void:
 
 ## The Turntable with a Tank joined to its west face (an arm to its left).
 func build_turntable() -> Dictionary:
-	var hub := place("turntable", 296, 133)
-	var sn := MC.snap(game, "tank", 1, Vector2i(281, 140))
+	var hub := place("turntable", 424, 133)
+	var sn := MC.snap(game, "tank", 1, Vector2i(409, 140))
 	var tank := MC.place(game, "tank", sn["at"], 1)
 	secs(1.0)
 	return {"mover": hub, "load": tank, "snapped": sn["snapped"]}
@@ -243,7 +244,7 @@ func scenario_d() -> void:
 	var pivot := com_of(r["mover"])
 	var arm0 := com_of(r["load"]) - pivot
 	check(arm0.x < -15.0 and absf(arm0.y) < 3.0, "to its left (%.1f, %.1f)" % [arm0.x, arm0.y])
-	var u := MC.use(game, Vector2i(297, 140))
+	var u := MC.use(game, Vector2i(425, 140))
 	check(u and m["mode"] == "step", "a click on the hub switches it to step")
 	check(until(func() -> bool: return m["ang"] > 1.5, 20.0), "it turns a quarter (%.2f rad)" % m["ang"])
 	check(until(func() -> bool: return m["wait"] > 0 or absf(m["ang"] - PI * 0.5) < 0.02, 10.0), "and pauses")
@@ -281,7 +282,7 @@ func scenario_d() -> void:
 	check(absf(m["ang"] - stuck) < 0.02 and m["why"] == "Waiting for power.", "with no power it waits (%.2f)" % m["ang"])
 	# A slab over the arm blocks the swing.
 	fresh()
-	fill(Rect2i(250, 112, 50, 4), D.BEDROCK)
+	fill(Rect2i(378, 112, 50, 4), D.BEDROCK)
 	r = build_turntable()
 	m = game.modules[r["mover"]]
 	click_hub(m)

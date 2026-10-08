@@ -23,7 +23,7 @@ index as [Stone, Glimmer, Obsidian, Water, Power].
   A2: `_wave1(e, m)` reads the wave 1 keys (`heat_mass`, `sets`, `blast`, `absorbs`, `plume`,
   `bursts`, `grows`, `body`, `burn.wet`, `burn.catalyst`) into the sim's dictionary; a
   reaction can carry `emit` and `emit_chance`. The data file's `_about` documents each key.
-- `scripts/worldgen.gd`: v2's layout scaled (SX 3, SY 5, features F 4): bands (whole
+- `scripts/worldgen.gd`: v2's layout scaled (SX 4 since A6, SY 5, features F 4; cave, pocket and lava counts scale by `WIDE`): bands (whole
   rows copied), stone lumps, aquifers, glimmer veins, caves, pockets, lava lake,
   chamber, deposits (coal, sulfur), `_ground` (packed dirt, sand, gravel, clay), `_heat`
   (the Magma band's stone to hot rock, last), then `sim.stabilize()`. `_near` reads 4x4 block masks built with native finds.

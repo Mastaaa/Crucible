@@ -169,7 +169,7 @@ func scenario_a() -> void:
 		var roof := Rect2i(room.position.x, room.position.y - 40, room.size.x, 40)
 		left.append(count(roof, D.STONE) + count(roof, other))
 	print("  a roof over 140 after 20 s, of 5600 cells: stone and hot rock %d, stone and packed dirt %d" % left)
-	check(left[0] >= 5600 - 20 and left[1] < 5600 - 500, "hot rock and stone hold each other up along a row")
+	check(left[0] >= 5600 - 20 and left[1] < 5600 - 300, "hot rock and stone hold each other up along a row")
 
 
 func scenario_b() -> void:

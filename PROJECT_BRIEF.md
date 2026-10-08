@@ -3,7 +3,7 @@
 ## What it is
 Godot 4.7.2 pixel-sim descent game. Mixes Noita (per-pixel physics), Creeper World IXE (network building)
 and Dome Keeper. The player never digs: buildings do. Goal: feed and light the Crucible at the bottom of
-a 768 x 5120 map. Pacing target: an incremental game that ramps SLOWLY from one pixel at a time to whole
+a 1024 x 5120 map (768 x 5120 until A6). Pacing target: an incremental game that ramps SLOWLY from one pixel at a time to whole
 mineshafts and factories in one click. Focus: the player's expansion against a reactive environment;
 uncover elements, deposits and curios; exploit reactions or get blindsided by them.
 
@@ -73,7 +73,7 @@ uncover elements, deposits and curios; exploit reactions or get blindsided by th
    - Mundane ground: packed dirt, gravel, sand, clay; cohesive stone; water wash.
 
 8b. Rescale: done.
-   - Structures 10x bigger against the pixels (D.S); the world 768 x 5120, features 4x.
+   - Structures 10x bigger against the pixels (D.S); the world 1024 x 5120 (768 until A6), features 4x.
    - Free fall for powders and liquids; mites nibble in 4x4 bites.
    - Light, fog and rendering reworked for the size (blocks, tiles).
 

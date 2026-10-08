@@ -128,7 +128,8 @@ func scenario_1() -> void:
 	pile(sim, 100, 60, 10, D.WATER)
 	fill(sim, Rect2i(100, FL - 12, 60, 2), D.SLICK)
 	var before := count(sim, D.SLICK)
-	sim.ignite(101, FL - 12)
+	for ix in [101, 130, 158]:   # a flame can die out where it starts, so the film is lit in three places
+		sim.ignite(ix, FL - 12)
 	run(sim, 60)
 	check(sim.count_burning() > 0, "a lit film burns on the water (%d cells alight)" % sim.count_burning())
 	run(sim, 2400)
@@ -138,7 +139,8 @@ func scenario_1() -> void:
 	walls(sim, 100, 60, 60)
 	pile(sim, 100, 60, 10, D.WATER)
 	fill(sim, Rect2i(100, FL - 12, 60, 2), D.SLICK)
-	sim.ignite(101, FL - 12)
+	for ix in [101, 130, 158]:
+		sim.ignite(ix, FL - 12)
 	run(sim, 30)
 	fill(sim, Rect2i(100, FL - 40, 60, 28), D.HUSH)
 	run(sim, 2400)

@@ -16,6 +16,7 @@ extends SceneTree
 ##      the Combustor burns Lift and Pitch; casing wear weighs the acids
 ## Run: godot --headless --path . --script tests/scenario_wave2.gd
 
+# A6: the world is 1024 wide and the Hub moved from x 384 to 512, so every bench x below is the old one plus 128.
 const D = preload("res://scripts/defs.gd")
 const MC = preload("res://scripts/machines/machines.gd")
 const M = preload("res://scripts/materials.gd")
@@ -382,9 +383,9 @@ func fresh() -> void:
 	game.paused = true
 	game.reveal_all = true
 	MC.ensure_defs()
-	gfill(Rect2i(200, SURFACE - 120, 200, 120), D.AIR)
-	gfill(Rect2i(200, SURFACE, 200, 160), I["Dirt"])
-	gfill(Rect2i(200, SURFACE + 160, 200, 40), D.BEDROCK)
+	gfill(Rect2i(328, SURFACE - 120, 200, 120), D.AIR)
+	gfill(Rect2i(328, SURFACE, 200, 160), I["Dirt"])
+	gfill(Rect2i(328, SURFACE + 160, 200, 40), D.BEDROCK)
 	game.stock[D.R_POWER] = 90.0
 	for t: String in TECHS:
 		game.researched[t] = true
@@ -412,10 +413,10 @@ func held(id: int, mat: int) -> int:
 ## A feed Tank on the ground at x 300, the vessel `def` bolted on top of it and a Tank above that.
 func line(def: String, mat: int, n: int) -> Dictionary:
 	fresh()
-	var tank := place("tank", 300, SURFACE - 30)
-	var sn := MC.snap(game, def, 0, Vector2i(313, SURFACE - 30 - 15))
+	var tank := place("tank", 428, SURFACE - 30)
+	var sn := MC.snap(game, def, 0, Vector2i(441, SURFACE - 30 - 15))
 	var vessel := MC.place(game, def, sn["at"], 0)
-	var sn2 := MC.snap(game, "tank", 0, Vector2i(313, SURFACE - 30 - 30 - 15))
+	var sn2 := MC.snap(game, "tank", 0, Vector2i(441, SURFACE - 30 - 30 - 15))
 	var top := MC.place(game, "tank", sn2["at"], 0)
 	MC.add_contents(game, tank, mat, n)
 	secs(0.5)
@@ -427,7 +428,7 @@ func side_tank(dir: int) -> int:
 	var snap := {"snapped": false, "at": Vector2i()}
 	var turns := 1
 	for t in [1, 3]:
-		snap = MC.snap(game, "tank", t, Vector2i(284, SURFACE - 13) if dir < 0 else Vector2i(340, SURFACE - 13))
+		snap = MC.snap(game, "tank", t, Vector2i(412, SURFACE - 13) if dir < 0 else Vector2i(468, SURFACE - 13))
 		turns = t
 		if snap["snapped"]:
 			break
@@ -444,10 +445,10 @@ func scenario_12() -> void:
 	print("12. The machines")
 	# Boiler: Brine leaves Salt, Slick leaves Pitch, both out of the left face.
 	fresh()
-	gfill(Rect2i(300, SURFACE - 7, 26, 7), I["Dirt"])
-	var boiler := place("boiler", 300, SURFACE - 7 - 30)
+	gfill(Rect2i(428, SURFACE - 7, 26, 7), I["Dirt"])
+	var boiler := place("boiler", 428, SURFACE - 7 - 30)
 	var res := side_tank(-1)
-	var top_sn := MC.snap(game, "tank", 0, Vector2i(313, SURFACE - 7 - 30 - 15))
+	var top_sn := MC.snap(game, "tank", 0, Vector2i(441, SURFACE - 7 - 30 - 15))
 	var top := MC.place(game, "tank", top_sn["at"], 0)
 	check(res != 0 and top_sn["snapped"], "a Tank joins the Boiler's top face and another its new left face")
 	MC.add_contents(game, boiler, I["Brine"], 120)
@@ -467,11 +468,11 @@ func scenario_12() -> void:
 	check(forged, "the Furnace smelts Veinstone with Flux to Wire, out of the top (%d Wire)" % held(top2, I["Wire"]))
 	# Electrolyser: Brine and Water.
 	fresh()
-	gfill(Rect2i(300, SURFACE - 7, 26, 7), I["Dirt"])
-	var ely := place("electrolyser", 300, SURFACE - 7 - 30)
+	gfill(Rect2i(428, SURFACE - 7, 26, 7), I["Dirt"])
+	var ely := place("electrolyser", 428, SURFACE - 7 - 30)
 	var lye_t := side_tank(-1)
 	var chlor_t := side_tank(1)
-	var lift_sn := MC.snap(game, "tank", 0, Vector2i(313, SURFACE - 7 - 30 - 15))
+	var lift_sn := MC.snap(game, "tank", 0, Vector2i(441, SURFACE - 7 - 30 - 15))
 	var lift_t := MC.place(game, "tank", lift_sn["at"], 0)
 	check(lye_t != 0 and chlor_t != 0 and lift_sn["snapped"], "three Tanks join the Electrolyser (Lye left, Chlor right, Lift up)")
 	MC.add_contents(game, ely, I["Brine"], 60)
@@ -481,8 +482,8 @@ func scenario_12() -> void:
 	check(held(lye_t, I["Chlor"]) + held(lift_t, I["Chlor"]) + held(chlor_t, I["Lift"]) + held(lift_t, I["Lye"]) == 0, "each product leaves by its own face only")
 	check(game.stock[D.R_POWER] < 90.0 - 35.0, "and it paid power a cell, 80 cells at 0.5 (%.1f of 90 left)" % game.stock[D.R_POWER])
 	fresh()
-	gfill(Rect2i(300, SURFACE - 7, 26, 7), I["Dirt"])
-	ely = place("electrolyser", 300, SURFACE - 7 - 30)
+	gfill(Rect2i(428, SURFACE - 7, 26, 7), I["Dirt"])
+	ely = place("electrolyser", 428, SURFACE - 7 - 30)
 	MC.add_contents(game, ely, I["Brine"], 60)
 	for _i in 600:
 		game.stock[D.R_POWER] = 0.0
@@ -491,8 +492,8 @@ func scenario_12() -> void:
 	# Combustor: Lift and Pitch burn for power, Pitch first.
 	fresh()
 	game.stock[D.R_POWER] = 10.0
-	var tank := place("tank", 300, SURFACE - 30)
-	var csn := MC.snap(game, "combustor", 0, Vector2i(313, SURFACE - 30 - 9))
+	var tank := place("tank", 428, SURFACE - 30)
+	var csn := MC.snap(game, "combustor", 0, Vector2i(441, SURFACE - 30 - 9))
 	var comb := MC.place(game, "combustor", csn["at"], 0)
 	secs(0.5)           # a vessel sizes its interior at its first scan
 	MC.add_contents(game, tank, I["Pitch"], 4)
@@ -507,7 +508,7 @@ func scenario_12() -> void:
 	var left := {}
 	for acid in ["Sourwater", "Gall", "Vitriol"]:
 		fresh()
-		var t2 := place("tank", 300, SURFACE - 30)
+		var t2 := place("tank", 428, SURFACE - 30)
 		MC.add_contents(game, t2, I[acid], 300)
 		var whole := pixels(t2)
 		for _i in 400:
@@ -516,9 +517,9 @@ func scenario_12() -> void:
 	check(left["Gall"] < left["Sourwater"] and left["Sourwater"] < 1.0 and left["Vitriol"] > left["Sourwater"] - 0.001, "a Tank of Gall loses more casing than one of Sourwater, and Vitriol least (%.2f, %.2f, %.2f left)" % [left["Gall"], left["Sourwater"], left["Vitriol"]])
 	fresh()
 	game.levels["plating"] = 4
-	var t3 := place("tank", 300, SURFACE - 30)
+	var t3 := place("tank", 428, SURFACE - 30)
 	MC.add_contents(game, t3, I["Gall"], 300)
-	var t4 := place("tank", 340, SURFACE - 30)
+	var t4 := place("tank", 468, SURFACE - 30)
 	MC.add_contents(game, t4, I["Sourwater"], 300)
 	for _i in 400:
 		CS.wear(game, game.modules[t3], MC.defs["tank"])
