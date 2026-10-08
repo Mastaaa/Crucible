@@ -36,6 +36,8 @@ func _draw() -> void:
 	var screen := Rect2(Vector2.ZERO, vs)
 	var t := Time.get_ticks_msec() * 0.001
 
+	if g.biome_view:
+		_draw_biomes(g)
 	if g.show_network:
 		_draw_ranges(g, z, screen)
 	_draw_springs(g, z, t, screen)
@@ -109,6 +111,24 @@ func _draw_ranges(g, z: float, screen: Rect2) -> void:
 		var col := Color(0.5, 0.8, 1.0, 0.18) if rl.connected else Color(1, 0.4, 0.3, 0.25)
 		draw_arc(c, D.relay_range(rl.type) * z, 0.0, TAU, 64, col, 1.0)
 		draw_arc(c, D.LINK_RANGE * z, 0.0, TAU, 48, Color(col, col.a * 0.6), 1.0)
+
+
+## The biome view (F7): each biome's rim and name, over everything the map shows, fog or not.
+func _draw_biomes(g) -> void:
+	var shapes: Dictionary = g.info.get("spawned", {}).get("shapes", {})
+	for nm: String in shapes:
+		var s: Dictionary = shapes[nm]
+		var col: Color = s["color"]
+		var pts := PackedVector2Array()
+		for k in 96:
+			var a := TAU * k / 96.0
+			var e := sqrt(1.0 + 0.2 * sin(a * 3.0 + float(s["phase"])))
+			pts.append(g.to_screen(Vector2(float(s["cx"]) + cos(a) * float(s["rx"]) * e, float(s["cy"]) + sin(a) * float(s["ry"]) * e)))
+		draw_colored_polygon(pts, Color(col, 0.13))
+		pts.append(pts[0])
+		draw_polyline(pts, Color(col, 0.9), 2.0)
+		var c: Vector2 = g.to_screen(Vector2(float(s["cx"]), float(s["cy"])))
+		draw_string(font, c + Vector2(-40, 0), str(s["label"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(col, 1.0))
 
 
 ## Springs you've found: a slow blue pulse where the water comes from.

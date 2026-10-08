@@ -4,6 +4,29 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A6 part 2: biomes as data
+
+Tests: the full suite is 29 lines `FAILURES: 0` (scenario_spawn gained F, G and a not_near check; scenario_excavators E tries a few x). No engine change: `bin/` is as PR #26 left it.
+Design: plans/a6-draft.md part 2, approved by Alex. Every seed's spawned layout differs from before (rows moved from "anywhere" into biomes shift the random stream).
+
+- A `patch` area is a biome (`spawn_regions.gd` `_patch`): a ragged ellipse (`shapes[name]`: centre, half sizes, phase), on a flank of the world (`side: random` mirrors
+  its home x for the right, `opposite` takes the flank another patch did not), centred in a box, on the surface, or on the lava pocket nearest the flank; `avoid` keeps
+  its box off aquifers. Its `ground` recipe rewrites the cells inside (rules `from`, `to`, `density`, `not_near` + `gap`). Rows that name a patch as `area` start inside it, are
+  cut off at its rim (`clip: false` lets them spill) and may carry a `depth` to keep to part of it. `SR.biome_at(spawned, x, y)` and `game.biome_at` name the biome of a cell.
+- Six biomes, two to a band, opposite flanks within a band, none reaching into the Hub's middle third (the sulfur vents sit on a lava pocket, wherever it is):
+  Dunes (surface sand, 110 x 120), Fen (Topsoil 850-1100, Clay speckle, wet pockets, Quickmire, Slick, Bloat, Weft), Salt flats (Stone, Salt speckle, Salt seams, Brine, Chlor, Rime, Flux),
+  Ferrite hills (Stone, Ferrite speckle, the three seams, Rattle, Sourwater), Sulfur vents (a lava pocket, Sulfur crust kept 3 cells off the lava, Glass lenses), Gall caverns (Gall, Vitriol, Veinstone, Lumen).
+- World rows left: Hush, Wisp, and three outliers in the Hub's middle third so level 1 of every Mk upgrade stays a straight shaft: Ferrite (the old fourth seam), a Flux seam (about 1.8 units
+  to a shaft) and a Rime blob. Rows that moved: Quickmire, Slick, Bloat, Weft, Salt, Brine, Chlor, Rime, Flux, Ferrite (three seams), Rattle, Sourwater, Glass, Lumen, Veinstone, Gall, Vitriol.
+- Dunes use `avoid: aquifers` so no water is cut off in sand; they are sand all through (no Dirt, no Water inside) and about 20,000 cells.
+- F7 (`game.biome_view`, `overlay._draw_biomes`) outlines and names the biomes; `tests/mapdump.gd --biomes` outlines them on the map dump and `tests/shot_biomes.gd` shoots the F7 view
+  at chosen depths (used for the exit check's screenshots).
+- Cost: the spawn pass takes about 0.4 s of the 1.8 s a new world takes at 1024 wide.
+- Found on the way: the recipe's first version put three cells of Sand outside each patch (a row at the ellipse's end counted its centre as inside); scenario_spawn G covers it. The Sulfur vents first
+  touched the lava they sit on, which scenario_chemistry E caught, hence `not_near`.
+- scenario_excavators E (Thumper) wedges at about half the places it is tried, and which ones depends on the whole world's state, so it now tries x offsets from X0 until a rig gets through. An attempt
+  to turn a tilted Thumper upright with the Winch's spin made it jam higher up (cable 57 instead of 99) and was dropped. The wedge stays a known issue (claude/STATUS.md).
+
 ## A6 part 1: the world is 1024 wide
 
 Tests: the full suite is 29 lines `FAILURES: 0`. No engine change: `bin/` is as PR #26 left it. Save version 3 (a 768 wide save does not load).
@@ -18,8 +41,8 @@ Alex's calls on the A6 draft (plans/a6-draft.md): "Engine grid" (a local ambient
 - The per area sampling constants in `defs.gd` (`ERODE_SAMPLES`, `WEATHER_SAMPLES`, `WASH_SAMPLES`) grow with the width so every cell is checked as often.
 - Benches that stood at an absolute x moved +128 with the Hub (14 scenarios; a module needs a Node or the Hub within about 80 cells of the Hub's centre).
   scenario_processing B now waits a tick at a time: a pressed block that lands on the ground settles into it after 30 still ticks, and the old one
-  second polling missed the window at the new x. scenario_excavators E moved 6 cells right: a Thumper that lands tilted wedges at the shaft floor
-  and cannot lift, and where it wedges depends on the ground (418, 420 and 432 wedge, 416, 424 and 428 do not). The same wedge can happen in play and is listed under the known issues in claude/STATUS.md.
+  second polling missed the window at the new x. scenario_excavators E moved 6 cells right (part 2 made it try several places): a Thumper that lands tilted wedges at the shaft floor
+  and cannot lift, and where it wedges depends on the world's state (418, 420 and 432 wedged at part 1's layout, 416, 424 and 428 did not). The same wedge can happen in play and is listed under the known issues in claude/STATUS.md.
   scenario_depth's roof check loosened by 200 cells (the wider roof sheds a few more), scenario_wave1 ignites its Slick film at three points,
   scenario_chemistry I clears the air above the ground beside the Hub (the Node spot sat on a one cell bump).
 - Cost, from the draft's bench: quiet step about 0.6 ms more, the light pass about 3 ms more, engine memory 58 MB.

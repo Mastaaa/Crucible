@@ -21,7 +21,7 @@ No directory listings needed.
 - Warnings: `python3 native/lsp_check.py . <files>` ("checked N files" alone is clean).
 - Screenshot: `xvfb-run -a -s "-screen 0 1280x720x24" godot --rendering-method
   gl_compatibility --rendering-driver opengl3 --path . --script tests/shot_X.gd -- --out=/tmp/x`
-- Map: `godot --headless --path . --script tests/mapdump.gd -- --seed=7 --out=/tmp/map.png`
+- Map: `godot --headless --path . --script tests/mapdump.gd -- --seed=7 --out=/tmp/map.png` (`--biomes` outlines them; `tests/shot_biomes.gd` shoots the F7 view)
 - Pacing and speed: tests/autoplay.gd (quarry bot), tests/bench_net.gd (baselines in claude/STATUS.md).
 - Read code by grep and targeted Read offset/limit; claude/CODE_MAP.md says where things live.
 - Keep command output short (grep, tail): output costs as much as reading does.
