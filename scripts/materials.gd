@@ -35,6 +35,7 @@ static var yields: Array = []           # per id: PackedInt32Array of stockpiles
 static var hots := PackedByteArray()
 static var burns := PackedByteArray()
 static var corrosives := PackedByteArray()
+static var acids := PackedFloat32Array()  # A5: per id: how hard a corrosive material hits a casing (data `acid`, default 1; 0 for the rest)
 static var goods := PackedByteArray()      # A5: per id, 1 where a pixel banks as a good (data `good`)
 static var sighted := PackedStringArray()
 static var ids := {}                    # name -> first id
@@ -78,6 +79,7 @@ static func ensure() -> void:
 	burns.resize(256)
 	goods.resize(256)
 	corrosives.resize(256)
+	acids.resize(256)
 	sighted.resize(256)
 	_pal_rows.resize(256)
 	for i in 256:
@@ -141,6 +143,7 @@ static func ensure() -> void:
 			hots[mid] = 1 if bool(e.get("hot", false)) else 0
 			burns[mid] = 1 if not burn.is_empty() else 0
 			corrosives[mid] = 1 if bool(e.get("corrosive", false)) else 0
+			acids[mid] = float(e.get("acid", 1.0)) if bool(e.get("corrosive", false)) else 0.0
 			goods[mid] = 1 if bool(e.get("good", false)) else 0
 			sighted[mid] = e.get("sighted", "")
 			var m := {
@@ -543,6 +546,12 @@ static func is_burnable(m: int) -> bool:
 static func is_corrosive(m: int) -> bool:
 	ensure()
 	return corrosives[m] != 0
+
+
+## How hard `m` hits a casing it sits in: 1 for ordinary acid, more for the worse kinds, 0 if it is not corrosive.
+static func acid_of(m: int) -> float:
+	ensure()
+	return acids[m]
 
 
 ## Open space: nothing, or a gas.

@@ -1,5 +1,5 @@
 extends RefCounted
-## Combustor (A5): burns fuel for power. Fuel (Coal, Coal chunks, Slick; `fuel` in the material
+## Combustor (A5): burns fuel for power. Fuel (Coal, Coal chunks, Slick, Pitch, Lift; `fuel` in the material
 ## data) joined into its bottom face collects in its hollow, and while a Node or the Hub is in
 ## reach it burns a cell every `burn` seconds and adds that cell's power to the Hub's stockpile
 ## (up to its cap). It burns the richest fuel it holds first and burns nothing while the

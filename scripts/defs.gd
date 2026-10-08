@@ -27,7 +27,7 @@ const CAMERA_CLOSER := 1.5
 # below (is_solid, is_liquid, is_thin), not with id ranges:
 #   0 air | 1-5 static | 6 settled dirt | 7-8 powders | 9-10 liquids
 #   11-18 steam (eight ageing stages, then it condenses) | 19-28 Phase 5 chemistry
-#   29-32 Phase 8 ground (packed dirt, gravel, sand, clay) | 33 mite | 34 hot rock | 35-53 wave 1 (A2)
+#   29-32 Phase 8 ground (packed dirt, gravel, sand, clay) | 33 mite | 34 hot rock | 35-53 wave 1 (A2) | 54-68 wave 2 (A5)
 const AIR := 0
 const BEDROCK := 1
 const STONE := 2
@@ -301,13 +301,15 @@ const TECHS := [
 	{"id": "thermoelectric", "name": "Thermoelectric Plate", "tier": 3, "needs": ["thermometer"], "power": 1500, "mats": [0, 10, 0, 0, 0], "module": "thermoelectric",
 		"text": "A bolted plate that turns the difference in temperature between its two sides into power for the Hub's store."},
 	{"id": "boiler", "name": "Boiler", "tier": 2, "needs": [], "power": 900, "mats": [0, 6, 0, 0, 0], "module": "boiler",
-		"text": "A bolted vessel that heats what a Tank passes into it to 130 degrees and lets only the gas out: Water goes in, Steam comes out."},
+		"text": "A bolted vessel that heats what a Tank passes into it to 130 degrees and lets only the gas out: Water goes in, Steam comes out. Brine leaves Salt and Slick leaves Pitch, which go out of a side face."},
 	{"id": "chiller", "name": "Chiller", "tier": 2, "needs": ["boiler"], "power": 900, "mats": [0, 6, 0, 0, 0], "module": "chiller",
-		"text": "A bolted vessel that cools what a Tank passes into it to 20 below zero and lets only Ice out."},
+		"text": "A bolted vessel that cools what a Tank passes into it to 20 below zero and lets only Ice and Chillant (frozen Brine) out."},
 	{"id": "combustor", "name": "Combustor", "tier": 2, "needs": [], "power": 800, "mats": [0, 4, 0, 0, 0], "module": "combustor",
-		"text": "A bolted vessel that burns Coal, Coal chunks or Slick, a cell a second, into power for the Hub's store."},
+		"text": "A bolted vessel that burns Coal, Coal chunks, Slick, Pitch or Lift, a cell a second, into power for the Hub's store."},
 	{"id": "furnace", "name": "Furnace", "tier": 3, "needs": ["boiler"], "power": 1800, "mats": [0, 16, 0, 0, 0], "module": "furnace",
-		"text": "A bolted vessel held at 950 degrees. Sand fuses to Glass, Ferrite with Flux smelts to Slag and Ferrite bars. Its casing stands 1500 degrees."},
+		"text": "A bolted vessel held at 950 degrees. Sand fuses to Glass, Ferrite or Veinstone with Flux smelts to Slag and bars or Wire. Its casing stands 1500 degrees."},
+	{"id": "electrolyser", "name": "Electrolyser", "tier": 3, "needs": ["boiler"], "power": 2000, "mats": [0, 14, 0, 0, 0], "module": "electrolyser",
+		"text": "A bolted vessel that splits Brine into Lye, Chlor and Lift and Water into Lift, for power a cell. Each product leaves by its own face."},
 	{"id": "caster", "name": "Caster", "tier": 3, "needs": ["furnace"], "power": 2200, "mats": [0, 12, 4, 0, 0], "module": "caster",
 		"text": "A bolted module that sets liquid into a solid block: Lava becomes Obsidian, Slag a crust, Quickmire Mire stone, Water Ice."},
 	{"id": "brace", "name": "Brace", "tier": 1, "needs": [], "power": 180, "building": B_BRACE,

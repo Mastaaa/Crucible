@@ -1,5 +1,5 @@
 {
-	"_about": "Module definitions for the processing group (A4, A5). See logistics.json for the shape. `front` is where a Macerator's mouth and a Press's or Caster's block are. The Sieve and Centrifuge share the separator kind, with `pass` as a list of rules (one per out face; `kinds`, `heavy`, `light`, `power` a cell). The Boiler, Chiller and Furnace share the thermal kind: params target (degrees), rate (degrees a scan), power (a second while it works), cap; `pass` with `kinds` or `mats` lets only those out of its face; `melts` is the temperature its casing stands.",
+	"_about": "Module definitions for the processing group (A4, A5). See logistics.json for the shape. `front` is where a Macerator's mouth and a Press's or Caster's block are. The Sieve and Centrifuge share the separator kind, with `pass` as a list of rules (one per out face; `kinds`, `heavy`, `light`, `power` a cell). The Electrolyser splits Brine and Water in its own kind (rate cells a scan, power a cell). The Boiler, Chiller and Furnace share the thermal kind: params target (degrees), rate (degrees a scan), power (a second while it works), cap; `pass` with `kinds` or `mats` lets only those out of its face; `melts` is the temperature its casing stands.",
 	"modules": [
 		{
 			"id": "macerator", "name": "Macerator", "kind": "macerator", "size": [26, 18], "wall": 2, "interior": true, "front": "up", "anchored": true,
@@ -23,37 +23,41 @@
 		{
 			"id": "boiler", "name": "Boiler", "kind": "thermal", "size": [26, 30], "wall": 2, "interior": true, "anchored": true, "melts": 700,
 			"tech": "boiler", "cost": [14, 4, 0, 0, 0],
-			"blurb": "Bolted in place. Heats what a Tank passes into its bottom face to 130 degrees, so Water boils to Steam, and lets only the gas out of its top face into whatever is joined there. Needs a Node or the Hub in reach, and power while it heats.",
+			"blurb": "Bolted in place. Heats what a Tank passes into its bottom face to 130 degrees, so Water boils to Steam, and lets only the gas out of its top face into whatever is joined there. What the boiling leaves behind (Salt from Brine, Pitch from Slick) goes out of its left face. Needs a Node or the Hub in reach, and power while it heats.",
 			"faces": [
 				{"type": "pixel", "dir": "down", "at": 6, "w": 6, "name": "in"},
 				{"type": "pixel", "dir": "up", "at": 13, "w": 6, "name": "out"},
-				{"type": "signal", "dir": "right", "at": 15, "w": 4, "name": "gate"}
+				{"type": "signal", "dir": "right", "at": 15, "w": 4, "name": "gate"},
+				{"type": "pixel", "dir": "left", "at": 24, "w": 6, "name": "residue"}
 			],
-			"pass": {"face": 1, "rate": 30, "kinds": ["gas"]},
+			"pass": [
+				{"face": 1, "rate": 30, "kinds": ["gas"]},
+				{"face": 3, "rate": 30, "mats": ["Salt", "Pitch"]}
+			],
 			"params": {"target": 130, "rate": 20, "power": 0.25, "cap": 300}
 		},
 		{
 			"id": "chiller", "name": "Chiller", "kind": "thermal", "size": [26, 30], "wall": 2, "interior": true, "anchored": true,
 			"tech": "chiller", "cost": [14, 6, 0, 0, 0],
-			"blurb": "Bolted in place. Cools what a Tank passes into its bottom face to 20 below zero, so Water freezes to Ice, and lets only Ice out of its top face. Needs a Node or the Hub in reach, and power while it cools.",
+			"blurb": "Bolted in place. Cools what a Tank passes into its bottom face to 20 below zero, so Water freezes to Ice and Brine turns to Chillant, and lets only Ice and Chillant out of its top face. Needs a Node or the Hub in reach, and power while it cools.",
 			"faces": [
 				{"type": "pixel", "dir": "down", "at": 6, "w": 6, "name": "in"},
 				{"type": "pixel", "dir": "up", "at": 13, "w": 6, "name": "out"},
 				{"type": "signal", "dir": "right", "at": 15, "w": 4, "name": "gate"}
 			],
-			"pass": {"face": 1, "rate": 30, "mats": ["Ice"]},
+			"pass": {"face": 1, "rate": 30, "mats": ["Ice", "Chillant"]},
 			"params": {"target": -20, "rate": 20, "power": 0.25, "cap": 300}
 		},
 		{
 			"id": "furnace", "name": "Furnace", "kind": "thermal", "size": [26, 30], "wall": 2, "interior": true, "anchored": true, "melts": 1500,
 			"tech": "furnace", "cost": [20, 8, 0, 0, 0],
-			"blurb": "Bolted in place. Heats what a Tank passes into its bottom face to 950 degrees: Sand fuses to Glass, and Ferrite with Flux smelts to Slag and Ferrite bars. Glass, bars and Slag go out of its top face; everything else stays in to cook. Its casing stands 1500 degrees. Needs a Node or the Hub in reach, and power while it heats.",
+			"blurb": "Bolted in place. Heats what a Tank passes into its bottom face to 950 degrees: Sand fuses to Glass, and Ferrite or Veinstone with Flux smelts to Slag and Ferrite bars or Wire. Glass, bars, Wire and Slag go out of its top face; everything else stays in to cook. Its casing stands 1500 degrees. Needs a Node or the Hub in reach, and power while it heats.",
 			"faces": [
 				{"type": "pixel", "dir": "down", "at": 6, "w": 6, "name": "in"},
 				{"type": "pixel", "dir": "up", "at": 13, "w": 6, "name": "out"},
 				{"type": "signal", "dir": "right", "at": 15, "w": 4, "name": "gate"}
 			],
-			"pass": {"face": 1, "rate": 30, "mats": ["Glass", "Ferrite bar", "Slag", "Slag crust"]},
+			"pass": {"face": 1, "rate": 30, "mats": ["Glass", "Ferrite bar", "Wire", "Slag", "Slag crust"]},
 			"params": {"target": 950, "rate": 24, "power": 0.5, "cap": 300}
 		},
 		{
@@ -65,6 +69,23 @@
 				{"type": "signal", "dir": "left", "at": 9, "w": 4, "name": "gate"}
 			],
 			"params": {"slab": [12, 8], "time": 4.0, "power": 4.0, "cap": 300}
+		},
+		{
+			"id": "electrolyser", "name": "Electrolyser", "kind": "electrolyser", "size": [26, 30], "wall": 2, "interior": true, "anchored": true,
+			"tech": "electrolyser", "cost": [16, 6, 0, 0, 0],
+			"blurb": "Bolted in place. Splits what a Tank passes into its bottom face, for power a cell from a Node or the Hub in reach: two cells of Brine become two Lye, a Chlor and a Lift, and a cell of Water becomes a Lift (the oxygen vents). Lift goes out of its top face, Lye out of the left and Chlor out of the right; Brine and Water stay in until they are split.",
+			"faces": [
+				{"type": "pixel", "dir": "down", "at": 6, "w": 6, "name": "in"},
+				{"type": "pixel", "dir": "up", "at": 13, "w": 6, "name": "lift"},
+				{"type": "pixel", "dir": "left", "at": 24, "w": 6, "name": "lye"},
+				{"type": "pixel", "dir": "right", "at": 24, "w": 6, "name": "chlor"}
+			],
+			"pass": [
+				{"face": 1, "rate": 30, "mats": ["Lift"]},
+				{"face": 2, "rate": 30, "mats": ["Lye"]},
+				{"face": 3, "rate": 30, "mats": ["Chlor"]}
+			],
+			"params": {"rate": 12, "power": 0.5, "cap": 300}
 		},
 		{
 			"id": "sieve", "name": "Sieve", "kind": "separator", "size": [26, 30], "wall": 2, "interior": true, "anchored": true,

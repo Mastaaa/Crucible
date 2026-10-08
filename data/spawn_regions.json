@@ -21,6 +21,8 @@
 		"  Wave 1 rows (the second half of the list) follow claude/WAVE1_MATERIALS.md's home table.",
 		"  Ferrite sits above the Sulfur band (A5): three seams anywhere across the world, and a fourth in the Hub's middle",
 		"    third, so a straight shaft meets one before the casing needs Plating. It is the last row, so adding it moved nothing else.",
+		"  Wave 2 rows (A5 part 3, the last seven): Brine, Salt and Chlor in the Stone band, Lumen, Veinstone, Gall and Vitriol in and under the",
+		"    Magma band's top. Lye, Lift, Pitch, Chillant and Filings are made, not found. Added last, so no earlier row moved.",
 		"  enabled: false parks a row."
 	],
 	"areas": {
@@ -55,6 +57,13 @@
 		{"material": "Wisp", "x": [0.05, 0.95], "depth": [2000, 3200], "host": ["Stone"], "clumps": [4, 4], "radius": [18, 20], "shape": "blob"},
 		{"material": "Ferrite", "x": [0.0, 1.0], "depth": [1600, 2300], "host": ["Stone"], "clumps": [3, 3], "radius": [90, 110], "shape": "blob", "aspect": 4},
 		{"material": "Glass", "x": [0.0, 1.0], "depth": [3000, 3800], "host": ["Hot rock"], "clumps": [6, 8], "radius": [6, 10], "shape": "speckle", "density": 0.5},
-		{"material": "Ferrite", "x": [0.38, 0.62], "depth": [1600, 2300], "host": ["Stone"], "clumps": [1, 1], "radius": [90, 110], "shape": "blob", "aspect": 4}
+		{"material": "Ferrite", "x": [0.38, 0.62], "depth": [1600, 2300], "host": ["Stone"], "clumps": [1, 1], "radius": [90, 110], "shape": "blob", "aspect": 4},
+		{"material": "Brine", "x": [0.05, 0.95], "depth": [1800, 2900], "host": ["Stone"], "clumps": [3, 3], "radius": [20, 26], "shape": "blob"},
+		{"material": "Salt", "x": [0.0, 1.0], "depth": [1500, 2600], "host": ["Stone"], "clumps": [2, 3], "radius": [60, 80], "shape": "blob", "aspect": 8},
+		{"material": "Chlor", "x": [0.05, 0.95], "depth": [2200, 2950], "host": ["Stone"], "clumps": [3, 3], "radius": [14, 18], "shape": "blob"},
+		{"material": "Lumen", "x": [0.05, 0.95], "depth": [2800, 3600], "host": ["Stone", "Hot rock"], "clumps": [4, 5], "radius": [6, 9], "shape": "blob"},
+		{"material": "Veinstone", "x": [0.0, 1.0], "depth": [3000, 4000], "host": ["Hot rock"], "clumps": [4, 5], "radius": [45, 60], "shape": "blob", "aspect": 4},
+		{"material": "Gall", "x": [0.05, 0.95], "depth": [3100, 3800], "host": ["Hot rock"], "clumps": [2, 3], "radius": [18, 24], "shape": "blob"},
+		{"material": "Vitriol", "x": [0.0, 1.0], "depth": [3100, 3900], "host": ["Hot rock"], "clumps": [3, 4], "radius": [30, 45], "shape": "blob", "aspect": 3}
 	]
 }

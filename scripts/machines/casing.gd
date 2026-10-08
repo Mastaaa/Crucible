@@ -31,6 +31,7 @@ const ACID_UNITS := 400    # corrosive units that make the acid chance a scan it
 const ACID_CHANCE := 0.1   # chance a scan that a vessel full of acid loses one pixel
 const PLATING_MELT := 100  # degrees a Plating level adds to every casing's melting point
 const PLATING_ACID := 0.25 # share of the acid chance a Plating level takes off (level 4: none)
+const PLATING_STRONG := 0.25  # share of the chance that Plating leaves against the worst acids (Gall)
 
 
 ## Casing pixels of `m` as a share of the design, counting open ports as present.
@@ -95,11 +96,17 @@ static func wear(g, m: Dictionary, def: Dictionary) -> void:
 	if hi > melts:
 		lost = mini(MELT_MAX, 1 + floori(float(hi - melts) / float(MELT_STEP)))
 		why = "melting"
-	var acid := 0
+	var acid := 0.0          # corrosive units, each weighed by its material's `acid`
+	var worst := 0.0         # the hardest-hitting acid in the vessel
 	for mat: int in m["contents"]:
-		if M.is_corrosive(mat):
-			acid += m["contents"][mat]
-	if acid > 0 and g.rng.randf() < ACID_CHANCE * minf(1.0, float(acid) / float(ACID_UNITS)) * (1.0 - PLATING_ACID * float(plating)):
+		var a := M.acid_of(mat)
+		if a > 0.0:
+			acid += float(m["contents"][mat]) * a
+			worst = maxf(worst, a)
+	# Plating takes a quarter of the chance a level, and none is left at level 4 -- except to the worst
+	# acids (strength 2 and up), which keep a quarter of it.
+	var shield := maxf(1.0 - PLATING_ACID * float(plating), PLATING_STRONG if worst >= 2.0 else 0.0)
+	if acid > 0.0 and g.rng.randf() < ACID_CHANCE * minf(worst, acid / float(ACID_UNITS)) * shield:
 		lost += 1
 		why = why if why != "" else "corroding"
 	if lost <= 0:
