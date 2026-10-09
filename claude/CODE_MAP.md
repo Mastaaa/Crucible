@@ -34,6 +34,7 @@ index as [Stone, Glimmer, Obsidian, Water, Power].
   worldgen's grid; worldgen calls it once, after `_heat`, and returns its report as `spawned`.
   Rows are blobs, speckles, or seams (`aspect`); the second half of the table is wave 1's home
   ranges. Cells come out of `set_cells` at their `placed` temperature (Rime is cold).
+  A6 part 3: a patch's `ambient` is in `place()`'s `ambient`; `chunk_offsets(spawned, w, h)` turns it into the engine's per-chunk grid (`_reach` fades it over `CLIMATE_FADE` cells), worldgen sets it and `game.continue_run` sets it again after a load.
   A6 part 4: a row with `spring: true` adds the floor of each clump's middle column to `place()`'s `springs`; worldgen appends them to its spring list (the Fen's Water pockets).
   A6 part 2: a `patch` is a biome: `_patch` draws a ragged ellipse (`shapes[name]`: cx, cy, rx, ry, phase;
   `inside`, `biome_at`), on a flank (`side`, `opposite`), anchored on the surface or a lava pocket,
@@ -129,8 +130,9 @@ sense (30), vision/light (15), Crucible. The engine's temperature pass runs insi
   `get_heat`, `block_circles(circles)`.
 - Temperature (A1): `get_temp(x, y)`, `set_temp(x, y, deg)`, `heat_rect(x, y, w, h,
   deg)` and `heat_circle(x, y, r, deg)` (add degrees), `rect_temp(x, y, w, h)` (min,
-  max, mean), `set_ambient(rows)` (`D.ambient_rows()`), `reset_temps()` (every cell to
-  its row's ambient), `set_temp_params(dict)` (`D.temp_params()`: every, sink_every,
+  max, mean), `set_ambient(rows)` (`D.ambient_rows()`), `set_ambient_offsets(chunks, wake)` (A6:
+  degrees added per 32 x 32 chunk, `SR.chunk_offsets`; not saved), `reset_temps()` (every cell to
+  its chunk's ambient), `set_temp_params(dict)` (`D.temp_params()`: every, sink_every,
   sink), `get_stat_tchunks`, `get_temp_chunks`. `paint_circle(x, y, r, m, keep_fixed)`
   is the bench brush. Inside: `step_temperature` swaps `tnext` into `tcur` and runs
   `temp_chunk` over those chunks on the checkerboard (`pass_mode` 1); `placed_temp`

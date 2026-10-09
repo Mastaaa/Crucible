@@ -4,6 +4,25 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A6 part 3, second half: the local ambient grid (ENGINE)
+
+Tests: the full suite is 30 lines `FAILURES: 0` (scenario_temperature gained N, O and P; scenario_spawn F and G gained climate checks). Engine change: `bin/` rebuilt (both libraries).
+Design: plans/a6-engine-grid-proposal.md, which Alex answered "Build it" (10-09). Two numbers moved, see below.
+
+- Engine: `ambient_off`, one int16 per 32 x 32 chunk (eighths of a degree), zero by default; `temp_chunk` pulls toward `ambient[y] + ambient_off[c]` (one add a pass per cell), and `reset_temps` starts every
+  cell at its chunk's ambient. `set_ambient_offsets(chunks, wake := true)` takes degrees per chunk (chunks across, then down; short arrays pad with zeros) and wakes the chunks whose offset changed unless
+  `wake` is false. The GDScript sim has a no-op of the same name. Not saved: the game derives the grid from `info["spawned"]`. The pass costs the same (scenario_temperature K: 0.866 ms a tick against 0.862) and
+  engine_compare's checksum is unchanged with zero offsets (5770705753801630913).
+- Data: a patch area may carry `ambient` (degrees). `SR.place` reports `ambient` (name -> degrees) and `SR.chunk_offsets(spawned, w, h)` gives the grid: full for a chunk whose middle is inside the biome's rim,
+  falling by a fifth every 8 cells outward to nothing at 40 (rings of eight points). Dunes +20, Fen -10, Salt flats -60, Ferrite hills none, Sulfur vents +40, Gall caverns +40.
+- Wiring: `worldgen.generate` sets the grid after `SR.place` (so `set_cells` starts the world at it), `game.continue_run` sets it again after a load with `wake` off (the loaded sim brings its temperatures and
+  awake chunks; scenario_temperature P shows a saved game's flats staying at 8 degrees for a minute, and 36 with the call removed). A bench has no biomes and so no offsets.
+- Two numbers differ from the proposal, both found by scenario_temperature O (every material against the sum of its row's ambient and its chunk's offset, four seeds): Gall caverns are +40, not +50 (Sulfur kindles at 600 and
+  the caverns hold Sulfur: 1,247 cells on seed 5); the Salt flats' Brine row starts at row 1900, not 1800 (at the flats' top Brine was at -15, where it turns to Chillant: 48 cells on seed 7).
+- scenario_temperature N: a stone block in a +200 chunk climbs to 188 (the pull stops 32 degrees short), the block between stays at 20, one in a -100 chunk falls to -48; `reset_temps` starts cells at 220 and 20; water in a -100 chunk
+  freezes, in a +150 chunk boils away (slowly: about 2 minutes); a grid of zeros leaves cells and temperatures exactly as they were; `wake` off leaves a quiet chunk asleep.
+- Not done: the F6 temperature view shows the cells, which now differ by biome, but nothing says why; a getter for the grid (tests read the effects).
+
 ## A6 part 4: the surface generators
 
 Tests: the full suite is 30 lines `FAILURES: 0` (scenario_generators is new; scenario_spawn F and G gained spring checks). No engine change: `bin/` is as PR #26 left it.

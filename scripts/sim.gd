@@ -1015,6 +1015,10 @@ func set_ambient(_rows: PackedInt32Array) -> void:
 	pass
 
 
+func set_ambient_offsets(_chunks: PackedInt32Array, _wake := true) -> void:
+	pass
+
+
 func reset_temps() -> void:
 	pass
 

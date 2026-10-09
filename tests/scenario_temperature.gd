@@ -13,6 +13,11 @@ extends SceneTree
 ##   J. temperatures save and load, and 1 and 4 threads agree
 ##   K. the pass stays cheap on a fresh world
 ##   M. the ambient ramps up over 400 rows (A6) and worldgen leaves no liquid in rows hot enough to boil it
+##   N. the local ambient grid (A6, engine): a chunk's offset is added to its rows' ambient, so a block
+##      there climbs or falls to it, water freezes or boils, a fresh world starts that way, nothing else
+##      moves, and a loaded run's awake chunks stay as saved
+##   O. with the biomes' offsets on, no seed starts a material in a chunk warm or cold enough to turn it
+##   P. a saved game, loaded, still has its biomes' climate (the offsets are not saved: the game derives them)
 ##  In the game:
 ##   L. the lab bench: an open room, the brush paints and heats, nothing is saved
 ## Run: godot --headless --path . --script tests/scenario_temperature.gd
@@ -21,6 +26,7 @@ const D = preload("res://scripts/defs.gd")
 const Mats = preload("res://scripts/materials.gd")
 const SimFactory = preload("res://scripts/sim_factory.gd")
 const WorldGen = preload("res://scripts/worldgen.gd")
+const SR = preload("res://scripts/spawn_regions.gd")
 const Save = preload("res://scripts/save.gd")
 
 var game: Node
@@ -52,7 +58,10 @@ func _process(_d: float) -> bool:
 		scenario_j()
 		scenario_k()
 		scenario_m()
+		scenario_n()
+		scenario_o()
 		scenario_l()
+		scenario_p()
 		print("FAILURES: %d" % fails)
 		return true
 	return false
@@ -370,6 +379,160 @@ func scenario_k() -> void:
 	print("  %.3f ms a tick with it, %.3f without" % [times[0], times[1]])
 
 
+## The offsets array for the engine: every chunk 0 but the ones given as {Vector2i(cx, cy): degrees}.
+func offsets(chunks: Dictionary) -> PackedInt32Array:
+	var out := PackedInt32Array()
+	var cw := D.W >> 5
+	out.resize(cw * (D.H >> 5))
+	for c: Vector2i in chunks:
+		out[c.y * cw + c.x] = chunks[c]
+	return out
+
+
+## A bedrock-lined stone block of 29 x 29 cells inside chunk (cx, cy).
+func stone_block(sim, cx: int, cy: int) -> Rect2i:
+	var r := Rect2i((cx << 5) + 2, (cy << 5) + 2, 29, 29)
+	fill(sim, r, D.BEDROCK)
+	fill(sim, r.grow(-1), D.STONE)
+	return r
+
+
+func scenario_n() -> void:
+	print("N. the local ambient grid")
+	var hot := Vector2i(10, 10)
+	var cold := Vector2i(14, 10)
+	var plain := Vector2i(12, 10)
+	# A block in a +200 chunk climbs toward 220 (the pull stops 32 degrees short); the same block two chunks away stays at 20.
+	var sim = bench_sim()
+	var a := stone_block(sim, hot.x, hot.y)
+	var b := stone_block(sim, plain.x, plain.y)
+	var c := stone_block(sim, cold.x, cold.y)
+	sim.set_ambient_offsets(offsets({hot: 200, cold: -100}))
+	run(sim, 60 * 240)
+	var ta: int = sim.get_temp(a.get_center().x, a.get_center().y)
+	var tb: int = sim.get_temp(b.get_center().x, b.get_center().y)
+	var tc: int = sim.get_temp(c.get_center().x, c.get_center().y)
+	print("  +200 chunk %d, plain chunk between %d, -100 chunk %d" % [ta, tb, tc])
+	check(ta >= 170 and ta <= 225, "a block in a +200 chunk warms to about 190 and holds")
+	check(tb >= 15 and tb <= 40, "the block in the chunk between stays near the room's 20")
+	check(tc <= -30 and tc >= -85, "and one in a -100 chunk cools to about -50")
+	# A fresh world starts that way: reset_temps (set_cells) gives each cell its chunk's ambient.
+	sim = bench_sim()
+	sim.set_ambient_offsets(offsets({hot: 200}))
+	fill(sim, Rect2i((hot.x << 5) + 4, (hot.y << 5) + 4, 8, 8), D.STONE)
+	fill(sim, Rect2i((plain.x << 5) + 4, (plain.y << 5) + 4, 8, 8), D.STONE)
+	sim.reset_temps()
+	check(sim.get_temp((hot.x << 5) + 6, (hot.y << 5) + 6) == 220 and sim.get_temp((plain.x << 5) + 6, (plain.y << 5) + 6) == 20, "reset_temps starts a chunk's cells at its ambient (220 and 20)")
+	# Water freezes in a -100 chunk (its own row ambient is 20) and boils in a +150 one.
+	for case in [{"off": -100, "what": "freezes"}, {"off": 150, "what": "boils"}]:
+		sim = bench_sim()
+		var ch := Vector2i(10, 10)
+		var box := Rect2i((ch.x << 5) + 2, (ch.y << 5) + 2, 29, 29)
+		fill(sim, box, D.BEDROCK)
+		var pool := box.grow(-1)
+		fill(sim, pool, D.AIR)
+		var water := Rect2i(pool.position.x, pool.end.y - 12, pool.size.x, 12)
+		fill(sim, water, D.WATER)
+		run(sim, 30)
+		var w0 := count_in(sim, pool, D.WATER)
+		sim.set_ambient_offsets(offsets({ch: case["off"]}))
+		run(sim, 60 * (60 if case["what"] == "freezes" else 240))   # water warms slowly: a heavy cell
+		if case["what"] == "freezes":
+			var ice := count_in(sim, pool, D.ICE)
+			check(w0 > 300 and ice > w0 * 0.5,"water in a -100 chunk freezes (%d of %d cells ice)" % [ice, w0])
+		else:
+			var left := count_in(sim, pool, D.WATER)
+			var steam := steam_in(sim, pool)
+			check(w0 > 300 and left < w0 * 0.5,"water in a +150 chunk boils away (%d of %d cells left, %d steam at the end: about half of what boils is lost)" % [left, w0, steam])
+	# An all-zero grid changes nothing: the same run with and without it ends in the same cells and temperatures.
+	var sums := []
+	for with_zero in [false, true]:
+		sim = bench_sim()
+		stone_block(sim, hot.x, hot.y)
+		if with_zero:
+			sim.set_ambient_offsets(offsets({}))
+		sim.heat_rect((hot.x << 5) + 14, (hot.y << 5) + 14, 5, 5, 400)
+		run(sim, 600)
+		var t := 0
+		for y in range((hot.y << 5) + 3, (hot.y << 5) + 30, 3):
+			for x in range((hot.x << 5) + 3, (hot.x << 5) + 30, 3):
+				t = (t * 31 + sim.get_temp(x, y)) % 1000003
+		sums.append([sim.checksum(), t])
+	check(sums[0] == sums[1], "a grid of zeros leaves the cells and their temperatures exactly as they were")
+	# wake = false (a load) leaves the awake chunks alone; the default wakes the chunks that changed.
+	sim = bench_sim()
+	run(sim, 60 * 10)
+	var ix := hot.y * (D.W >> 5) + hot.x
+	check(not (ix in sim.get_temp_chunks()), "(a quiet bench: the chunk is asleep)")
+	sim.set_ambient_offsets(offsets({hot: 50}), false)
+	check(not (ix in sim.get_temp_chunks()), "offsets set with wake off leave it asleep")
+	sim.set_ambient_offsets(offsets({hot: 60}))
+	check(ix in sim.get_temp_chunks(), "and with wake on, a changed offset wakes its chunk")
+	check(not ((ix + 1) in sim.get_temp_chunks()), "but not the chunk next to it")
+
+
+## The first row whose ambient (D.ambient_at) plus `off` degrees reaches `limit`; D.H if none does.
+func first_row_at(limit: int, off: int) -> int:
+	for y in D.H:
+		if D.ambient_at(y) + off >= limit:
+			return y
+	return D.H
+
+
+## The last row whose ambient plus `off` is still at or under `limit`, or -1.
+func last_row_at(limit: int, off: int) -> int:
+	var last := -1
+	for y in D.H:
+		if D.ambient_at(y) + off <= limit:
+			last = y
+	return last
+
+
+func scenario_o() -> void:
+	print("O. the climate grid against the materials' thresholds")
+	var heats := {"Water": 100, "Sourwater": 105, "Brine": 200, "Slick": 260, "Quickmire": 350, "Sulfur": 600, "Coal": 700}
+	var colds := {"Brine": -15, "Sourwater": -5}
+	var cw := D.W >> 5
+	for sd in [5, 7, 11, 23]:
+		var sim = SimFactory.create(1)
+		var info: Dictionary = WorldGen.new().generate(sim, sd)
+		var offs := SR.chunk_offsets(info["spawned"], D.W, D.H)
+		var shifted := 0
+		var bad := {}
+		for i in offs.size():
+			if offs[i] == 0:
+				continue
+			shifted += 1
+			var x0 := (i % cw) << 5
+			var y0 := int(i / float(cw)) << 5   # the chunk's own rows are 32 tall
+			for nm: String in heats:
+				# Only the rows the offset itself carries over the limit (the plain ambient is scenario M's).
+				var row := first_row_at(heats[nm], offs[i])
+				var row0 := first_row_at(heats[nm], 0)
+				var mask := PackedByteArray()
+				mask.resize(256)
+				mask[Mats.id_of(nm)] = 1
+				var from := maxi(row, y0)
+				var to := mini(row0, y0 + 32)
+				if from < to:
+					var n: int = sim.count_in_rect(x0, from, 32, to - from, mask)
+					if n > 0:
+						bad[nm + " warm"] = bad.get(nm + " warm", 0) + n
+			for nm: String in colds:
+				var last := last_row_at(colds[nm], offs[i])
+				var last0 := last_row_at(colds[nm], 0)
+				var mask2 := PackedByteArray()
+				mask2.resize(256)
+				mask2[Mats.id_of(nm)] = 1
+				var from2 := maxi(last0 + 1, y0)
+				var to2 := mini(last + 1, y0 + 32)
+				if from2 < to2:
+					var n2: int = sim.count_in_rect(x0, from2, 32, to2 - from2, mask2)
+					if n2 > 0:
+						bad[nm + " cold"] = bad.get(nm + " cold", 0) + n2
+		check(shifted > 300 and bad.is_empty(), "seed %d: %d chunks have an offset, and none holds a material that its sum would boil, kindle or turn (%s)" % [sd, shifted, bad])
+
+
 # --- In the game -----------------------------------------------------------------------
 
 func scenario_l() -> void:
@@ -391,6 +554,29 @@ func scenario_l() -> void:
 	check(not game.save_run() and Save.exists() == had_save, "the bench is never saved")
 	game.new_game(7)
 	check(not game.bench, "a new run isn't the bench")
+
+
+func scenario_p() -> void:
+	print("P. a saved game keeps its climate")
+	game.new_game(7)
+	game.paused = true
+	var shp: Dictionary = game.info["spawned"]["shapes"]["salt_flats"]
+	var spot := Vector2i(-1, -1)
+	for r in range(0, 40, 2):
+		for dx in range(-r, r + 1, 2):
+			if spot.x < 0 and game.sim.get_cell(int(shp["cx"]) + dx, int(shp["cy"]) + r) == D.STONE:
+				spot = Vector2i(int(shp["cx"]) + dx, int(shp["cy"]) + r)
+	var want := D.ambient_at(spot.y) - 60
+	var t0: int = game.sim.get_temp(spot.x, spot.y)
+	check(spot.x >= 0 and absi(t0 - want) <= 2, "a new game's Salt flats start 60 degrees under the row's ambient (%d at row %d, row ambient %d)" % [t0, spot.y, D.ambient_at(spot.y)])
+	var path := "user://temperature_test.save"
+	Save.write(game, path)
+	game.continue_run(path)
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	game.paused = true
+	game.run_ticks(60 * 60)
+	var t1: int = game.sim.get_temp(spot.x, spot.y)
+	check(absi(t1 - t0) <= 4, "and a minute after loading they are still there (%d to %d; with no offsets the stone would climb toward %d)" % [t0, t1, D.ambient_at(spot.y)])
 
 
 func scenario_m() -> void:

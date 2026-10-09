@@ -190,6 +190,7 @@ func generate(sim: RefCounted, seed_value: int) -> Dictionary:
 	var spawned := SR.place(g, W, H, spawn_table, seed_value, {"hub": HUB_RECT, "ground": ground, "aquifers": aquifers, "lava_pockets": lava_pockets})
 	springs.append_array(spawned["springs"])   # the Fen's pockets have one each (A6)
 	spawned.erase("springs")
+	sim.set_ambient_offsets(SR.chunk_offsets(spawned, W, H))   # each biome's own climate, per engine chunk (A6)
 
 	sim.set_cells(g)
 	g = PackedByteArray()

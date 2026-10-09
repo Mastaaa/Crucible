@@ -9,6 +9,8 @@ const PATH := "res://data/spawn_regions.json"
 const EDGE := 4          # clumps keep this far from the map's sides and floor
 const TOP := D.GROUND_Y + 20 * 4   # world spawns stay under the surface layer
 const REF_W := 768        # the width a row's clump counts were written for; a wider world gets proportionally more clumps (A6)
+const CSHIFT := 5         # the engine's chunks are 32 x 32 cells (crucible_sim.h); a biome's climate is set per chunk (A6)
+const CLIMATE_FADE := 40  # a biome's `ambient` offset reaches this far past its rim, fading to nothing
 const RIM := 0.2          # how ragged a patch's rim is, as a share of its radius squared (a clump's rim uses the same)
 
 
@@ -31,14 +33,15 @@ static func load_table(path: String = PATH) -> Dictionary:
 ## "skipped": names the material table doesn't know, "shapes": patch name -> its
 ## ragged ellipse (see `inside`), "sides": patch name -> -1 left or 1 right,
 ## "recipe": patch name -> cells its ground recipe changed, "springs": the cells of a `spring`
-## row's clumps that a spring sits on (the floor of the clump's middle column)}.
+## row's clumps that a spring sits on (the floor of the clump's middle column), "ambient": patch
+## name -> degrees its area's `ambient` adds to the row's ambient (see `chunk_offsets`)}.
 static func place(g: PackedByteArray, w: int, h: int, table: Dictionary, seed_value: int,
 		ctx: Dictionary, resolve: Callable = Callable()) -> Dictionary:
 	if not resolve.is_valid():
 		resolve = Mats.id_of
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value * 7919 + 13
-	var out := {"areas": {}, "placed": {}, "skipped": [], "shapes": {}, "sides": {}, "recipe": {}, "springs": []}
+	var out := {"areas": {}, "placed": {}, "skipped": [], "shapes": {}, "sides": {}, "recipe": {}, "springs": [], "ambient": {}}
 	var areas: Dictionary = table.get("areas", {})
 	for nm: String in areas:
 		if nm.begins_with("_"):
@@ -46,6 +49,8 @@ static func place(g: PackedByteArray, w: int, h: int, table: Dictionary, seed_va
 		var r := _area(g, w, h, nm, areas[nm], rng, ctx, resolve, out)
 		if r.size.x > 0:
 			out["areas"][nm] = r
+			if out["shapes"].has(nm) and int(areas[nm].get("ambient", 0)) != 0:
+				out["ambient"][nm] = int(areas[nm]["ambient"])
 	for row: Dictionary in table.get("spawns", []):
 		if not row.get("enabled", true):
 			continue
@@ -299,6 +304,49 @@ static func biome_at(spawned: Dictionary, x: int, y: int) -> String:
 		if inside(shapes[nm], x, y):
 			return nm
 	return ""
+
+
+## The ambient offset of each engine chunk in degrees (chunks across, then down; `w` x `h` cells), for
+## `sim.set_ambient_offsets`: each biome with an `ambient` adds it in full to the chunks whose middle is
+## inside its rim, and less the further out, to nothing at CLIMATE_FADE cells. A world with no biomes
+## (the bench, a table without patches) gives all zeros.
+static func chunk_offsets(spawned: Dictionary, w: int, h: int) -> PackedInt32Array:
+	var cw := w >> CSHIFT
+	var ch := h >> CSHIFT
+	var out := PackedInt32Array()
+	out.resize(cw * ch)
+	var shapes: Dictionary = spawned.get("shapes", {})
+	var amb: Dictionary = spawned.get("ambient", {})
+	var half := 1 << (CSHIFT - 1)
+	for nm: String in amb:
+		if not shapes.has(nm) or int(amb[nm]) == 0:
+			continue
+		var s: Dictionary = shapes[nm]
+		var reach_x: float = float(s["rx"]) * 1.1 + CLIMATE_FADE   # the rim wobbles out to about 1.1 radii
+		var reach_y: float = float(s["ry"]) * 1.1 + CLIMATE_FADE
+		var c0 := maxi(int((float(s["cx"]) - reach_x) / (1 << CSHIFT)), 0)
+		var c1 := mini(int((float(s["cx"]) + reach_x) / (1 << CSHIFT)), cw - 1)
+		var r0 := maxi(int((float(s["cy"]) - reach_y) / (1 << CSHIFT)), 0)
+		var r1 := mini(int((float(s["cy"]) + reach_y) / (1 << CSHIFT)), ch - 1)
+		for cy in range(r0, r1 + 1):
+			for cx in range(c0, c1 + 1):
+				var k := _reach(s, (cx << CSHIFT) + half, (cy << CSHIFT) + half)
+				if k > 0.0:
+					out[cy * cw + cx] += roundi(float(amb[nm]) * k)
+	return out
+
+
+## 1.0 for a point inside the patch, falling to 0.0 at CLIMATE_FADE cells outside it (rings of eight
+## points every eight cells).
+static func _reach(s: Dictionary, x: int, y: int) -> float:
+	if inside(s, x, y):
+		return 1.0
+	for r in range(8, CLIMATE_FADE, 8):
+		for k in 8:
+			var a := k * TAU / 8.0
+			if inside(s, x + roundi(cos(a) * r), y + roundi(sin(a) * r)):
+				return 1.0 - float(r) / CLIMATE_FADE
+	return 0.0
 
 
 ## Paints one clump at (cx, cy) over the hosts only; returns the cells changed.
