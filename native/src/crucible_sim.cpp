@@ -163,6 +163,7 @@ void CrucibleSim::set_size(int w, int h) {
 	heat_dirty.swap(flags);
 	temp.assign(N, (int16_t)(20 * T8));
 	ambient.assign(H, (int16_t)(20 * T8));
+	ambient_off.assign(NCH, 0);
 	tcur.assign(NCH, 0);
 	tnext.assign(NCH, 1);
 	temp_passes = 0;
@@ -766,8 +767,9 @@ void CrucibleSim::temp_chunk(Ctx &cx, int c) {
 	bool moved = false;
 	bool edge_l = false, edge_r = false, edge_u = false, edge_d = false;
 	cx.rng = hash3(seed ^ 0x5bd1e995u, (uint32_t)temp_passes, (uint32_t)c);
+	const int off = ambient_off[c];
 	for (int y = y0; y <= y1; y++) {
-		const int16_t amb = ambient[y];
+		const int amb = ambient[y] + off;
 		int row = y * W;
 		for (int x = x0; x <= x1; x++) {
 			int i = row + x;
@@ -2453,13 +2455,28 @@ void CrucibleSim::set_ambient(const PackedInt32Array &rows) {
 	std::fill(tnext.begin(), tnext.end(), (uint8_t)1);
 }
 
-// Every cell to its row's ambient, sources to what they hold: a fresh world.
+// The ambient offset of each chunk (degrees, CW across then CH down; fewer than NCH
+// and the rest are zero): a biome's own climate on top of its row's ambient. A chunk
+// whose offset changed wakes for a temperature pass, unless `wake` is false (a loaded
+// run, whose temperatures and awake chunks were saved already).
+void CrucibleSim::set_ambient_offsets(const PackedInt32Array &chunks, bool wake) {
+	for (int c = 0; c < NCH; c++) {
+		const int16_t v = c < chunks.size() ? (int16_t)std::clamp(chunks[c] * T8, -4000, 4000) : (int16_t)0;
+		if (v != ambient_off[c] && wake) {
+			tnext[c] = 1;
+		}
+		ambient_off[c] = v;
+	}
+}
+
+// Every cell to its chunk's ambient, sources to what they hold: a fresh world.
 void CrucibleSim::reset_temps() {
 	for (int y = 0; y < H; y++) {
-		int16_t amb = ambient[y];
 		int row = y * W;
+		const int crow = (y >> CSHIFT) * CW;
 		for (int x = 0; x < W; x++) {
-			temp[row + x] = placed_temp(cells[row + x], amb);
+			const int amb = std::clamp((int)ambient[y] + (int)ambient_off[crow + (x >> CSHIFT)], -32000, 32000);
+			temp[row + x] = placed_temp(cells[row + x], (int16_t)amb);
 		}
 	}
 	std::fill(tnext.begin(), tnext.end(), (uint8_t)1);
@@ -3368,6 +3385,7 @@ void CrucibleSim::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("heat_circle", "x", "y", "r", "degrees"), &CrucibleSim::heat_circle);
 	ClassDB::bind_method(D_METHOD("rect_temp", "x", "y", "w", "h"), &CrucibleSim::rect_temp);
 	ClassDB::bind_method(D_METHOD("set_ambient", "rows"), &CrucibleSim::set_ambient);
+	ClassDB::bind_method(D_METHOD("set_ambient_offsets", "chunks", "wake"), &CrucibleSim::set_ambient_offsets, DEFVAL(true));
 	ClassDB::bind_method(D_METHOD("reset_temps"), &CrucibleSim::reset_temps);
 	ClassDB::bind_method(D_METHOD("set_temp_params", "params"), &CrucibleSim::set_temp_params);
 	ClassDB::bind_method(D_METHOD("paint_circle", "x", "y", "r", "material", "keep_fixed"), &CrucibleSim::paint_circle);

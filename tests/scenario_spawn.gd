@@ -195,6 +195,35 @@ func scenario_f() -> void:
 			if ids.has(c) and SR.biome_at(sp, i % D.W, int(i / float(D.W))) != HOMES[ids[c]]:
 				outside[ids[c]] = outside.get(ids[c], 0) + 1
 		check(outside.is_empty(), "seed %d: residents stay in their biome (strays: %s)" % [s, outside])
+		# The climate grid (A6 part 3): each biome's `ambient` lands on its own chunks, fades out past the rim, and touches nothing else.
+		var amb_want := {"dunes": 20, "fen": -10, "salt_flats": -60, "sulfur_vents": 40, "gall_caverns": 40}
+		check(sp["ambient"] == amb_want, "seed %d: five of the six biomes carry an ambient offset (%s)" % [s, sp["ambient"]])
+		var offs := SR.chunk_offsets(sp, D.W, D.H)
+		var cw := D.W >> 5
+		var centres_ok := true
+		var fades_ok := true
+		for nm: String in amb_want:
+			var shp: Dictionary = shapes[nm]
+			centres_ok = centres_ok and offs[(int(shp["cy"]) >> 5) * cw + (int(shp["cx"]) >> 5)] == amb_want[nm]
+			var out_x := int(shp["cx"] + (shp["rx"] * 1.1 + 64) * (1.0 if shp["cx"] < D.W * 0.5 else -1.0))   # inward, toward the middle of the map
+			fades_ok = fades_ok and offs[(int(shp["cy"]) >> 5) * cw + (clampi(out_x, 0, D.W - 1) >> 5)] == 0
+		check(centres_ok, "seed %d: the chunk at each biome's centre has its full offset" % s)
+		check(fades_ok, "seed %d: and the chunks beyond the fade (rim + 64 cells inward) have none" % s)
+		var stray_chunks := 0
+		var part_chunks := 0
+		for i in offs.size():
+			if offs[i] == 0:
+				continue
+			var px := ((i % cw) << 5) + 16
+			var py := (int(i / float(cw)) << 5) + 16
+			var near := false
+			for nm: String in amb_want:
+				var shn: Dictionary = shapes[nm]
+				near = near or (absf(px - shn["cx"]) <= shn["rx"] * 1.1 + 56 and absf(py - shn["cy"]) <= shn["ry"] * 1.1 + 56)
+			stray_chunks += 0 if near else 1
+			part_chunks += 1 if absi(offs[i]) < 20 else 0
+		check(stray_chunks == 0 and part_chunks > 20, "seed %d: offsets sit within reach of their biomes only (%d strays) and fade through partial values (%d chunks under 20)" % [s, stray_chunks, part_chunks])
+		check(offs[(int(shapes["ferrite_hills"]["cy"]) >> 5) * cw + (int(shapes["ferrite_hills"]["cx"]) >> 5)] == 0 and offs[(int(info["hub"].position.y) >> 5) * cw + (int(info["hub"].position.x) >> 5)] == 0, "seed %d: the Ferrite hills (no ambient of their own) and the Hub's chunk stay at the row's ambient" % s)
 		# The Fen's Water pockets each carry a spring on their floor (A6 part 4: a Waterwheel's source).
 		var fen_springs := 0
 		var dry := 0
@@ -258,6 +287,24 @@ func scenario_g() -> void:
 	check(coal_in > 200 and outside_n == 0, "a resident much wider than its patch is cut at the rim (%d Coal in, %d out)" % [coal_in, outside_n])
 	check(out["recipe"]["p"] == inside_n, "and the recipe's count matches (%d)" % out["recipe"]["p"])
 	check(SR.biome_at(out, int(shape["cx"]), int(shape["cy"])) == "p" and SR.biome_at(out, 5, 5) == "", "biome_at names the patch and nothing elsewhere")
+	rock["areas"]["p"]["ambient"] = 25
+	g.fill(D.STONE)
+	out = SR.place(g, w, h, rock, 3, {})
+	shape = out["shapes"]["p"]
+	var offs_p := SR.chunk_offsets(out, w, h)
+	var cwp := w >> 5
+	var inner := offs_p[(int(shape["cy"]) >> 5) * cwp + (int(shape["cx"]) >> 5)]
+	var total := 0
+	for v in offs_p:
+		total += 1 if v != 0 else 0
+	check(out["ambient"] == {"p": 25} and inner == 25 and total > 4 and total < 60, "a patch with `ambient` sets it on the chunks in and just round it (%d at the centre, %d chunks)" % [inner, total])
+	rock["areas"]["p"].erase("ambient")
+	g.fill(D.STONE)
+	out = SR.place(g, w, h, rock, 3, {})
+	var none_set := true
+	for v in SR.chunk_offsets(out, w, h):
+		none_set = none_set and v == 0
+	check(out["ambient"].is_empty() and none_set, "and one without it sets nothing")
 	rock["spawns"][0]["spring"] = true
 	g.fill(D.STONE)
 	out = SR.place(g, w, h, rock, 3, {})

@@ -326,6 +326,7 @@ private:
 	// settles back to; which chunks the next temperature pass looks at.
 	std::vector<int16_t> temp;
 	std::vector<int16_t> ambient;
+	std::vector<int16_t> ambient_off; // A6: per chunk, eighths of a degree added to the row's ambient (biomes); not saved
 	std::vector<uint8_t> tcur;
 	std::vector<uint8_t> tnext;
 	uint16_t cond[256]; // each material's conduct, packed for the pass
@@ -545,6 +546,7 @@ public:
 	void heat_circle(int x, int y, int r, int degrees);
 	Vector3i rect_temp(int x, int y, int w, int h) const; // lowest, highest, mean
 	void set_ambient(const PackedInt32Array &rows);
+	void set_ambient_offsets(const PackedInt32Array &chunks, bool wake = true);
 	void reset_temps();
 	void set_temp_params(const Dictionary &p);
 	int paint_circle(int x, int y, int r, int m, bool keep_fixed);

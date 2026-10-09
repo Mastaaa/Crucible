@@ -27,6 +27,7 @@
 		"    anchor: box (the default, a centre anywhere in the range), surface (the centre on the ground) or lava_pocket (the centre of the pocket nearest the flank).",
 		"    side: random takes a flank per seed (x is written for the left one and mirrors for the right); opposite: <patch> takes the flank that patch did not.",
 		"    avoid: ['aquifers'] and the like, rectangles the patch tries not to cover.  size: [rx, ry] cells, the rim wobbles by a fifth.",
+		"    ambient: degrees added to the row's ambient temperature (D.ambient_at) in the biome's chunks, fading to nothing over 40 cells past its rim (`chunk_offsets`; sim.set_ambient_offsets). Keep the sums clear of the thresholds: Water 0 and 100, Brine -15 and 200, Sulfur 600, Coal 700 (scenario_temperature O checks four seeds).",
 		"    ground: the recipe, rules {from: [names], to: name, density, not_near: [names], gap} tried in order on every cell inside (not_near keeps `gap` cells clear of those); label and color are the biome view's.",
 		"    A row with `area` set to a patch starts its clumps inside it and cuts them off at its rim (clip: false lets them spill), and may carry a `depth`",
 		"    to keep to part of the patch. Residents therefore are found there and nowhere else, except the small outliers kept in the Hub's middle third:",
@@ -38,12 +39,12 @@
 	],
 	"areas": {
 		"spoil_heap": {"shape": "mound", "anchor": "hub", "dx": [230, 290], "width": [64, 84], "height": [9, 13], "fill": "Gravel"},
-		"dunes": {"shape": "patch", "label": "Dunes", "color": [0.93, 0.82, 0.45], "x": [0.13, 0.19], "size": [110, 120], "anchor": "surface", "side": "random", "avoid": ["aquifers"], "ground": [{"from": ["Dirt", "Packed dirt"], "to": "Sand"}]},
-		"fen": {"shape": "patch", "label": "Fen", "color": [0.35, 0.62, 0.42], "x": [0.13, 0.19], "size": [110, 330], "depth": [850, 1100], "opposite": "dunes", "ground": [{"from": ["Dirt"], "to": "Clay", "density": 0.5}]},
-		"salt_flats": {"shape": "patch", "label": "Salt flats", "color": [0.85, 0.92, 0.98], "x": [0.14, 0.2], "size": [105, 520], "depth": [1950, 2300], "side": "random", "ground": [{"from": ["Stone"], "to": "Salt", "density": 0.1}]},
+		"dunes": {"shape": "patch", "label": "Dunes", "ambient": 20, "color": [0.93, 0.82, 0.45], "x": [0.13, 0.19], "size": [110, 120], "anchor": "surface", "side": "random", "avoid": ["aquifers"], "ground": [{"from": ["Dirt", "Packed dirt"], "to": "Sand"}]},
+		"fen": {"shape": "patch", "label": "Fen", "ambient": -10, "color": [0.35, 0.62, 0.42], "x": [0.13, 0.19], "size": [110, 330], "depth": [850, 1100], "opposite": "dunes", "ground": [{"from": ["Dirt"], "to": "Clay", "density": 0.5}]},
+		"salt_flats": {"shape": "patch", "label": "Salt flats", "ambient": -60, "color": [0.85, 0.92, 0.98], "x": [0.14, 0.2], "size": [105, 520], "depth": [1950, 2300], "side": "random", "ground": [{"from": ["Stone"], "to": "Salt", "density": 0.1}]},
 		"ferrite_hills": {"shape": "patch", "label": "Ferrite hills", "color": [0.72, 0.46, 0.34], "x": [0.14, 0.19], "size": [130, 400], "depth": [1800, 2100], "opposite": "salt_flats", "ground": [{"from": ["Stone"], "to": "Ferrite", "density": 0.03}]},
-		"sulfur_vents": {"shape": "patch", "label": "Sulfur vents", "color": [0.95, 0.85, 0.2], "x": [0.13, 0.19], "size": [105, 170], "anchor": "lava_pocket", "side": "random", "ground": [{"from": ["Hot rock"], "to": "Sulfur", "density": 0.06, "not_near": ["Lava"], "gap": 3}]},
-		"gall_caverns": {"shape": "patch", "label": "Gall caverns", "color": [0.55, 0.85, 0.45], "x": [0.14, 0.2], "size": [110, 330], "depth": [3350, 3650], "opposite": "sulfur_vents"}
+		"sulfur_vents": {"shape": "patch", "label": "Sulfur vents", "ambient": 40, "color": [0.95, 0.85, 0.2], "x": [0.13, 0.19], "size": [105, 170], "anchor": "lava_pocket", "side": "random", "ground": [{"from": ["Hot rock"], "to": "Sulfur", "density": 0.06, "not_near": ["Lava"], "gap": 3}]},
+		"gall_caverns": {"shape": "patch", "label": "Gall caverns", "ambient": 40, "color": [0.55, 0.85, 0.45], "x": [0.14, 0.2], "size": [110, 330], "depth": [3350, 3650], "opposite": "sulfur_vents"}
 	},
 	"spawns": [
 		{"material": "Sulfur", "area": "spoil_heap", "host": ["Gravel"], "clumps": [2, 3], "radius": [3, 5], "shape": "blob"},
@@ -62,7 +63,7 @@
 		{"material": "Water", "area": "fen", "depth": [700, 1400], "host": ["Dirt", "Packed dirt", "Clay"], "clumps": [3, 4], "radius": [8, 12], "shape": "blob", "spring": true},
 
 		{"material": "Salt", "area": "salt_flats", "aspect": 8, "depth": [1500, 2600], "host": ["Stone"], "clumps": [2, 3], "radius": [60, 80], "shape": "blob"},
-		{"material": "Brine", "area": "salt_flats", "depth": [1800, 2650], "host": ["Stone"], "clumps": [3, 3], "radius": [20, 26], "shape": "blob"},
+		{"material": "Brine", "area": "salt_flats", "depth": [1900, 2650], "host": ["Stone"], "clumps": [3, 3], "radius": [20, 26], "shape": "blob"},
 		{"material": "Chlor", "area": "salt_flats", "depth": [2200, 2950], "host": ["Stone"], "clumps": [3, 3], "radius": [14, 18], "shape": "blob"},
 		{"material": "Rime", "area": "salt_flats", "depth": [1800, 2800], "host": ["Stone"], "clumps": [3, 3], "radius": [20, 24], "shape": "blob"},
 		{"material": "Flux", "area": "salt_flats", "aspect": 8, "depth": [1700, 2800], "host": ["Stone"], "clumps": [3, 4], "radius": [70, 95], "shape": "blob"},

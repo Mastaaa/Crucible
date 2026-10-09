@@ -593,6 +593,8 @@ func continue_run(path := Save.PATH) -> bool:
 	_label_sim()
 	_reset(0)
 	Save.restore(self, data["game"])
+	# The offsets are not saved: the biomes in `info` give them again. The chunks' temperatures and awake flags came with the sim.
+	sim.set_ambient_offsets(SpawnRegions.chunk_offsets(info.get("spawned", {}), D.W, D.H), false)
 	_loaded()
 	return true
 
