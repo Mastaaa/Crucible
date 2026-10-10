@@ -14,6 +14,7 @@ const EMPTY := 0.02             # a Tank this full or less counts as empty
 const PLOW_AHEAD := 2           # rows above the rig's modules cleared of loose powder on the way up
 const PLOW_BELOW := 4           # rows under each module but the Excavator, cleared of loose powder on the way down
 const PLOW_SIDE := 3            # ... and this many columns to either side of it
+const PLOW_EDGE := 1            # columns beside each module that the climb shaves of rock and powder: a ledge touching the hull holds a body that tilts a hair
 
 
 # --- The rig ---------------------------------------------------------------------
@@ -186,7 +187,7 @@ static func _plow(g, m: Dictionary) -> void:
 		if mm.is_empty():
 			continue
 		var r := MU.bounds(mm, MU.defs[mm["def"]])
-		var got: PackedInt32Array = g.sim.dig_rect(r.position.x, r.position.y - PLOW_AHEAD, r.size.x, r.size.y + PLOW_AHEAD, loose, 0, 0)
+		var got: PackedInt32Array = g.sim.dig_rect(r.position.x - PLOW_EDGE, r.position.y - PLOW_AHEAD, r.size.x + 2 * PLOW_EDGE, r.size.y + PLOW_AHEAD, loose, 0, 0)
 		for mat in 256:
 			dug += got[mat]
 	m["plowed"] = m.get("plowed", 0) + dug
