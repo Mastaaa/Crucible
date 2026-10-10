@@ -62,6 +62,7 @@ func _process(_d: float) -> bool:
 		scenario_i()
 		scenario_j()
 		scenario_k()
+		scenario_l()
 		print("FAILURES: %d" % fails)
 		return true
 	return false
@@ -326,7 +327,7 @@ func scenario_h() -> void:
 			if game.sim.get_cell(x, y) == D.AIR and game.sim.get_owner(x, y) == 0:
 				game.sim.set_cell(x, y, stone)
 				laid += 1
-	check(laid > 400, "(%d cells of Stone laid across the shaft)" % laid)
+	check(laid > 800, "(%d cells of Stone laid across the shaft)" % laid)
 	var wall_before: int = game.sim.count_in_rect(X0 - 12, top - 40, 8, 30, M.mask("solid"))
 	w["state"] = "up"
 	check(until(func() -> bool: return w["state"] == "docked", 200.0), "the rig climbs through the plug and docks (cable %.0f, %s)" % [w["cable"], w["why"]])
@@ -402,3 +403,24 @@ func scenario_k() -> void:
 	check(until(func() -> bool: return w["state"] == "down", 40.0), "with room in the bank the Funnel empties the Tank and the rig goes down (%s)" % w["why"])
 	check(game.goods.get(salt, 0.0) > 0.0, "the Salt is banked (%.3f units)" % game.goods.get(salt, 0.0))
 	check(cut != 0 and fun != 0, "(rig placed)")
+
+
+func scenario_l() -> void:
+	print("L. the climb shaves a ledge touching the hull")
+	fresh()
+	var r := build_rig()
+	var w := winch_of(r)
+	check(until(func() -> bool: return w["cable"] > 60.0, 150.0), "the rig goes down the shaft (%.0f cells)" % w["cable"])
+	var tb := MC.bounds(game.modules[r["tank"]])
+	var y := tb.position.y + 8
+	var solid := M.mask("solid")
+	game.sim.set_cell(tb.end.x, y, D.STONE)             # touching the hull
+	game.sim.set_cell(tb.end.x + 2, y, D.STONE)         # a cell of clearance
+	game.sim.set_cell(tb.position.x - 1, y, D.STONE)
+	Winch._plow(game, w)
+	check(game.sim.count_in_rect(tb.end.x, y, 1, 1, solid) == 0, "Stone against the Tank's right side is shaved off")
+	check(game.sim.count_in_rect(tb.position.x - 1, y, 1, 1, solid) == 0, "and so is Stone against its left side")
+	check(game.sim.count_in_rect(tb.end.x + 2, y, 1, 1, solid) == 1, "Stone a cell clear of the hull stays")
+	w["state"] = "up"
+	check(until(func() -> bool: return w["state"] == "docked", 200.0), "the rig climbs and docks (cable %.0f, %s)" % [w["cable"], w["why"]])
+	check(game.modules.has(r["cut"]) and w["rig"].size() == 2, "with the Cutter still hanging from the Tank")

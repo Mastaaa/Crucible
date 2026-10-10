@@ -4,6 +4,16 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A7 part 1: the climb plow shaves a ledge touching the hull
+
+Tests: the full suite is 30 lines `FAILURES: 0` (scenario_quarry gained L). No engine change.
+Found by the A7 re-baseline: the cheated seed 7 bot on the 1024-wide world stopped at depth 946 around minute 11. On the climb a wall ledge sat against the Cutter's right side (zero clearance), the Cutter
+tilted 0.005 rad and snagged, the Tank kept rising, and at a 6.97 cell face gap the link broke (`BREAK_DIST` 6.5); the Cutter fell back to the shaft floor and the Winch hauled an empty Tank forever.
+
+- `winch.gd` `_plow` now digs `PLOW_EDGE` (1) column beyond each rig module's bounds on both sides, so rock and powder touching the hull go and anything a cell clear stays (the shaft is 30 wide, the rig 26).
+- scenario_quarry L: Stone against the Tank's right and left sides is shaved, Stone one cell clear stays, and the rig climbs and docks with the Cutter still hanging.
+- The cheated bot passes depth 1000 at 14:50 and 2500 at 117:10 on this map (the old run was 2500 at 79 min on the 768-wide map).
+
 ## A6 part 3, second half: the local ambient grid (ENGINE)
 
 Tests: the full suite is 30 lines `FAILURES: 0` (scenario_temperature gained N, O and P; scenario_spawn F and G gained climate checks). Engine change: `bin/` rebuilt (both libraries).
