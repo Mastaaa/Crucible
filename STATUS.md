@@ -4,6 +4,13 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A7 part 4: Windmill makes 0.5 power/s (change C)
+
+Tests: full suite 30 lines `FAILURES: 0`. No engine change. Alex approved A, B and C on the tuning proposal (plans/a7-tuning-proposal.md), 10-11.
+- `data/modules/power.json`: the Windmill's average output is 0.5 a second (was 0.3). Gusts still swing it by 50% around the average.
+- Why: the Lab burns whatever lands in the stock, and the rig digs on what is left. With B alone the 13-tech queue finished near minute 77. With the Windmill at 0.5 the fair bot finishes it at 52:06 and reaches depth 1000 at 87:46 instead of 131:20.
+- Side effect for Alex: the Solar Panel (0.4 flat, needs a clear sky) is now weaker than the Windmill, which is free after its tech. Left alone for now; it can move in the post-A7 content pass.
+
 ## A7 part 3: Instruction 2 asks for 12 Stone (change B)
 
 Tests: full suite 30 lines `FAILURES: 0` (scenario_goals C reads the new text and total). No engine change. Alex approved A, B and C on the tuning proposal (plans/a7-tuning-proposal.md), 10-11.

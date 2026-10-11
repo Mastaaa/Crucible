@@ -6,7 +6,7 @@
 			"cost": [10, 0, 0, 0, 0],
 			"blurb": "Turns in open sky and feeds the Hub's stockpile while a Node or the Hub is within reach. Gusts come and go.",
 			"faces": [],
-			"params": {"power": 0.3, "gust": 0.5, "period": 14.0, "sky": 60}
+			"params": {"power": 0.5, "gust": 0.5, "period": 14.0, "sky": 60}
 		},
 		{
 			"id": "solar", "name": "Solar Panel", "kind": "solar", "size": [24, 8], "wall": 2, "anchored": true,
