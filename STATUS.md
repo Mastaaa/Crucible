@@ -4,6 +4,13 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A7 part 5: a Glimmer stash above the Sulfur band funds Tier 2 (change A, redone)
+
+Tests: full suite 30 lines `FAILURES: 0`. No engine change. Alex approved the Sulfur seam on the tuning proposal (plans/a7-tuning-proposal.md) and then, after it failed, asked for about 40 Glimmer near the bottom of the band before Sulfur matters (10-11).
+- What failed: the Sulfur seam. A tier 1 rig digs Sulfur, but Sulfur in the Tank eats the casing in about 15 seconds and the load spills (15 of about 1,600 cells reached the Hub). The cure is Plating, which needs Ferrite, which needs Drill Bit 4, which needs Glimmer. So the seam was dropped.
+- `data/spawn_regions.json`: one new world row, Glimmer shards (the powder, which any Drill Bit digs; the ore needs Drill Bit 3, which costs 16 Glimmer) in Dirt, Packed dirt and Clay, rows 1150 to 1280, x 0.33 to 0.66 of the width, 2 clumps of radius 20 to 24. Across seeds 3, 5, 7, 11 and 21 that is 3,200 to 4,800 cells, 32 to 48 Glimmer at 100 cells a unit. The tier 1 cable ends near row 1345, so the stash sits at the bottom of what a tier 1 rig reaches.
+- Bot: `tests/autoplay.gd` takes `--rigx=N` to stand the rig at column N (seed 7's stash lies under and beside the Hub, `--rigx=565` stands beside it) and its report line shows banked Glimmer. Fair bot at 565: Tier 2 opens at 99:10 (first Glimmer), Tank Size 2 bought at 111:40, the cable stops at 1390 (145:05). One shaft through the stash banks about 15 Glimmer; the rest needs a second pass.
+
 ## A7 part 4: Windmill makes 0.5 power/s (change C)
 
 Tests: full suite 30 lines `FAILURES: 0`. No engine change. Alex approved A, B and C on the tuning proposal (plans/a7-tuning-proposal.md), 10-11.

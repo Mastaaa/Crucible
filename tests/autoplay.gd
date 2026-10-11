@@ -30,7 +30,7 @@ var rig := {}
 var lab := 0
 var windmill := 0
 var nodes := [0, 0, 0]       # Nodes down the strip, nearest the Hub first: 0 to place, 1 placed, 2 built
-var rig_x := 0               # --rigx=N: stand the rig at column N (Nodes, Lab and Windmill go round it)
+var rig_x := 0               # --rigx=N: stand the rig at column N (a column left of the Hub moves the Nodes and the Lab; right of it the rig sits beside the Hub)
 var node_x := [0, 0, 0]      # where each one went
 var step_seen := 0
 var depth_seen := 0
@@ -130,7 +130,8 @@ func _play() -> void:
 		x0 = rig_x
 	# Nodes first: a machine works only with one in reach, and each blueprint waits on the one before.
 	var spots := [hub.position.x - 30, hub.position.x - 110, hub.position.x - 190] if side < 0 else [hub.end.x + 10, hub.end.x + 90, hub.end.x + 170]
-	if rig_x > 0:
+	var left_rig: bool = rig_x > 0 and rig_x < hub.position.x      # a rig left of the Hub shares its strip, so the Nodes and the Lab move aside
+	if left_rig:
 		spots = [hub.position.x - 30, hub.position.x - 80, hub.end.x + 10]
 	for k in nodes.size():
 		if nodes[k] == 0:
@@ -165,7 +166,7 @@ func _play() -> void:
 		_run(1.0)
 		return
 	if lab == 0:
-		lab = _put("lab", hub.position.x - 80 if side < 0 and rig_x == 0 else hub.end.x + 40, top - 30)
+		lab = _put("lab", hub.position.x - 80 if side < 0 and not left_rig else hub.end.x + 40, top - 30)
 	elif windmill == 0:
 		windmill = _put("windmill", hub.position.x - 150 if side < 0 else hub.end.x + 120, top - 40)
 	if game.current_tech == "":

@@ -21,6 +21,7 @@
 		"  Wave 1 rows (the second half of the list) follow claude/WAVE1_MATERIALS.md's home table.",
 		"  Ferrite sits above the Sulfur band (A5): seams in the Ferrite hills and a fourth in the Hub's middle third, so a straight shaft meets one",
 		"    before the casing needs Plating.",
+		"  Glimmer stash (A7): two clumps of Glimmer shards at rows 1150 to 1280 in the Hub's middle third, about 40 Glimmer, so a tier 1 rig (cable ends near 1345) can pay the 16 Glimmer that Drill Bit 3 costs. The shards are a powder, which any Drill Bit digs; the ore needs Drill Bit 3. Sulfur cannot do this job: it eats an unplated Tank.",
 		"  Wave 2 rows (A5 part 3): Brine, Salt and Chlor in the Salt flats, Lumen, Veinstone, Gall and Vitriol in the Gall caverns (A6). Lye, Lift, Pitch, Chillant and Filings are made, not found.",
 		"  Liquids stay clear of the warm rows: Brine (boils to Salt at 200) is kept above row 2650 and the worldgen caves and water pockets above 2525, where the ambient (D.ambient_at) is still under 100.",
 		"  Biomes (A6 part 2): a patch with a few more keys. Six of them, two to a band, each about a fifth of the width, on a flank of the world:",
@@ -81,6 +82,7 @@
 
 		{"material": "Hush", "x": [0.0, 1.0], "depth": [1500, 3000], "host": ["Air"], "clumps": [6, 9], "radius": [7, 12], "shape": "blob"},
 		{"material": "Wisp", "x": [0.05, 0.95], "depth": [2000, 3200], "host": ["Stone"], "clumps": [4, 4], "radius": [18, 20], "shape": "blob"},
+		{"material": "Glimmer shards", "x": [0.33, 0.66], "depth": [1150, 1280], "host": ["Dirt", "Packed dirt", "Clay"], "clumps": [2, 2], "radius": [20, 24], "shape": "blob"},
 		{"material": "Ferrite", "x": [0.38, 0.62], "depth": [1600, 2300], "host": ["Stone"], "clumps": [1, 1], "radius": [90, 110], "shape": "blob", "aspect": 4},
 		{"material": "Flux", "x": [0.38, 0.62], "depth": [1700, 2800], "host": ["Stone"], "clumps": [1, 1], "radius": [50, 60], "shape": "blob", "aspect": 3},
 		{"material": "Rime", "x": [0.38, 0.62], "depth": [1800, 2800], "host": ["Stone"], "clumps": [1, 1], "radius": [22, 26], "shape": "blob"}
