@@ -1,11 +1,8 @@
 extends SceneTree
-## A6 part 4: the surface generators, on seed 7 with the Hub as the network.
-##  A. Solar Panel: steady power under open sky, none under a roof (and again once the roof goes), none out of
-##     the network's reach, and one at the bottom of an open pit works
-##  B. the biome under a Solar Panel multiplies its power by the definition's `biomes` entry (Dunes pay best)
-##  C. Waterwheel: water standing over it runs through and out underneath for power (up to `cells` a second);
+## A6 part 4, trimmed in A7 (the Solar Panel was dropped): the Waterwheel, on seed 7 with the Hub as the network.
+##  A. Waterwheel: water standing over it runs through and out underneath for power (up to `cells` a second);
 ##     pooled water under it, or none over it, stalls it; out of reach it feeds nothing
-##  D. the two are tech-gated, and the Hub's help text and Build list know them
+##  B. it is tech-gated, there is no Solar Panel, and the Windmill stays in the starter kit
 ## Run: godot --headless --path . --script tests/scenario_generators.gd
 
 const D = preload("res://scripts/defs.gd")
@@ -32,8 +29,6 @@ func _process(_d: float) -> bool:
 			return true
 		scenario_a()
 		scenario_b()
-		scenario_c()
-		scenario_d()
 		print("FAILURES: %d" % fails)
 		return true
 	return false
@@ -85,65 +80,6 @@ func flows(id: int, n: int) -> Vector2:
 	return Vector2(lo, hi)
 
 
-func scenario_a() -> void:
-	print("A. solar panel")
-	fresh()
-	var want: float = MC.defs["solar"]["params"]["power"]
-	var id := place("solar", X0 + 32, SURFACE - 8)
-	secs(2.0)
-	var m: Dictionary = game.modules[id]
-	var s := flows(id, 5)
-	check(absf(s.x - want) < 0.001 and absf(s.y - want) < 0.001, "in open sky it makes %.2f power/s with no gusts (%.3f to %.3f)" % [want, s.x, s.y])
-	var before: float = game.stock[D.R_POWER]
-	secs(10.0)
-	check(game.stock[D.R_POWER] - before > 10.0 * (D.HUB_POWER_PER_S + want) * 0.95, "and the Hub's stock gains it (%.2f)" % (game.stock[D.R_POWER] - before))
-	fill(Rect2i(X0 + 30, SURFACE - 60, 28, 4), D.BEDROCK)
-	secs(1.0)
-	check(m["flow"] == 0.0 and "shades" in m["why"], "a roof high over it shades it: %s" % m["why"])
-	fill(Rect2i(X0 + 30, SURFACE - 60, 28, 4), D.AIR)
-	secs(1.0)
-	check(m["flow"] > 0.0, "and it comes back when the roof goes")
-
-	# A pit: air 24 wide and 32 deep, the panel at the bottom with open sky over it.
-	fresh()
-	fill(Rect2i(X0 + 32, SURFACE, 24, 40), D.AIR)
-	var pit := place("solar", X0 + 32, SURFACE + 32)
-	secs(2.0)
-	check(pit != 0 and game.modules[pit]["flow"] > 0.0, "at the bottom of an open pit it works (%.2f power/s)" % game.modules[pit]["flow"])
-	fill(Rect2i(X0 + 28, SURFACE - 1, 32, 3), D.BEDROCK)
-	secs(1.0)
-	check(game.modules[pit]["flow"] == 0.0 and "shades" in game.modules[pit]["why"], "a lid over the pit shades it")
-
-	fresh()
-	fill(Rect2i(600, SURFACE - 120, 120, 120), D.AIR)
-	fill(Rect2i(600, SURFACE, 120, 100), 6)
-	var far := place("solar", 620, SURFACE - 8)
-	secs(2.0)
-	check(game.modules[far]["flow"] == 0.0 and "reach" in game.modules[far]["why"], "out of the network's reach it feeds nothing: %s" % game.modules[far]["why"])
-
-
-func scenario_b() -> void:
-	print("B. the biome under it")
-	fresh()
-	var base: float = MC.defs["solar"]["params"]["power"]
-	var best: float = MC.defs["solar"]["params"]["biomes"]["dunes"]
-	check(best > 1.0, "the definition has Dunes pay more than the plain ground (x%.2f)" % best)
-	var id := place("solar", X0 + 32, SURFACE - 8)
-	game.info["spawned"] = {"shapes": {"dunes": {"cx": X0 + 44.0, "cy": float(SURFACE), "rx": 100.0, "ry": 100.0, "phase": 0.0}}}
-	secs(2.0)
-	var m: Dictionary = game.modules[id]
-	check(m["biome"] == "dunes" and absf(m["flow"] - base * best) < 0.001, "over the Dunes it makes %.2f power/s (%.3f in %s)" % [base * best, m["flow"], m["biome"]])
-	check("dunes" in m_info(id).to_lower(), "and says so: %s" % m_info(id))
-	game.info["spawned"] = {"shapes": {"fen": {"cx": X0 + 44.0, "cy": float(SURFACE), "rx": 100.0, "ry": 100.0, "phase": 0.0}}}
-	secs(1.0)
-	check(absf(m["flow"] - base) < 0.001, "over a biome the definition does not name it makes the plain %.2f (%.3f)" % [base, m["flow"]])
-
-
-func m_info(id: int) -> String:
-	var m: Dictionary = game.modules[id]
-	return MC.kinds[MC.defs[m["def"]]["kind"]].info(game, m, MC.defs[m["def"]])
-
-
 ## A pit 16 wide with a step at WY + 14 to a slot 12 wide and 10 deep; the wheel rests on the step.
 func wheel_bench(wx: int, wy: int, water_rows: int) -> int:
 	fresh()
@@ -154,8 +90,8 @@ func wheel_bench(wx: int, wy: int, water_rows: int) -> int:
 	return id
 
 
-func scenario_c() -> void:
-	print("C. waterwheel")
+func scenario_a() -> void:
+	print("A. waterwheel")
 	var wx := X0 + 32
 	var wy := SURFACE + 20
 	var id := wheel_bench(wx, wy, 10)
@@ -201,13 +137,14 @@ func scenario_c() -> void:
 	check(far != 0 and game.modules[far].get("passed", 0) == 0 and "reach" in game.modules[far]["why"], "out of the network's reach it passes nothing: %s" % game.modules[far]["why"])
 
 
-func scenario_d() -> void:
-	print("D. research and the Build list")
+func scenario_b() -> void:
+	print("B. research and the Build list")
 	fresh()
-	for id in ["solar", "waterwheel"]:
+	for id in ["waterwheel"]:
 		var def: Dictionary = MC.defs[id]
 		check(def.has("tech") and D.tech_index(def["tech"]) >= 0, "%s names a tech that exists (%s)" % [id, def.get("tech", "")])
 		check(not MC.unlocked(game, def), "%s is locked until researched" % id)
 		game.researched[def["tech"]] = 1
 		check(MC.unlocked(game, def), "and unlocked once it is")
+	check(not MC.defs.has("solar") and D.tech_index("solar") < 0, "the Solar Panel and its tech are gone")
 	check(not MC.defs["windmill"].has("tech"), "the Windmill stays in the starter kit")

@@ -3,17 +3,10 @@
 	"modules": [
 		{
 			"id": "windmill", "name": "Windmill", "kind": "windmill", "size": [12, 36], "wall": 2,
-			"cost": [10, 0, 0, 0, 0],
+			"cost": [16, 0, 0, 0, 0],
 			"blurb": "Turns in open sky and feeds the Hub's stockpile while a Node or the Hub is within reach. Gusts come and go.",
 			"faces": [],
 			"params": {"power": 0.5, "gust": 0.5, "period": 14.0, "sky": 60}
-		},
-		{
-			"id": "solar", "name": "Solar Panel", "kind": "solar", "size": [24, 8], "wall": 2, "anchored": true,
-			"tech": "solar", "cost": [10, 3, 0, 0, 0],
-			"blurb": "Bolted in place. Needs a clear line up to the sky (a panel at the bottom of an open pit works) and feeds the Hub's store while a Node or the Hub is within reach. Steady, with no gusts; the biome under it sets how much, and Dunes pay best.",
-			"faces": [],
-			"params": {"power": 0.4, "biomes": {"dunes": 1.8}}
 		},
 		{
 			"id": "waterwheel", "name": "Waterwheel", "kind": "waterwheel", "size": [16, 14], "wall": 2, "anchored": true,

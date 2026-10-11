@@ -133,7 +133,7 @@ the Tank with water and the Hub banks it.
 | Excavation | Laser Excavator (sketch, one-pixel beam for stripping ore from walls, can swap mined cells for filler), Cutter Excavator (sketch), tethered Thumper (sketch, impact-triggered, 90 degree cone), Water Jet, Splitter (clean slabs as bodies) |
 | Processing | Boiler (chat), Chiller, Macerator (chat, grinds bodies to pixels), Press, Furnace, Caster (molten in, rigid body out as it cools), Centrifuge (by density), Agitator, Condenser, Electrolyser |
 | Sensing | Thermometer, Level gauge, Material Sensor, Scale, Timer |
-| Power | Windmill, Solar Panel, Steam Turbine and Waterwheel (carry over), Thermoelectric Plate, Combustor, Tap (geyser or oil deposit) |
+| Power | Windmill, Steam Turbine and Waterwheel (carry over; the Solar Panel was dropped in A7), Thermoelectric Plate, Combustor, Tap (geyser or oil deposit) |
 | Support | Radiator Fin, Insulator Plate, Lamp, Bulkhead, Brace |
 | Haulers | Drone Cage (the Warren reworked): drones pick up loose pixels in a highlighted area and drop them elsewhere |
 
