@@ -4,6 +4,14 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A7 part 6: the Solar Panel is gone, the Windmill costs 16 Stone
+
+Tests: full suite 30 lines `FAILURES: 0` (scenario_generators trimmed to the Waterwheel). No engine change. Alex asked for this on the thread, 10-11, after the Windmill at 0.5 power/s left the Solar Panel (0.4 flat) with no job.
+- Removed: the `solar` module (`data/modules/power.json`, `scripts/machines/power/solar.gd`), its tech (`defs.gd`) and the Hub help text that named it. The save version goes to 4, so older saves with a panel in them are refused instead of crashing.
+- `data/modules/power.json`: the Windmill costs 16 Stone (was 10), the same as the Waterwheel. The Windmill is the starter generator and now the main early power source.
+- Left alone: the Dunes biome keeps its +20 degrees and sand; it no longer has a power bonus to offer. Say if Dunes should get another job.
+- Tests: scenario_generators lost its Solar scenarios A and B; the Waterwheel and the research gate remain, and a check that the Solar Panel and its tech are gone.
+
 ## A7 part 5: a Glimmer stash above the Sulfur band funds Tier 2 (change A, redone)
 
 Tests: full suite 30 lines `FAILURES: 0`. No engine change. Alex approved the Sulfur seam on the tuning proposal (plans/a7-tuning-proposal.md) and then, after it failed, asked for about 40 Glimmer near the bottom of the band before Sulfur matters (10-11).

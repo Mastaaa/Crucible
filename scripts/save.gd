@@ -15,7 +15,7 @@ const Interior = preload("res://scripts/machines/interior.gd")
 
 const PATH := "user://run.save"
 const MAGIC := 0x43525553           # "CRUS"
-const VERSION := 3                  # 3: A6, the world is 1024 wide. 2: the A3 cut (no Drill, new building types, modules for the rest)
+const VERSION := 4                  # 4: A7, the Solar Panel is gone (its module and tech no longer exist). 3: A6, the world is 1024 wide. 2: the A3 cut (no Drill, new building types, modules for the rest)
 const AUTOSAVE_S := 300.0           # seconds of play between autosaves
 
 ## What the game node keeps that a run needs back. Everything else is a cache
