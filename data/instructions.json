@@ -14,7 +14,7 @@
 		{"text": "Build a Cutter Excavator, a Tank, a Funnel and a Winch.", "check": {"kind": "all", "of": [
 			{"kind": "built", "building": "Cutter Excavator"}, {"kind": "built", "building": "Tank"},
 			{"kind": "built", "building": "Funnel"}, {"kind": "built", "building": "Winch"}]}, "reward": {"power": 40}},
-		{"text": "Deliver 30 Stone to the Hub.", "check": {"kind": "deliver", "res": "Stone", "amount": 30}, "reward": {"power": 40}},
+		{"text": "Deliver 12 Stone to the Hub.", "check": {"kind": "deliver", "res": "Stone", "amount": 12}, "reward": {"power": 40}},
 		{"text": "Build a Lab.", "check": {"kind": "built", "building": "Lab"}, "reward": {"power": 100}},
 		{"text": "Complete one research.", "check": {"kind": "researched", "count": 1}, "reward": {"power": 60}},
 		{"text": "Reach depth 500.", "check": {"kind": "depth", "value": 500}, "reward": {"power": 60}},

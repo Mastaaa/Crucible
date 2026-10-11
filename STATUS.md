@@ -4,6 +4,12 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A7 part 3: Instruction 2 asks for 12 Stone (change B)
+
+Tests: full suite 30 lines `FAILURES: 0` (scenario_goals C reads the new text and total). No engine change. Alex approved A, B and C on the tuning proposal (plans/a7-tuning-proposal.md), 10-11.
+- `data/instructions.json`: the second tutorial step is "Deliver 12 Stone to the Hub." (was 30). The standing "Deliver 40 Stone" order is unchanged.
+- Why: seed 7's rig delivers about 12 Stone on its first full trip, then idles at the cable limit while research saves up, so the 30th Stone arrived at minute 80 and held Instructions 3 to 5 (260 power of rewards) back with it. With 12, the fair bot finishes Instruction 4 at 10:00 and Instruction 5 at 15:25.
+
 ## A7 part 2: bot upkeep
 
 Tests: none run; only `tests/autoplay.gd` changed, which is not in the suite (the suite was green on main, 30 lines, at PR #47). No engine change.
