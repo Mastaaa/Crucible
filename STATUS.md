@@ -4,6 +4,15 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A7 part 2: bot upkeep
+
+Tests: none run; only `tests/autoplay.gd` changed, which is not in the suite (the suite was green on main, 30 lines, at PR #47). No engine change.
+
+- The status line shows `delivered` Stone (the goal layer's tally).
+- Once its fixed order is spent the bot researches the next level of `AFTER` (drill_shaft, drill_bit, tank_size, throughput, efficiency, plating) whose tier is open. Before, it sat idle at the cable limit from about minute 76.
+- A Node that came loose and fell down the shaft (cave-ins at rows 180 to 210 keep widening the rim) is rebuilt on the nearest sound spot toward the Hub, trying 0, 10, 20, 30 and 40 cells in. The old bot never noticed, and the Winch stopped with "No Node or Hub within reach" for the rest of the run.
+- Found by the re-baseline (plans/a7-tuning-proposal.md in the project files): a fair run cannot pass cable 1200 because tier 2 needs Glimmer and the first Glimmer is at row 1680 to 1720.
+
 ## A7 part 1: the climb plow shaves a ledge touching the hull
 
 Tests: the full suite is 30 lines `FAILURES: 0` (scenario_quarry gained L). No engine change.
