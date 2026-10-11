@@ -17,6 +17,9 @@ const Cutter = preload("res://scripts/machines/excavation/cutter.gd")
 
 const ORDER := ["drill_bit", "drill_shaft", "chute", "pump", "tank_size", "drill_shaft", "lamp", "drill_bit", "drill_shaft", "tank_size", "brace", "plating", "plating"]
 
+## Once ORDER is spent: the first of these that has a level left and a tier open.
+const AFTER := ["drill_shaft", "drill_bit", "tank_size", "throughput", "efficiency", "plating"]
+
 var game: Node
 var seed_value := 7
 var max_time := 3600.0
@@ -26,7 +29,8 @@ var f := 0
 var rig := {}
 var lab := 0
 var windmill := 0
-var nodes := [0, 0, 0]       # Nodes down the strip, nearest the Hub first
+var nodes := [0, 0, 0]       # Nodes down the strip, nearest the Hub first: 0 to place, 1 placed, 2 built
+var node_x := [0, 0, 0]      # where each one went
 var step_seen := 0
 var depth_seen := 0
 var techs_seen := 0
@@ -120,14 +124,25 @@ func _play() -> void:
 	var spots := [hub.position.x - 30, hub.position.x - 110, hub.position.x - 190] if side < 0 else [hub.end.x + 10, hub.end.x + 90, hub.end.x + 170]
 	for k in nodes.size():
 		if nodes[k] == 0:
-			var r := Rect2i(spots[k], top - 20, 20, 20)
-			if game.check_place(D.B_NODE, r) == "":
-				game.place(D.B_NODE, r)
-				nodes[k] = 1
+			# the rig's shaft widens at the rim with every cave-in, so a spot undercut once is tried again further from it
+			for dx in [0, 10, 20, 30, 40]:
+				var nx: int = spots[k] + (dx if side < 0 else -dx)
+				var r := Rect2i(nx, top - 20, 20, 20)
+				if game.check_place(D.B_NODE, r) == "":
+					game.place(D.B_NODE, r)
+					node_x[k] = nx
+					nodes[k] = 1
+					break
 			break
-		elif not _built_node(spots[k]):
-			_run(1.0)
-			return
+		elif nodes[k] == 2 and not _built_node(node_x[k], top - 20):
+			nodes[k] = 0            # the Node came loose (a cave-in under it) and fell down the shaft: put another beside its spot
+			print("%s  node %d lost, rebuilding" % [_clock(game.game_time), k])
+			break
+		elif nodes[k] == 1:
+			if not _built_node(node_x[k], top - 20):
+				_run(1.0)
+				return
+			nodes[k] = 2
 	if not rig.has("winch"):
 		var parts := [["cutter", x0, top - 16], ["tank", x0, top - 46], ["funnel", x0, top - 60], ["winch", x0 + 14, top - 64]]
 		for p: Array in parts:
@@ -150,6 +165,11 @@ func _play() -> void:
 			if game.level(id) < int(seen[id]) and game.tech_block(id) == "":
 				game.pick_research(id)
 				break
+		if game.current_tech == "":
+			for id: String in AFTER:        # the fixed order is spent: the cable is what stops a rig, so keep lengthening it
+				if game.tech_block(id) == "":
+					game.pick_research(id)
+					break
 	_swap()
 	_run(5.0)
 	_report(false)
@@ -241,9 +261,9 @@ func _hang(def_id: String) -> int:
 
 
 
-func _built_node(x: int) -> bool:
+func _built_node(x: int, y: int) -> bool:
 	for b: Object in game.buildings:
-		if b.type == D.B_NODE and b.x == x and b.built:
+		if b.type == D.B_NODE and b.x == x and absi(b.y - y) < 40 and b.built:      # one that fell down the shaft keeps its x
 			return true
 	return false
 
@@ -296,7 +316,7 @@ func _report(final: bool) -> void:
 		if final and OS.get_cmdline_user_args().has("--dump"):
 			print("  goods %s, tech power %s, tech bank %s" % [str(game.goods), str(game.tech_power), str(game.tech_bank)])
 			print("  winch blips (wall readings that came and went): %d" % game.modules.get(rig.get("winch", -1), {}).get("blips", 0))
-		print("%s  depth %d, Stone %d, power %d, tech %s, %s" % [_clock(t), depth, int(game.stock[D.R_STONE]), int(game.stock[D.R_POWER]), game.current_tech, why])
+		print("%s  depth %d, Stone %d (delivered %d), power %d, tech %s, %s" % [_clock(t), depth, int(game.stock[D.R_STONE]), int(game.goals["delivered"][D.R_STONE]), int(game.stock[D.R_POWER]), game.current_tech, why])
 
 
 ## What sits in the shaft just above the Tank: loose bodies, and the solid cells by material.
