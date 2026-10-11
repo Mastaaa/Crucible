@@ -30,6 +30,7 @@ var rig := {}
 var lab := 0
 var windmill := 0
 var nodes := [0, 0, 0]       # Nodes down the strip, nearest the Hub first: 0 to place, 1 placed, 2 built
+var rig_x := 0               # --rigx=N: stand the rig at column N (a column left of the Hub moves the Nodes and the Lab; right of it the rig sits beside the Hub)
 var node_x := [0, 0, 0]      # where each one went
 var step_seen := 0
 var depth_seen := 0
@@ -52,6 +53,8 @@ func _initialize() -> void:
 			max_time = float(a.substr(6))
 		elif a == "--right":
 			side = 1
+		elif a.begins_with("--rigx="):
+			rig_x = int(a.substr(7))
 		elif a == "--quiet":
 			quiet = true
 		elif a == "--cheat":
@@ -91,7 +94,10 @@ func _flatten() -> void:
 	var hub: Rect2i = game.hub.rect()
 	var ground := hub.end.y
 	var from := hub.position.x - 300 if side < 0 else hub.end.x
-	for x in range(from, from + 300):
+	var width := 300 if rig_x == 0 else 300 + hub.size.x + 200      # --rigx also builds to the Hub's right
+	for x in range(from, from + width):
+		if x >= hub.position.x and x < hub.end.x:
+			continue
 		for y in range(ground - 80, ground):
 			game.sim.set_cell(x, y, D.AIR)
 		for y in range(ground, ground + 12):
@@ -120,8 +126,13 @@ func _play() -> void:
 	var x0 := hub.position.x - 230 if side < 0 else hub.end.x + 200
 	if OS.get_cmdline_user_args().has("--plug"):
 		x0 = int(game.info["plug_x"]) + 7       # the rig stands over the chamber's plug (the one way through the bedrock)
+	if rig_x > 0:
+		x0 = rig_x
 	# Nodes first: a machine works only with one in reach, and each blueprint waits on the one before.
 	var spots := [hub.position.x - 30, hub.position.x - 110, hub.position.x - 190] if side < 0 else [hub.end.x + 10, hub.end.x + 90, hub.end.x + 170]
+	var left_rig: bool = rig_x > 0 and rig_x < hub.position.x      # a rig left of the Hub shares its strip, so the Nodes and the Lab move aside
+	if left_rig:
+		spots = [hub.position.x - 30, hub.position.x - 80, hub.end.x + 10]
 	for k in nodes.size():
 		if nodes[k] == 0:
 			# the rig's shaft widens at the rim with every cave-in, so a spot undercut once is tried again further from it
@@ -155,7 +166,7 @@ func _play() -> void:
 		_run(1.0)
 		return
 	if lab == 0:
-		lab = _put("lab", hub.position.x - 80 if side < 0 else hub.end.x + 40, top - 30)
+		lab = _put("lab", hub.position.x - 80 if side < 0 and not left_rig else hub.end.x + 40, top - 30)
 	elif windmill == 0:
 		windmill = _put("windmill", hub.position.x - 150 if side < 0 else hub.end.x + 120, top - 40)
 	if game.current_tech == "":
@@ -316,7 +327,7 @@ func _report(final: bool) -> void:
 		if final and OS.get_cmdline_user_args().has("--dump"):
 			print("  goods %s, tech power %s, tech bank %s" % [str(game.goods), str(game.tech_power), str(game.tech_bank)])
 			print("  winch blips (wall readings that came and went): %d" % game.modules.get(rig.get("winch", -1), {}).get("blips", 0))
-		print("%s  depth %d, Stone %d (delivered %d), power %d, tech %s, %s" % [_clock(t), depth, int(game.stock[D.R_STONE]), int(game.goals["delivered"][D.R_STONE]), int(game.stock[D.R_POWER]), game.current_tech, why])
+		print("%s  depth %d, Stone %d (delivered %d), Glimmer %d, power %d, tech %s, %s" % [_clock(t), depth, int(game.stock[D.R_STONE]), int(game.goals["delivered"][D.R_STONE]), int(game.stock[D.R_GLIMMER]), int(game.stock[D.R_POWER]), game.current_tech, why])
 
 
 ## What sits in the shaft just above the Tank: loose bodies, and the solid cells by material.
