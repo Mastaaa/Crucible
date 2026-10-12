@@ -101,7 +101,70 @@ static func place(g: PackedByteArray, w: int, h: int, table: Dictionary, seed_va
 					out["springs"].append(Vector2i(cx, floor_y))
 		var key: String = str(row["material"])
 		out["placed"][key] = out["placed"].get(key, 0) + cells
+	_hard_rock(g, w, h, table.get("hard_rock", {}), rng, ctx, resolve, out)
 	return out
+
+
+## Hard-rock patches (A7): wide lenses of rock that no bit digs until the Drill Bit is about two levels
+## past the one the depth expects, so a straight shaft halts and the player starts a new column. Per band
+## in `hard_rock.bands`: `patches` lenses of `material` between `depth` rows, `width` and `height` the
+## full size of a lens in cells. The first lens of a band is steered over the Hub's column (the shaft a
+## player would sink straight down), the rest land anywhere. A lens is refused if it would push any row's
+## covered width past `cap` of the map's width, so there is always a way round. Runs after every other
+## spawn row (own place in the random stream; nothing else in a seed moves).
+static func _hard_rock(g: PackedByteArray, w: int, h: int, cfg: Dictionary, rng: RandomNumberGenerator,
+		ctx: Dictionary, resolve: Callable, out: Dictionary) -> void:
+	var placed: Array = []
+	out["hard_rock"] = placed
+	if cfg.is_empty():
+		return
+	var cap := float(cfg.get("cap", 0.33)) * float(w)
+	var hub: Rect2i = ctx.get("hub", Rect2i(w >> 1, 0, 0, 0))
+	var hub_x := hub.position.x + (hub.size.x >> 1)
+	var covered := PackedFloat32Array()
+	covered.resize(h)
+	for band: Dictionary in cfg.get("bands", []):
+		var mat: int = resolve.call(str(band.get("material", "")))
+		if mat < 0:
+			out["skipped"].append(str(band.get("material", "")))
+			continue
+		var hosts: Array = []
+		for hn in band.get("host", []):
+			var hid: int = resolve.call(str(hn))
+			if hid >= 0:
+				hosts.append(hid)
+		if hosts.is_empty():
+			continue
+		var ds: Array = band.get("depth", [TOP, h - 2 * EDGE])
+		var n := _count(rng, band.get("patches", [1, 1]))
+		var cells := 0
+		for i in n:
+			for _try in 24:
+				var half := _count(rng, band.get("width", [80, 120])) >> 1
+				var hh := maxi(_count(rng, band.get("height", [14, 24])) >> 1, 2)
+				var cy := rng.randi_range(int(ds[0]) + hh, int(ds[1]) - hh)
+				var cx := rng.randi_range(EDGE + half, w - EDGE - half - 1)
+				if i == 0:     # this one lies over the Hub's column, with the column well inside it
+					var reach := maxi(half - 20, 0)
+					cx = clampi(hub_x + rng.randi_range(-reach, reach), EDGE + half, w - EDGE - half - 1)
+				var ok := true
+				for y in range(cy - hh, cy + hh + 1):
+					var dy := float(y - cy) / float(hh)
+					var span := 2.0 * float(half) * sqrt(maxf(1.0 - dy * dy, 0.0)) * 1.1   # 1.1 for the ragged rim
+					if covered[y] + span > cap:
+						ok = false
+						break
+				if not ok:
+					continue
+				for y in range(cy - hh, cy + hh + 1):
+					var dy2 := float(y - cy) / float(hh)
+					covered[y] += 2.0 * float(half) * sqrt(maxf(1.0 - dy2 * dy2, 0.0)) * 1.1
+				var added := _clump(g, w, h, mat, hosts, cx, cy, half, "blob", 1.0, rng, float(half) / float(hh))
+				cells += added
+				placed.append({"material": str(band["material"]), "rect": Rect2i(cx - half, cy - hh, 2 * half, 2 * hh), "cells": added, "over_hub": i == 0})
+				break
+		var key: String = str(band["material"])
+		out["placed"][key] = out["placed"].get(key, 0) + cells
 
 
 ## The lowest cell of `mat` in column `x`, looking `rad` rows either side of `cy`, or -1.

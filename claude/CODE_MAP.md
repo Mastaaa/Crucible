@@ -34,6 +34,8 @@ index as [Stone, Glimmer, Obsidian, Water, Power].
   worldgen's grid; worldgen calls it once, after `_heat`, and returns its report as `spawned`.
   Rows are blobs, speckles, or seams (`aspect`); the second half of the table is wave 1's home
   ranges. Cells come out of `set_cells` at their `placed` temperature (Rime is cold).
+  `_hard_rock` (A7, runs last; the `hard_rock` table: bands of Flint, Basalt and Granite lenses, the
+  first of each band steered over the Hub's column, a per-row width `cap`) is reported in `spawned["hard_rock"]`.
   A6 part 3: a patch's `ambient` is in `place()`'s `ambient`; `chunk_offsets(spawned, w, h)` turns it into the engine's per-chunk grid (`_reach` fades it over `CLIMATE_FADE` cells), worldgen sets it and `game.continue_run` sets it again after a load.
   A6 part 4: a row with `spring: true` adds the floor of each clump's middle column to `place()`'s `springs`; worldgen appends them to its spring list (the Fen's Water pockets).
   A6 part 2: a `patch` is a biome: `_patch` draws a ragged ellipse (`shapes[name]`: cx, cy, rx, ry, phase;
