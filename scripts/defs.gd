@@ -316,6 +316,8 @@ const TECHS := [
 		"text": "A bolted module that sets liquid into a solid block: Lava becomes Obsidian, Slag a crust, Quickmire Mire stone, Water Ice."},
 	{"id": "brace", "name": "Brace", "tier": 1, "needs": [], "power": 180, "building": B_BRACE,
 		"text": "A beam across a gap, rock to rock (up to 160 cells). It props what rests on it and holds rock within 50 cells of each end."},
+	{"id": "filler", "name": "Filler", "tier": 1, "needs": ["brace"], "power": 300, "module": "filler",
+		"text": "A module that lines loose ground: within 60 cells it turns Sand, Loose dirt and Rubble that has open space beside or under it into Grout, for 1 Stone a 30 cells. Sand slumps into a new shaft; this holds the rim."},
 	{"id": "tremor_dampers", "name": "Tremor Dampers", "tier": 4, "needs": ["brace"], "power": 1200,
 		"mats": [0, 0, 20, 0, 0], "text": "Tremors crumble no stone within 120 cells of a Brace."},
 	# Upgrades.

@@ -1,5 +1,5 @@
 {
-	"_about": "Module definitions for the support group (A3 survivors of the cut: Lab, Lamp; A5: Shorer). See logistics.json for the shape. `tech` names the research that opens it for the Build list.",
+	"_about": "Module definitions for the support group (A3 survivors of the cut: Lab, Lamp; A5: Shorer; A7: Filler). See logistics.json for the shape. `tech` names the research that opens it for the Build list.",
 	"modules": [
 		{
 			"id": "lab", "name": "Lab", "kind": "lab", "size": [40, 30], "wall": 2,
@@ -14,6 +14,13 @@
 			"blurb": "Lights 200 cells round it while it has power (0.1/s from the Hub's stockpile; it needs a Node or the Hub within reach). Rock casts shadows.",
 			"faces": [],
 			"params": {}
+		},
+		{
+			"id": "filler", "name": "Filler", "kind": "filler", "size": [14, 16], "wall": 2, "tech": "filler",
+			"cost": [8, 0, 0, 0, 0],
+			"blurb": "Lines loose ground. Within 60 cells it turns every Sand, Loose dirt or Rubble cell that has open space beside or under it into Grout, a cell for a cell, so nothing moves and the ground behind and above is left alone. A cell open only on top is skipped. It pays 1 Stone from the Hub for every 30 cells and a little power a cell; it needs a Node or the Hub in reach. Sand pours as soon as a shaft opens it, so stand it by the rim first.",
+			"faces": [],
+			"params": {"radius": 60, "rate": 6, "rows": 2, "per_stone": 30, "power": 0.02}
 		},
 		{
 			"id": "shorer", "name": "Shorer", "kind": "shorer", "size": [14, 16], "wall": 2, "interior": true, "front": "left",

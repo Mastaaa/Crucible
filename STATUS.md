@@ -4,6 +4,15 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A7 part 8: the Filler and Grout
+
+Tests: full suite 32 lines `FAILURES: 0` (new scenario_filler). No engine change. Alex's idea on the thread, 10-12, after Brace and a static collar were tested for the sand rim erosion (plans/a7-tuning-proposal.md section 9); she chose "Build it" on the design card.
+- Finding behind it: only Sand topsoil slumps when a shaft opens (a 30-wide opening grows to about 110 in 30 s, then stops); Dirt stays put. A Brace cannot anchor in Sand (anchors must be static). A one-cell static wall through the sand layer holds the whole rim.
+- `scripts/machines/support/filler.gd`, module `filler` in `data/modules/support.json` (14 x 16, cost 8 Stone), tech `filler` (tier 1, needs Brace, 300 power). Each scan it sweeps 2 rows of the 60 cell circle round it and turns every powder cell with open space at its left, right or underneath into Grout, in place. A cell open only on top (a dune's surface) is skipped. It pays 1 Stone from the Hub for every 30 cells and 0.02 power a cell, and needs a Node or the Hub in reach. A full sweep takes about 6 s, inside the 20 s a fresh face holds (`D.SETTLE_S`).
+- Grout (id 72, `data/materials.json`): static, span 150, dig rate 40 (the first Drill Bit digs it), yields Stone.
+- scenario_filler: a 12 x 30 shaft through a Sand block; without a Filler the opening grows from 12 to 28; with one both walls are Grout (60 cells), the shaft keeps its width and the Sand behind the lining stays Sand; 2 Stone for 60 cells; Dirt and the dune's top are left alone; no Stone, no power or out of reach lays nothing and says why.
+- Not done: nothing tells a player that a sand rim needs it; the bot does not use it; the Filler cannot line a shaft before the shaft exists (it works on open faces, so it follows the Cutter).
+
 ## A7 part 7: hard-rock patches
 
 Tests: full suite 31 lines `FAILURES: 0` (new scenario_hardrock). No engine change. Alex's call on the thread, 10-11: patches go in A7 because they set the pace.
