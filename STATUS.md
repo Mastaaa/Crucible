@@ -4,6 +4,19 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A7 part 7: hard-rock patches
+
+Tests: full suite 31 lines `FAILURES: 0` (new scenario_hardrock). No engine change. Alex's call on the thread, 10-11: patches go in A7 because they set the pace.
+- `data/spawn_regions.json` gets a `hard_rock` table and `scripts/spawn_regions.gd` a `_hard_rock` pass that runs after every spawn row. Three bands of wide lenses (90 to 150 cells across, 16 to 28 high, 3 to 4 a band): Flint at rows 300 to 800 (Drill Bit 3), Basalt at 800 to 1500 (Drill Bit 4), Granite at 1500 to 2500 (Drill Bit 5). Each is two levels past what its depth expects, as Alex asked.
+- Rules from Alex's answers: placement is random, the first lens of each band is steered over the Hub's column, and no row of the map has more than a third of its width under patches (`cap` 0.33, checked as each lens goes in). On seeds 7, 3, 11, 5, 21 and 42 every band crosses the Hub's column and the worst row is 0.25.
+- Three new materials in `data/materials.json` (ids 69 to 71, yield Stone, hold up like Stone): Flint dig rate 14, Basalt 10, Granite 7.4. The Cutter's hardness table is unchanged (40, 30, 20, 12, 8, 7 by level), so each opens at exactly one bit level. Alex's fallback for "no existing hard rock" was a generic hard stone per band; there was no plain natural hard rock to reuse, so these are those.
+- The Glimmer stash (rows 1150 to 1280) sits in the Basalt band; patches replace only Dirt, Packed dirt, Clay and Stone, so the shards stay whole.
+- Bot (`tests/autoplay.gd`), three changes:
+  - When a halt names Flint, Basalt or Granite that the bit cannot open, it takes the rig down and stands it on the free column with the least of that rock below, among columns where the Cutter and the Winch stay in a Node's reach. The parts' prices go back to the stockpile, as moving a rig by hand costs nothing. It reads the map to choose, which a player would learn with a Lamp or a probe shaft. Checked on seed 7 with `--rigx=565`: Flint stops the shaft at 293, the rig moves to column 212 at 5:09 and reaches depth 481 (the cable limit) by minute 15.
+  - It builds the Windmill before the Lab: at 16 Stone the opening is about 5 Stone short, and a Lab that took the Stone left no Windmill.
+  - It stops researching while the stockpile is under 1 power and starts again at 8. Found while chasing a stall at depth 244 to 272: the Lab drinks every unit of power that arrives and leaves the Cutter dry ("Waiting for power" for an hour; Instruction 4 at 75:47). Left running, the same bot reaches depth 500 near minute 12 only when the timing happens to favour the Cutter. This is a pacing finding for Alex as much as a bot fix: a player has to pause research (T) to dig, and nothing says so.
+- Not done: nothing in the game tells a player where the patches are; the sighted note appears when one is first seen.
+
 ## A7 part 6: the Solar Panel is gone, the Windmill costs 16 Stone
 
 Tests: full suite 30 lines `FAILURES: 0` (scenario_generators trimmed to the Waterwheel). No engine change. Alex asked for this on the thread, 10-11, after the Windmill at 0.5 power/s left the Solar Panel (0.4 flat) with no job.

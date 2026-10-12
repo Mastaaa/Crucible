@@ -32,6 +32,9 @@ var windmill := 0
 var nodes := [0, 0, 0]       # Nodes down the strip, nearest the Hub first: 0 to place, 1 placed, 2 built
 var rig_x := 0               # --rigx=N: stand the rig at column N (a column left of the Hub moves the Nodes and the Lab; right of it the rig sits beside the Hub)
 var node_x := [0, 0, 0]      # where each one went
+var col_x := 0               # a rig moved to a new column after a hard-rock patch stopped the old one
+var moves := 0
+const HARD := {"Flint": 3, "Basalt": 4, "Granite": 5}      # hard-rock patches and the Drill Bit level each takes
 var step_seen := 0
 var depth_seen := 0
 var techs_seen := 0
@@ -128,6 +131,8 @@ func _play() -> void:
 		x0 = int(game.info["plug_x"]) + 7       # the rig stands over the chamber's plug (the one way through the bedrock)
 	if rig_x > 0:
 		x0 = rig_x
+	if col_x > 0:
+		x0 = col_x
 	# Nodes first: a machine works only with one in reach, and each blueprint waits on the one before.
 	var spots := [hub.position.x - 30, hub.position.x - 110, hub.position.x - 190] if side < 0 else [hub.end.x + 10, hub.end.x + 90, hub.end.x + 170]
 	var left_rig: bool = rig_x > 0 and rig_x < hub.position.x      # a rig left of the Hub shares its strip, so the Nodes and the Lab move aside
@@ -165,11 +170,14 @@ func _play() -> void:
 						rig["digger"] = id
 		_run(1.0)
 		return
-	if lab == 0:
-		lab = _put("lab", hub.position.x - 80 if side < 0 and not left_rig else hub.end.x + 40, top - 30)
-	elif windmill == 0:
+	if windmill == 0:       # the Windmill first: at 16 Stone it can sit out of reach behind a Lab that took the Stone, with no power to dig more
 		windmill = _put("windmill", hub.position.x - 150 if side < 0 else hub.end.x + 120, top - 40)
-	if game.current_tech == "":
+	elif lab == 0:
+		lab = _put("lab", hub.position.x - 80 if side < 0 and not left_rig else hub.end.x + 40, top - 30)
+	# The Lab drinks whatever power arrives and leaves the Cutter dry, so research waits while the stockpile is bare.
+	if game.current_tech != "" and game.stock[D.R_POWER] < 1.0:
+		game.current_tech = ""
+	if game.current_tech == "" and game.stock[D.R_POWER] >= 8.0:
 		var seen := {}
 		for id: String in ORDER:
 			seen[id] = int(seen.get(id, 0)) + 1
@@ -206,10 +214,73 @@ func _swap() -> void:
 	halt_logged = halt
 	if w["state"] != "docked" or halt == "":
 		return
+	if _hard_halt(halt):
+		_move_rig()
+		return
 	if digger == "cutter" and game.researched.has("pump") and _liquid_halt(halt):
 		_exchange("pump")
 	elif digger == "pump" and "Pump" in halt:
 		_exchange("cutter")
+
+
+## True when the halt names a hard-rock patch that the Drill Bit cannot open yet.
+func _hard_halt(halt: String) -> bool:
+	for nm: String in HARD:
+		if nm in halt and game.level("drill_bit") < int(HARD[nm]):
+			return true
+	return false
+
+
+## The shaft is blocked by a lens of hard rock the bit cannot open: take the rig down and stand it on a
+## column of the strip with the least of that rock below it. The bot reads the map to choose, which a
+## player would learn by feeling for it with a Lamp or a probe shaft.
+func _move_rig() -> void:
+	var hub: Rect2i = game.hub.rect()
+	var top := hub.end.y
+	var lvl: int = game.level("drill_bit")
+	var rocks: Array = []
+	for nm: String in HARD:
+		if int(HARD[nm]) > lvl:
+			rocks.append(M.id_of(nm))
+	var old_x: int = int(game.modules[rig["winch"]]["at"].x) - 14
+	var best_x := -1
+	var best_hard := 1 << 30
+	for x in range(hub.position.x - 290, hub.end.x + 140, 10):
+		if absi(x - old_x) < 40:
+			continue
+		var ok := true
+		for p: Array in [["cutter", x, top - 16], ["tank", x, top - 46], ["funnel", x, top - 60], ["winch", x + 14, top - 64]]:
+			if MC.check_place(game, p[0], Vector2i(p[1], p[2]), 0) != "":
+				ok = false
+				break
+		if not ok or game.find_link(-1, Rect2i(x, top - 16, 22, 12), null) == null or game.find_link(-1, Rect2i(x + 14, top - 64, 8, 8), null) == null:
+			continue        # a part would sit out of every Node's reach
+		var counts: PackedInt32Array = game.sim.rect_counts(x, top, 30, 1500)
+		var n := 0
+		for id: int in rocks:
+			n += counts[id]
+		if n < best_hard:
+			best_hard = n
+			best_x = x
+	if best_x < 0:
+		return
+	# Moving the rig by hand costs nothing, so each part's price goes back to the stockpile as it comes down.
+	var down := {}
+	for k: String in ["cutter", "tank", "funnel", "winch", "digger"]:
+		var mid: int = rig.get(k, -1)
+		if game.modules.has(mid) and not down.has(mid):
+			down[mid] = true
+			var cost: Array = MC.defs[game.modules[mid]["def"]].get("cost", [])
+			for r in mini(cost.size(), D.NRES):
+				game.stock[r] += float(cost[r])
+			MC.remove(game, mid)
+	rig = {}
+	digger = "cutter"
+	pending = ""
+	col_x = best_x
+	moves += 1
+	halt_logged = ""
+	print("%s  move %d: hard rock stops the shaft, the rig goes to column %d (%d hard cells below it)" % [_clock(game.game_time), moves, best_x, best_hard])
 
 
 ## True for "The Excavator stopped: Slick ahead." when what it names is a liquid.
@@ -327,7 +398,7 @@ func _report(final: bool) -> void:
 		if final and OS.get_cmdline_user_args().has("--dump"):
 			print("  goods %s, tech power %s, tech bank %s" % [str(game.goods), str(game.tech_power), str(game.tech_bank)])
 			print("  winch blips (wall readings that came and went): %d" % game.modules.get(rig.get("winch", -1), {}).get("blips", 0))
-		print("%s  depth %d, Stone %d (delivered %d), Glimmer %d, power %d, tech %s, %s" % [_clock(t), depth, int(game.stock[D.R_STONE]), int(game.goals["delivered"][D.R_STONE]), int(game.stock[D.R_GLIMMER]), int(game.stock[D.R_POWER]), game.current_tech, why])
+		print("%s  depth %d, Stone %d (delivered %d), Glimmer %d, power %d (made %.2f used %.2f), tech %s, %s" % [_clock(t), depth, int(game.stock[D.R_STONE]), int(game.goals["delivered"][D.R_STONE]), int(game.stock[D.R_GLIMMER]), int(game.stock[D.R_POWER]), game.power_made, game.power_used, game.current_tech, why])
 
 
 ## What sits in the shaft just above the Tank: loose bodies, and the solid cells by material.
