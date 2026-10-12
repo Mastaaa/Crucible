@@ -4,6 +4,13 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A7 part 9: the cheated bot stands a Filler at the sand rim
+
+Tests: full suite 32 lines `FAILURES: 0` (tests/autoplay.gd only; no scenario runs the bot). No engine change.
+- `--cheat` now has the Filler tech and 20 more Stone, and the bot places a Filler 20 cells left of the rig once the Nodes are in, before the Cutter starts (`filler` in `_play`; a moved rig gets a new one).
+- Result on seed 7, cheated, 240 min: depth 1000 at 14:45, 2000 at 60:21, 3000 at 122:25, 3469 at 139:55 and 3554 at 237:50 (the Gall pocket at about 3440 costs Pump swaps for the last hundred minutes, as before). The run before the Filler jammed at depth 2090 at 135 min and sat docked to minute 240. The Node at the sand rim (depth 180) still comes loose about every 20 to 45 min and the bot rebuilds it; the Filler covers the shaft walls but not the Node's footing 50 to 60 cells away.
+- The fair bot does not research the Filler.
+
 ## A7 part 8: the Filler and Grout
 
 Tests: full suite 32 lines `FAILURES: 0` (new scenario_filler). No engine change. Alex's idea on the thread, 10-12, after Brace and a static collar were tested for the sand rim erosion (plans/a7-tuning-proposal.md section 9); she chose "Build it" on the design card.

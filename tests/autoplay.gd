@@ -29,6 +29,7 @@ var f := 0
 var rig := {}
 var lab := 0
 var windmill := 0
+var filler := 0              # the Filler that lines the sand rim (--cheat has the tech; the fair bot does not research it)
 var nodes := [0, 0, 0]       # Nodes down the strip, nearest the Hub first: 0 to place, 1 placed, 2 built
 var rig_x := 0               # --rigx=N: stand the rig at column N (a column left of the Hub moves the Nodes and the Lab; right of it the rig sits beside the Hub)
 var node_x := [0, 0, 0]      # where each one went
@@ -79,6 +80,9 @@ func _process(_d: float) -> bool:
 			game.levels["tank_size"] = 3
 			game.researched["chute"] = true
 			game.researched["pump"] = true
+			game.researched["filler"] = true
+			game._refresh_unlocks()
+			game.stock[D.R_STONE] += 20.0               # the Filler's 8 Stone and the Stone it lays, on top of the opening's 60
 			game.stock[D.R_GLIMMER] = 40.0
 			game.goods[M.id_of("Ferrite")] = 10.0       # the rig's one shaft crosses a seam once (about 2 units); Mk II wants 5 more
 		return false
@@ -160,6 +164,13 @@ func _play() -> void:
 				return
 			nodes[k] = 2
 	if not rig.has("winch"):
+		# A rig that goes down through Sand lets the rim slump and drops the nearest Node into the shaft, so the Filler goes up
+		# first, beside the rig, once the Nodes are in (it needs one in reach).
+		if filler == 0 and game.researched.has("filler") and nodes.all(func(n): return n == 2):
+			filler = _put("filler", x0 - 20, top - 16)
+			if filler == 0:
+				_run(1.0)
+				return
 		var parts := [["cutter", x0, top - 16], ["tank", x0, top - 46], ["funnel", x0, top - 60], ["winch", x0 + 14, top - 64]]
 		for p: Array in parts:
 			if not rig.has(p[0]):
@@ -275,6 +286,7 @@ func _move_rig() -> void:
 				game.stock[r] += float(cost[r])
 			MC.remove(game, mid)
 	rig = {}
+	filler = 0
 	digger = "cutter"
 	pending = ""
 	col_x = best_x
