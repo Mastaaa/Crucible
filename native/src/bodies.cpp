@@ -485,6 +485,7 @@ void CrucibleSim::step_bodies() {
 		}
 	}
 	bodies.resize(keep);
+	solve_joints();
 	changed = true;
 }
 
@@ -649,6 +650,7 @@ bool CrucibleSim::overlap(const Body &b, float x, float y, float a, const std::v
 		std::vector<int32_t> *collect) const {
 	c = Contact();
 	const float cs = std::cos(a), sn = std::sin(a);
+	auto partner = [&](int o) { return o != 0 && !b.partners.empty() && std::find(b.partners.begin(), b.partners.end(), (uint16_t)o) != b.partners.end(); };
 	for (int li : b.edge) {
 		float dx = li % b.w + 0.5f - b.cx, dy = li / b.w + 0.5f - b.cy;
 		float px = x + cs * dx - sn * dy, py = y + sn * dx + cs * dy;
@@ -656,7 +658,7 @@ bool CrucibleSim::overlap(const Body &b, float x, float y, float a, const std::v
 		int gi = -1;
 		if (gx >= 2 && gx < W - 2 && gy >= 2 && gy < H - 2) {
 			gi = gy * W + gx;
-			if (owner[gi] == b.id || !solid(cells[gi])) {
+			if (owner[gi] == b.id || !solid(cells[gi]) || partner(owner[gi])) {
 				continue;
 			}
 		}
@@ -679,7 +681,7 @@ bool CrucibleSim::overlap(const Body &b, float x, float y, float a, const std::v
 				bool s = xx < 2 || xx >= W - 2 || yy < 2 || yy >= H - 2;
 				if (!s) {
 					int j = yy * W + xx;
-					s = owner[j] != b.id && solid(cells[j]);
+					s = owner[j] != b.id && solid(cells[j]) && !partner(owner[j]);
 				}
 				if (s) {
 					c.gx += ox;

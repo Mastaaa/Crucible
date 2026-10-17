@@ -261,6 +261,7 @@ public:
 		int drive = 0; // ticks left of a driven velocity (drive_body): no gravity, it moves at (dvx, dvy)
 		float dvx = 0, dvy = 0, dspin = 0; // ... and turns at dspin radians a tick
 		int age = 0, rest = 0, last_hit = -100;
+		std::vector<uint16_t> partners; // SPIKE: bodies joined to this one: they don't collide
 	};
 
 	struct Contact {
@@ -271,6 +272,20 @@ public:
 		float bx = 0, by = 0;
 		int other = 0; // a body it ran into (the first seen), or 0
 	};
+
+	// SPIKE: a joint between two bodies (or a body and a world point when b is 0).
+	struct Joint {
+		int id = 0, a = 0, b = 0;
+		int type = 0; // 0 pin, 1 rope (max distance), 2 motor (a pin whose body a is turned at `motor`)
+		float lax = 0, lay = 0, lbx = 0, lby = 0; // anchors: bitmap cells of the body, or world cells for body 0
+		float len = 0, motor = 0, limit = 1e9f;
+		float strain = 0; // how far the last tick's first pass had to pull
+	};
+	std::vector<Joint> joints;
+	int next_joint = 1;
+	std::vector<int> bidx;
+	void solve_joints();
+	void rebuild_partners();
 
 	// Dirty rectangles, one per chunk.
 	struct Rects {
@@ -365,7 +380,7 @@ private:
 	int piece_room = 20; // open cells a ceiling needs under it to drop a piece (else it crumbles)
 	bool pieces = true; // collapse breaks ceilings off in pieces (false: cell by cell)
 	int bodies_made = 0, bodies_shattered = 0, bodies_settled = 0;
-	static constexpr int MAX_BODIES = 200;
+	static constexpr int MAX_BODIES = 1200; // SPIKE (was 200)
 	Rects cur;
 	Rects next;
 	Mat mats[256];
@@ -594,6 +609,11 @@ public:
 	bool remove_body(int id);
 	// modules.cpp: machine casings are bodies the game edits pixel by pixel.
 	bool set_module(int id, bool on);
+	int add_joint(int a, float ax, float ay, int b, float bx, float by, int type, float len, float motor);
+	bool remove_joint(int id);
+	PackedFloat32Array joint_state(int id) const;
+	void set_joint_limit(int id, float limit);
+	int joint_count() const { return (int)joints.size(); }
 	bool drive_body(int id, float vx, float vy, float spin = 0.0f);
 	PackedFloat32Array body_info(int id) const;
 	PackedByteArray body_pixels(int id) const;
