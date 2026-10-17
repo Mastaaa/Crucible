@@ -4,6 +4,15 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## Pre-A8 fixes: Lab reserve, module take-down, Tier 1 prices, chapter 0 goal
+
+Tests: full suite 32 lines `FAILURES: 0`. No engine change.
+- The Lab leaves 5 power in the Hub's stock for the other machines, so a Cutter on the same Windmill keeps digging while research runs. The setting is one for the whole stockpile (`game.lab_reserve`, saved): click any Lab to step it through 0, 2, 5, 10 and 20. A Lab's readout always shows it, and says "Holding N power for the machines." while it waits (scenario_research H).
+- Hold right-click on a module to take it down: 80% of its price goes back to the stockpile (power capped at the store), its contents spill where it stood (`MC.take_down`). Buildings still give 50%.
+- Pump, Thumper and Thermometer no longer cost Glimmer, which Tier 1 can't reach.
+- Chapter 0 (Topsoil) completes at depth 1350, "Dig as deep as the first cable goes"; the old goal, the Stone band at 1500, sat past the Tier 1 cable (about 1396).
+- PROJECT_BRIEF carries the phase order Alex locked on 2026-10-17: A8 part physics, A9 expanded machine suite and self-programming, A10 economy, A11 visual polish and sound, A12 configuration and logic.
+
 ## A7 part 9: the cheated bot stands a Filler at the sand rim
 
 Tests: full suite 32 lines `FAILURES: 0` (tests/autoplay.gd only; no scenario runs the bot). No engine change.

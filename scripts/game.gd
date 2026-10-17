@@ -140,6 +140,7 @@ var tiers_open: Array = [false, true, false, false, false]   # by tier number
 var unlocked := {}                # building type -> true, for the build list
 var research_rate := 0.0          # smoothed power/s going into research, for the HUD
 var research_acc := 0.0
+var lab_reserve := 5              # power the Labs leave in the stock for the other machines (a click on a Lab steps it)
 var _tech_by_id := {}             # tech id -> its entry in D.TECHS
 
 # --- Crucible ------------------------------------------------------------------
@@ -235,6 +236,7 @@ var snap_rect := Rect2i()
 var mouse_screen := Vector2.ZERO
 var demolish_target: Building = null
 var demolish_hold := 0.0
+var demolish_module := -1      # a module being taken down by a held right-click (its id)
 var panning := false
 var pan_last := Vector2.ZERO
 var show_network := false
@@ -395,6 +397,7 @@ func _reset(s: int) -> void:
 	tiers_open = [false, true, false, false, false]
 	research_rate = 0.0
 	research_acc = 0.0
+	lab_reserve = 5
 	_refresh_unlocks()
 	power_used = 0.0
 	used_acc = 0.0
@@ -430,6 +433,7 @@ func _reset(s: int) -> void:
 	crucible_linked_once = false
 	selected = null
 	demolish_target = null
+	demolish_module = -1
 	tool_type = -1
 	banner_text = ""
 	save_clock = 0.0
@@ -3071,9 +3075,12 @@ func _mouse_button(e: InputEventMouseButton) -> void:
 				demolish_hold = 0.0
 				if demolish_target != null and (demolish_target.type == D.B_HUB or demolish_target.type == D.B_CRUCIBLE):
 					demolish_target = null
+				if demolish_target == null and module_pick == "":
+					demolish_module = int(MC.module_at(self, hover).get("id", -1))
 		else:
 			painting = 0
 			demolish_target = null
+			demolish_module = -1
 			demolish_hold = 0.0
 
 
@@ -3229,6 +3236,17 @@ func _held_keys(delta: float) -> void:
 
 
 func _update_demolish(delta: float) -> void:
+	if demolish_module >= 0:
+		if MC.module_at(self, hover).get("id", -1) != demolish_module:
+			demolish_module = -1
+			demolish_hold = 0.0
+			return
+		demolish_hold += delta
+		if demolish_hold >= 0.6:
+			MC.take_down(self, demolish_module)
+			demolish_module = -1
+			demolish_hold = 0.0
+		return
 	if demolish_target == null:
 		return
 	if demolish_target.dead or not demolish_target.has_cell(hover.x, hover.y):

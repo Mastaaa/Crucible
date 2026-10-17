@@ -57,6 +57,7 @@ const BREAK_DIST := 6.5         # ... and leave when they're this far apart
 const SQUARE := -0.99           # facing normals' dot product at most this
 const SPILL_SPEED := 30.0
 const WRECK_SPILL := 200        # particles a wreck throws at most
+const TAKE_DOWN_REFUND := 0.8   # share of its price a module taken down gives back
 
 static var defs := MU.defs      # id -> definition (shared with the behaviours, which can't preload this file)
 static var kinds := {}          # kind -> behaviour script: scan, step, info, draw (see tank.gd)
@@ -175,6 +176,20 @@ static func _clear_footprint(g, at: Vector2i, size: Vector2i, cells: PackedByteA
 		for x in size.x:
 			if cells[y * size.x + x] == F.CASING and g.sim.get_cell(at.x + x, at.y + y) == CS.MATERIAL:
 				g.sim.set_cell(at.x + x, at.y + y, 0)
+
+
+## The player takes a module down (right-click held): TAKE_DOWN_REFUND of its price goes back to
+## the stockpile, its contents spill where it stood, and it is removed.
+static func take_down(g, id: int) -> void:
+	var m: Dictionary = g.modules.get(id, {})
+	if m.is_empty():
+		return
+	var cost: Array = defs[m["def"]].get("cost", [])
+	for r in cost.size():
+		g.stock[r] += float(cost[r]) * TAKE_DOWN_REFUND
+	g.stock[D.R_POWER] = minf(g.stock[D.R_POWER], g.power_cap())
+	_dump(g, m)
+	remove(g, id)
 
 
 ## Takes a module down: its body goes, its contents are lost, its partners close up.

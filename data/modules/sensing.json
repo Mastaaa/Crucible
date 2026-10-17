@@ -3,7 +3,7 @@
 	"modules": [
 		{
 			"id": "thermometer", "name": "Thermometer", "kind": "sensor", "size": [14, 14], "wall": 2, "front": "down", "anchored": true,
-			"tech": "thermometer", "cost": [4, 2, 0, 0, 0],
+			"tech": "thermometer", "cost": [4, 0, 0, 0, 0],
 			"blurb": "Bolted in place. Reads the average temperature of the cells in front of its mouth, and its signal face is on while that is at least the setting. Click it to step the setting (50, 100, 300, 600, 900 degrees). R turns it before placing.",
 			"faces": [
 				{"type": "signal", "dir": "left", "at": 7, "w": 4, "name": "sig"}
