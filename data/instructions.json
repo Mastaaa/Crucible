@@ -30,8 +30,8 @@
 		{"chapter": 3, "text": "Deliver 16 Obsidian to the Hub.", "check": {"kind": "deliver", "res": "Obsidian", "amount": 16}, "reward": {"power": 100}}
 	],
 	"chapters": [
-		{"band": "Topsoil", "objective": "Reach the Stone band.", "hazard": "Aquifers and loose ground.",
-			"check": {"kind": "depth", "value": 1500}},
+		{"band": "Topsoil", "objective": "Dig as deep as the first cable goes.", "hazard": "Aquifers and loose ground.",
+			"check": {"kind": "depth", "value": 1350}},
 		{"band": "Stone", "objective": "Mine the first Glimmer.", "hazard": "Caves, sulfur and wide ceilings.",
 			"check": {"kind": "all", "of": [{"kind": "tier", "tier": 2}, {"kind": "depth", "value": 3000}]}},
 		{"band": "Magma", "objective": "See lava and reach the Chamber.", "hazard": "Hot rock, lava and steam.",

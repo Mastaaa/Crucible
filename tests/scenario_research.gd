@@ -7,6 +7,8 @@ extends SceneTree
 ##  E. Drill Shaft: the cable length (max_reach) follows its level
 ##  F. discoveries: Glimmer banked, lava seen, the Crucible in view
 ##  G. a Tier 2 level takes its Glimmer out of the Hub's stock, and a paused tech keeps its progress
+##  H. the Lab leaves power in the stock for the other machines (a click changes how much), and a
+##     module taken down gives 80% of its price back
 ## Run: godot --headless --path . --script tests/scenario_research.gd
 
 const D = preload("res://scripts/defs.gd")
@@ -31,6 +33,7 @@ func _process(_d: float) -> bool:
 		scenario_e()
 		scenario_f()
 		scenario_g()
+		scenario_h()
 		print("FAILURES: %d" % fails)
 		return true
 	return false
@@ -220,3 +223,33 @@ func scenario_g() -> void:
 	game.run_ticks(60)
 	game.pick_research("drill_shaft")
 	check(game.tech_power["drill_shaft"] >= 30.0, "a paused tech keeps its progress")
+
+
+func scenario_h() -> void:
+	print("H. the Lab's reserve, and taking a module down")
+	fresh()
+	var id := lab_at(-1)
+	var m: Dictionary = game.modules[id]
+	game.pick_research("lamp")
+	game.stock[D.R_POWER] = 8.0
+	game.run_ticks(120)
+	print("  power left %.2f, Lamp progress %.2f" % [game.stock[D.R_POWER], game.tech_power.get("lamp", 0.0)])
+	check(game.tech_power.get("lamp", 0.0) > 2.9, "the Lab spends what is over the reserve")
+	check(game.stock[D.R_POWER] >= 4.99 and game.stock[D.R_POWER] < 5.5, "and leaves 5 power for the machines")
+	check(MC.info(game, m).find("Leaves 5 power") >= 0, "its readout says what it leaves")
+	MC.kinds["lab"].use(game, m, MC.defs["lab"])
+	check(game.lab_reserve == 10, "a click steps the reserve to 10")
+	var id2 := lab_at(1)
+	game.stock[D.R_POWER] = 14.0
+	game.run_ticks(120)
+	check(game.stock[D.R_POWER] >= 9.99, "a second Lab keeps to the same setting (%.2f left)" % game.stock[D.R_POWER])
+	MC.take_down(game, id2)
+	game.lab_reserve = 0
+	game.stock[D.R_POWER] = 5.0
+	game.run_ticks(300)
+	check(game.stock[D.R_POWER] < 0.5, "at 0 it spends everything (%.2f left)" % game.stock[D.R_POWER])
+	game.stock[D.R_STONE] = 50.0
+	var price: float = float(MC.defs["lab"]["cost"][D.R_STONE])
+	MC.take_down(game, id)
+	check(not game.modules.has(id), "the Lab is taken down")
+	check(absf(game.stock[D.R_STONE] - (50.0 + price * 0.8)) < 0.01, "and %.1f of its %d Stone comes back" % [price * 0.8, int(price)])

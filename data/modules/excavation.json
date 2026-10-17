@@ -28,7 +28,7 @@
 		},
 		{
 			"id": "thumper", "name": "Thumper", "kind": "thumper", "size": [24, 18], "wall": 2, "front": "down", "sense": true,
-			"tech": "thumper", "cost": [14, 4, 0, 0, 0],
+			"tech": "thumper", "cost": [14, 0, 0, 0, 0],
 			"blurb": "A heavy block that hangs from a Winch cable. The Winch lowers it to the ground, lifts it and lets it fall; every hard landing blasts a 90 degree cone below it, stronger the longer the drop, so it breaks hard rock and Obsidian the Cutter can't. The Winch shoves the rubble aside as it lowers the Thumper into the hole (that spoil is lost). Click the Winch to start it again once it has stopped.",
 			"faces": [
 				{"type": "mech", "dir": "up", "at": 10, "w": 4, "name": "hook"}

@@ -488,7 +488,7 @@ func _build_help() -> void:
 		["R", "Turn a machine or lay a Brace flat before placing it"],
 		["Left click", "Place; click a building or machine for its panel"],
 		["Drag to place", "A line: Nodes spaced to link, Bulkheads side by side as a wall. Dashed ones go down as the network reaches them"],
-		["Right click", "Cancel placement; cut a dashed line there; hold on a building to demolish it (50% back)"],
+		["Right click", "Cancel placement; cut a dashed line there; hold on a building to demolish it (50% back) or on a module to take it down (80% back)"],
 		["Space / Tab", "Pause / cycle 1x, 2x and 4x speed (or the buttons up top)"],
 		["T", "Research: pick what the Lab works on"],
 		["N", "Network overlay: ranges and links"],

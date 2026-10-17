@@ -116,9 +116,9 @@ func scenario_d() -> void:
 func scenario_e() -> void:
 	print("E. chapters")
 	fresh()
-	game.deepest = 1600
+	game.deepest = 1360
 	game.run_ticks(60)
-	check(game.goals["chapter"] == 1, "reaching Stone completes chapter 1")
+	check(game.goals["chapter"] == 1, "the end of the first cable completes chapter 1")
 	var found := false
 	for m: Dictionary in game.milestones:
 		if str(m["text"]).begins_with("Chapter 1 done"):

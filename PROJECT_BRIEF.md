@@ -100,7 +100,7 @@ uncover elements, deposits and curios; exploit reactions or get blindsided by th
      a first run about 2 hours, the bot about 1.
    - Deposits worth 6x a cell; the Coolant Jacket takes on lava; condensing steam loses half.
 
-## Alpha roadmap (A1 to A7; design in claude/ALPHA_PLAN.md)
+## Alpha roadmap (A1 to A12; A1 to A7 design in claude/ALPHA_PLAN.md)
 
 Agreed with Alex; A1 and A2 are done. The player is an autonomous machine built to
 reach and light the Crucibles; Hub orders are flat instructions. Three focus areas: more
@@ -130,6 +130,26 @@ materials with real chemistry, modular machines (Create-like), and biomes.
    (Pump, Sieve, Centrifuge: done), the Shorer (done), sensors and the Thermoelectric Plate (done), Mk upgrades paid in goods (done), the bot (digs to the chamber's bedrock; the delivery waits).
 6. A6, a slightly wider world and biome patches built on the spawn-region system.
 7. A7, pacing and polish against the bot.
+
+After A7, the fun and engagement review (Claude Doc "Crucible: Fun and Engagement Review",
+2026-10-14 to 10-17) set the next phases. Order locked by Alex on 2026-10-17 for the time being;
+each phase still needs her go, and the groundwork for each is laid out before it starts. A small
+pre-A8 fix PR came first: the Lab leaves power for the other machines, modules come down for 80%
+of their price, Tier 1 build prices hold no Glimmer, and chapter 0's goal ends where the first cable does.
+
+8. A8, part physics, LittleBigPlanet-style: joints, motors, ropes, anchored buildables (Motor,
+   Hinge, Bolt, Piton) and line-draw buildables (Strut, Pipe, Cable, Rope, Piston, Gantry,
+   Conveyor) as the bridge between modules and the world. Non-negotiable, and the engine has no
+   joints or constraints today.
+9. A9, expanded machine suite and self-programming: Alex's module kit (base Case, Tank and Cell;
+   machine, interior and exterior modules; standalone tools), machines that work out their job
+   from their parts, placement and surroundings.
+10. A10, economy: machines nearly free with research and upgrades dear, a grid for power
+    (capacity against draw), unlimited Hub storage with a Modem to share it, cheap weak Windmills,
+    about 80% back on take-down, Coal as a fuel good. Priced after A8 and A9 so it prices the real game.
+11. A11, visual polish and sound: ambient audio, dig particles, menu and UI flair.
+12. A12, configuration and logic: per-machine seek and avoid material lists first, as manual
+    overrides on machines that already program themselves.
 
 Parked past Alpha: enemies, curios and wreckage, weather, Schematics, logic wiring, randomised
 chemistry (a "pocket dimension" update), more than one Crucible per world. Between A3 and A5 no
