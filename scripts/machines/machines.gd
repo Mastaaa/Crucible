@@ -18,6 +18,7 @@ const F = preload("res://scripts/machines/faces.gd")
 const CS = preload("res://scripts/machines/casing.gd")
 const TM = preload("res://scripts/machines/test_modules.gd")
 const MU = preload("res://scripts/machines/mu.gd")
+const JT = preload("res://scripts/machines/joints.gd")
 const MD = preload("res://scripts/machines/module_data.gd")
 const INT = preload("res://scripts/machines/interior.gd")
 # The module groups' behaviour scripts, by the `kind` a definition names. A group adds its own here.
@@ -85,6 +86,7 @@ static func ensure_defs() -> void:
 static func reset(g) -> void:
 	g.modules.clear()
 	g.next_module = 1
+	JT.reset(g)
 
 
 # --- Placing ---------------------------------------------------------------------
@@ -198,6 +200,7 @@ static func remove(g, id: int) -> void:
 	if m.is_empty():
 		return
 	_unlink_all(g, m, false)
+	JT.drop_module(g, id)
 	g.sim.remove_body(m["body"])
 	g.modules.erase(id)
 
@@ -223,6 +226,7 @@ static func add_contents(g, id: int, mat: int, n: int) -> int:
 # --- The tick --------------------------------------------------------------------
 
 static func tick(g) -> void:
+	JT.tick(g)
 	if g.modules.is_empty():
 		return
 	ensure_defs()

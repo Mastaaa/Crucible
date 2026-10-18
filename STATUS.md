@@ -4,6 +4,15 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A8 part 2: joints in the game
+
+Tests: full suite 34 lines `FAILURES: 0`, including the new scenario_parts. No engine change.
+- `scripts/machines/joints.gd` keeps one record per joint (`g.joints`, saved), keyed to module ids so a joint follows its module. It knows five kinds: bolt (rigid), hinge, motor, rope and slide, each with a load and a stretch it takes before it snaps.
+- Joints are made with `attach` and taken away with `detach`; taking a module down clears its joints. A joint that snaps, or whose rock goes, leaves the list and the player reads "A bolt snapped." or "A hinge lost its hold: the rock went."
+- Attach points: the middle of each edge, the corners and each face. A definition can list more under `attach`, which is how A9's Hookups will declare theirs. `snap` takes the nearest point to a click, else the nearest bit of a body's surface.
+- A rig walk (`MU.rig`) crosses bolts and stops at hinges, motors and ropes, so a bolted arm travels with its mover and a hinged one does not.
+- The Test Plate (40 x 6, no faces) is the plain part the A8 tests hang from a bedrock ceiling; no tool places joints yet (A8 part 3).
+
 ## A8 part 1: the joint engine
 
 Tests: full suite 32 lines `FAILURES: 0`, plus the new scenario_joints (in `native/run_tests.sh`). Engine change, `bin/` rebuilt; the game does not use joints yet.

@@ -82,8 +82,8 @@ static func bounds(m: Dictionary, def: Dictionary) -> Rect2i:
 # --- Rigs and drives ---------------------------------------------------------------
 
 ## Ids of the modules a mover carries: `start` (the one it is tethered to) and whatever is
-## joined to it, walking through links but not back through `stop` (the mover itself) or
-## through bolted-down modules.
+## joined to it, walking through links and through bolts (rigid joints, `g.joints`) but not back
+## through `stop` (the mover itself), hinges, motors, ropes or bolted-down modules.
 static func rig(g, start: int, stop: int) -> Array:
 	var out: Array = []
 	if start == 0 or not g.modules.has(start):
@@ -96,6 +96,17 @@ static func rig(g, start: int, stop: int) -> Array:
 		var mm: Dictionary = g.modules[id]
 		for f: Dictionary in mm["faces"]:
 			var o: int = f["link_m"]
+			if o == 0 or seen.has(o) or not g.modules.has(o):
+				continue
+			seen[o] = true
+			if defs[g.modules[o]["def"]].get("anchored", false):
+				continue
+			queue.append(o)
+		for jid: int in g.joints:       # a bolt carries what it joins; read here, so no preload of joints.gd
+			var j: Dictionary = g.joints[jid]
+			if not j["rigid"] or j["b"] == 0:
+				continue
+			var o: int = j["b"] if j["a"] == id else (j["a"] if j["b"] == id else 0)
 			if o == 0 or seen.has(o) or not g.modules.has(o):
 				continue
 			seen[o] = true
