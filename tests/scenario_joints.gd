@@ -246,7 +246,7 @@ func scenario_e() -> void:
 	print("E. Motor")
 	fresh()
 	var arm := part(Rect2i(350, 1017, 60, 6))
-	var j := joint(MOTOR, arm, 0, Vector2(350, 1020), {"rate": 1.0})
+	joint(MOTOR, arm, 0, Vector2(350, 1020), {"rate": 1.0})
 	# Hold the arm up against gravity: it turns at 1 rad/s.
 	var a0 := state(arm)[2]
 	ticks(60)
@@ -478,7 +478,7 @@ func scenario_k() -> void:
 	fresh()
 	var made := 0
 	for i in 810:
-		var r := Rect2i(210 + (i % 100) * 2, 1010 + (i / 100) * 3, 2, 2)
+		var r := Rect2i(210 + (i % 100) * 2, 1010 + floori(i / 100.0) * 3, 2, 2)
 		fill(r, D.STONE)
 		if game.sim.make_body(r.position.x, r.position.y, r.size.x, r.size.y, 0.0, 0.0, 0.0) > 0:
 			made += 1
@@ -503,7 +503,7 @@ func scenario_k() -> void:
 	# Churn: make and remove many bodies; lookups stay right.
 	var live := {}
 	for i in 300:
-		var pid: int = game.sim.make_part(6, 6, PackedByteArray(range(36).map(func(_i): return D.STONE)), 220.0 + (i % 50) * 5.0, 1020.0 + (i / 50) * 7.0, 0.0)
+		var pid: int = game.sim.make_part(6, 6, PackedByteArray(range(36).map(func(_i): return D.STONE)), 220.0 + (i % 50) * 5.0, 1020.0 + floori(i / 50.0) * 7.0, 0.0)
 		live[pid] = true
 		if i % 3 == 0:
 			var gone: int = live.keys()[0]

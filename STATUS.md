@@ -4,6 +4,18 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A8 part 1: the joint engine
+
+Tests: full suite 32 lines `FAILURES: 0`, plus the new scenario_joints (in `native/run_tests.sh`). Engine change, `bin/` rebuilt; the game does not use joints yet.
+- `native/src/joints.cpp`: a joint holds two bodies, or a body and a world point. Types: pin, rope (longest gap), weld (pin and angle), motor (a pin turned at a rate; a blocked motor stops and its target never runs more than `lag` ahead), slide (anchors stay on a line, free between `lo` and `hi` or following `goal`; the Piston and Gantry joint). Solved by position, ten passes, mass weighted; a driven body counts as immovable.
+- Collision wins: a body a joint pulled into ground gives up the turn first, then slides out along the ground's normal; the joint stays stretched. Speeds of moved bodies are read off their move, so a joint takes the bounce out.
+- Strain (first pull, cells) and load (impulse, averaged over a few ticks) are read with `joint_state`; past `limit` or `max_load` a joint snaps. Rest load is real tension: the five plank test bridge reads about 400, with an 800 cell slab about 750.
+- A rooted world joint lets go when the cell under its anchor is not static ground. `take_joint_events` lists id and why (1 snapped, 2 lost a body, 3 anchor let go).
+- Bodies joined by anything but a rope are an assembly and pass through each other. A jointed body never settles into ground.
+- `make_part(w, h, pixels, x, y, a)` builds a body from a bitmap. Bodies have an id table. `MAX_BODIES` is 800 for what the game makes; collapse pieces and reaction bodies stop at 200 as before.
+- Saved with the engine state, version 3. A cost check with `bench_bodies` read the same as main on this container (5.4 against 5.9 ms, noise).
+- Found in the test: the five plank bridge sags about 15 cells at rest because iterated position solving gives a little; strain at rest is about 0.25 per tick for anything under gravity.
+
 ## Pre-A8 fixes: Lab reserve, module take-down, Tier 1 prices, chapter 0 goal
 
 Tests: full suite 32 lines `FAILURES: 0`. No engine change.
