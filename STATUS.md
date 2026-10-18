@@ -4,6 +4,15 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A8 part 5: the movers ride joints
+
+Tests: full suite 34 lines `FAILURES: 0`, scenario_movers has a new group F. No engine change.
+- The Piston and Gantry hang their load on an engine slide joint and run it to its goal, instead of pushing it with a velocity every tick. Whatever else is joined to the load is bolted to it face by face, so a rig of two Tanks rises as one and keeps its spacing.
+- The Turntable still turns its own hub; the arm is bolted to the hub and to itself the same way, so the engine swings it. An arm of two Tanks keeps its reach through a quarter turn.
+- "Blocked." now reads what really happened: a slab in the way holds the load back and the joint says so. The Piston's check looks at a dozen ticks of movement, since a load that has met something shuffles a little.
+- These bolts belong to the mover: they are not drawn, a click does not take them off, and they go when the mover is taken down.
+- The Winch is unchanged and still drives its rig by velocity. Bolted-down modules still hold still the old way; Pitons do that job for parts you build.
+
 ## A8 part 4: Strut and Rope
 
 Tests: full suite 34 lines `FAILURES: 0`, scenario_parts now has group I. No engine change.

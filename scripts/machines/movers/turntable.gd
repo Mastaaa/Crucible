@@ -3,10 +3,14 @@ extends RefCounted
 ## middle and takes with it everything joined to its faces (and what those are joined to, the
 ## Winch's rig walk in `MU.rig`), the way a rigid arm swings. Each rig module is driven along the
 ## chord of its own arc and spun by the same angle (`MU.drive`), so faces that met stay met.
+## A8: the hub keeps turning itself; what is joined to it is bolted to the hub and to each other
+## face by face (`JT.hold_rig`), so the engine swings the arm, and a slab in its way holds it back
+## and shows as strain on those bolts.
 ## Click it to cycle hold (rests at the nearest quarter turn), step (a quarter turn, a pause,
 ## another) and spin (clockwise, round and round). Turning costs power.
 
 const MU = preload("res://scripts/machines/mu.gd")
+const JT = preload("res://scripts/machines/joints.gd")
 const D = preload("res://scripts/defs.gd")
 
 const QUARTER := PI * 0.5
@@ -21,7 +25,6 @@ static func scan(g, m: Dictionary, def: Dictionary) -> void:
 		m["wait"] = -1
 		m["bdir"] = 0
 		m["rig"] = []
-		m["pose"] = {}
 	m["net"] = MU.networked(g, m, def)
 	var rig: Array = []
 	for fs: Dictionary in m["faces"]:
@@ -33,17 +36,10 @@ static func scan(g, m: Dictionary, def: Dictionary) -> void:
 			g.modules[id]["powered"] = false
 			g.modules[id]["rig_of"] = 0
 	m["rig"] = rig
-	var st: PackedFloat32Array = g.sim.body_state(m["body"])
 	for id: int in rig:
 		g.modules[id]["powered"] = m["net"]
 		g.modules[id]["rig_of"] = m["id"]
-		# Where each joined module sits in the hub's frame when it joins; the swing keeps it there.
-		if not m["pose"].has(id) and st.size() >= 3:
-			var bs: PackedFloat32Array = g.sim.body_state(g.modules[id]["body"])
-			m["pose"][id] = {"rel": (Vector2(bs[0], bs[1]) - Vector2(st[0], st[1])).rotated(-st[2]), "base": bs[2] - st[2]}
-	for id: int in m["pose"].keys():
-		if not rig.has(id):
-			m["pose"].erase(id)
+	JT.hold_rig(g, m["id"], rig, true)
 
 
 static func _snap(a: float) -> float:
@@ -58,7 +54,6 @@ static func step(g, m: Dictionary, def: Dictionary) -> void:
 	if st.size() < 3:
 		return
 	var ang := st[2]
-	var pivot := Vector2(st[0], st[1])
 	var speed := float(p["speed"])
 	var want := 0.0
 	match m["mode"]:
@@ -78,21 +73,9 @@ static func step(g, m: Dictionary, def: Dictionary) -> void:
 		_:
 			if absf(m["goal"] - ang) > ARRIVED:
 				want = clampf(m["goal"] - ang, -speed, speed)
-	# How far the joined modules lag behind the pose the hub's angle asks of them: something solid
-	# in the arm's way holds them back, and the hub then waits (or backs away) rather than
-	# winding on without them.
-	var lag := 0.0
-	var poses: Array = []
-	for id: int in m["rig"]:
-		var mm: Dictionary = g.modules.get(id, {})
-		if mm.is_empty() or not m["pose"].has(id):
-			continue
-		var bs: PackedFloat32Array = g.sim.body_state(mm["body"])
-		if bs.size() < 3:
-			continue
-		var c := Vector2(bs[0], bs[1])
-		lag = maxf(lag, (pivot + m["pose"][id]["rel"].rotated(ang) - c).length())
-		poses.append([mm, c, bs[2], m["pose"][id]])
+	# How hard the bolts holding the arm to the hub are pulled: something solid in the arm's way holds
+	# it back, and the hub then waits (or backs away) rather than winding on without it.
+	var lag := JT.strain_of(g, m["id"])
 	if lag > float(p["lag"]):
 		if m["bdir"] == 0:
 			m["bdir"] = signf(want)
@@ -112,9 +95,6 @@ static func step(g, m: Dictionary, def: Dictionary) -> void:
 	m["why"] = why
 	m["ang"] = ang
 	MU.drive(m, Vector2.ZERO, w)
-	for e: Array in poses:
-		var target: Vector2 = pivot + e[3]["rel"].rotated(ang + w)
-		MU.drive(e[0], target - e[1], clampf(ang + w + e[3]["base"] - e[2], -0.05, 0.05))
 
 
 ## A click on the module: hold, then step, then spin, then hold again.

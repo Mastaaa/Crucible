@@ -39,6 +39,8 @@ const LINES := {
 	"rope": {"name": "Rope", "tech": "rope", "per": 30.0, "min": 4.0, "max": 120.0, "cost": [1, 0, 0, 0, 0],
 			"blurb": "A rope between two points: it holds the ends no further apart than it is long and goes slack when they are closer. 1 Stone for every 30 cells, up to 120 long."},
 }
+const AUTO_LOAD := 3000.0       # what a joint a mover keeps carries before it snaps
+const AUTO_LIMIT := 30.0        # and the stretch it takes, cells
 const STRUT_T := 4              # a Strut's thickness, cells
 const END_RADIUS := 4.0         # cells: a line's end takes hold of a part or rock this near the click
 const CUT := 1.5                # cells a Strut's end stops short of what it is bolted to
@@ -108,7 +110,7 @@ static func detach(g, id: int) -> bool:
 static func drop_module(g, id: int) -> void:
 	for jid: int in g.joints.keys():
 		var j: Dictionary = g.joints[jid]
-		if j["a"] == id or j["b"] == id:
+		if j["a"] == id or j["b"] == id or j.get("auto", 0) == id:
 			g.sim.remove_joint(j["eng"])
 			g.joints.erase(jid)
 
@@ -361,6 +363,8 @@ static func joint_near(g, p: Vector2) -> int:
 	var best := TAKE_OFF_RADIUS
 	var hit := 0
 	for jid: int in g.joints:
+		if g.joints[jid].get("auto", 0) != 0:
+			continue
 		var a: Array = anchors(g, jid)
 		if not a.is_empty() and p.distance_to(a[0]) <= best:
 			best = p.distance_to(a[0])
@@ -448,6 +452,8 @@ static func add_buttons(hud, vb: VBoxContainer) -> void:
 ## Every joint as a dot at its anchor; with a tool picked, where a click would join and why not.
 static func draw(ov, g, z: float) -> void:
 	for jid: int in g.joints:
+		if g.joints[jid].get("auto", 0) != 0:
+			continue
 		var a: Array = anchors(g, jid)
 		if a.is_empty():
 			continue
@@ -619,3 +625,86 @@ static func restore_defs(g) -> void:
 		var def_id: String = g.modules[id]["def"]
 		if def_id.begins_with("strut_") and not MU.defs.has(def_id):
 			strut_def(int(def_id.substr(6)))
+
+
+# --- Joints a mover keeps (A8 part 5) ----------------------------------------------------
+
+## The bolts that make a mover's rig one piece in the engine: one per face link between two modules of
+## `rig` (and, with `with_owner`, between the owner and the rig), made at the linked face, none left over.
+## They carry the owner's id as `auto`, so they are not drawn or taken off by a click, and go with it.
+static func hold_rig(g, owner: int, rig: Array, with_owner: bool) -> void:
+	var ids: Array = rig.duplicate()
+	if with_owner:
+		ids.append(owner)
+	var want := {}
+	for x: int in ids:
+		if not g.modules.has(x):
+			continue
+		var faces: Array = g.modules[x]["faces"]
+		for i in faces.size():
+			var y: int = faces[i]["link_m"]
+			if y == 0 or not ids.has(y) or not g.modules.has(y):
+				continue
+			var key := "%d-%d" % [mini(x, y), maxi(x, y)]
+			if not want.has(key):
+				want[key] = [x, y, i]
+	var have := {}
+	for jid: int in g.joints.keys():
+		var j: Dictionary = g.joints[jid]
+		if j.get("auto", 0) != owner or j["kind"] != "bolt":
+			continue
+		var key := "%d-%d" % [mini(j["a"], j["b"]), maxi(j["a"], j["b"])]
+		if want.has(key) and not have.has(key):
+			have[key] = jid
+		else:
+			detach(g, jid)
+	for key: String in want:
+		if have.has(key):
+			continue
+		var w: Array = want[key]
+		var m: Dictionary = g.modules[w[0]]
+		var fr := MU.frame(g, m, MU.defs[m["def"]])
+		var at := MU.world(fr, fr["lay"]["faces"][w[2]]["centre"])
+		var id := attach(g, "bolt", w[0], w[1], at, at, {"max_load": AUTO_LOAD, "limit": AUTO_LIMIT})
+		if id != 0:
+			g.joints[id]["auto"] = owner
+
+
+## Every joint an owner keeps goes.
+static func drop_auto(g, owner: int) -> void:
+	for jid: int in g.joints.keys():
+		if g.joints[jid].get("auto", 0) == owner:
+			detach(g, jid)
+
+
+## The most strain any joint kept by `owner` reads (cells): how hard what it carries is held back.
+static func strain_of(g, owner: int) -> float:
+	var worst := 0.0
+	for jid: int in g.joints:
+		if g.joints[jid].get("auto", 0) == owner:
+			worst = maxf(worst, float(state(g, jid).get("strain", 0.0)))
+	return worst
+
+
+## A slide joint from `mover` to `load` along `axis` (a unit vector in the world), through world point
+## `at`, that runs `stroke` cells out at `speed` cells a tick. Returns the record id, or 0.
+static func mount_slide(g, mover: int, load_id: int, at: Vector2, axis: Vector2, stroke: float, speed: float) -> int:
+	var id := attach(g, "slide", mover, load_id, at, at, {"dx": axis.x, "dy": axis.y, "lo": 0.0, "hi": stroke, "drive": true,
+			"rate": speed * 60.0, "lag": speed * 2.0 + 0.05, "max_load": AUTO_LOAD * 10.0, "limit": 1e9})
+	if id != 0:
+		g.joints[id]["auto"] = mover
+		g.joints[id]["cmd"] = "hold"
+	return id
+
+
+## Asks slide `id` to run to `goal` (cells out) at `speed` cells a tick, or with `goal` below zero to hold where
+## it is. Only a change reaches the engine.
+static func slide_to(g, id: int, goal: float, speed: float) -> void:
+	var j: Dictionary = g.joints.get(id, {})
+	if j.is_empty():
+		return
+	var cmd: String = "hold" if goal < 0.0 else "%.3f/%.3f" % [goal, speed]
+	if cmd == j["cmd"]:
+		return
+	j["cmd"] = cmd
+	g.sim.set_joint(j["eng"], {"hold": true} if goal < 0.0 else {"goal": goal, "rate": speed * 60.0})
