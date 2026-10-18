@@ -4,6 +4,15 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A8 part 6: demo contraptions, Motor direction, A9 meeting points
+
+Tests: full suite 36 lines `FAILURES: 0` (scenario_contraptions and scenario_a9_points are new). No engine change.
+- A Motor clicked between a part held to the ground and a free one now turns the free one, so right is clockwise for the arm whichever part was clicked first (`JT.grounded`).
+- tests/scenario_contraptions.gd builds four things the way a player would, with tool clicks on Test Plates: a crane (a Motor on a pitoned mast lifts the boom and a Rope drags a load), a drawbridge (a plank on a Motor at a pier lip lifts, holds and comes down), a swinging arm (spins six seconds with the pin staying put) and a Strut and a Rope in one frame.
+- tests/scenario_a9_points.gd is the contract for A9: parts that declare an `attach` entry on touching faces offer points that meet, the points move with the parts, and taking one part down clears the joint and leaves the other's points alone. The Pipe and Cable checks are in the file behind `A9 := false`.
+- Known limit: a Motor that drives a part into rock at its own pivot is unstable and can snap. The demos stop the Motor first. See the standing quirks in claude/STATUS.md.
+- A8 is complete: joints, motors, struts, ropes and pitons, with the movers on joints.
+
 ## A8 part 5: the movers ride joints
 
 Tests: full suite 34 lines `FAILURES: 0`, scenario_movers has a new group F. No engine change.

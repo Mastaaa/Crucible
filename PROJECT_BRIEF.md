@@ -141,6 +141,8 @@ of their price, Tier 1 build prices hold no Glimmer, and chapter 0's goal ends w
    Hinge, Bolt, Piton) and line-draw buildables (Strut, Pipe, Cable, Rope, Piston, Gantry,
    Conveyor) as the bridge between modules and the world. Non-negotiable, and the engine has no
    joints or constraints today.
+   Status: done (PRs #57 to #62). Joints are keyed to module ids and share attach points that A9's
+   Hookups declare (`attach` on a definition); Pipe, Cable, Network and Conveyor line tools are A9's.
 9. A9, expanded machine suite and self-programming: Alex's module kit (base Case, Tank and Cell;
    machine, interior and exterior modules; standalone tools), machines that work out their job
    from their parts, placement and surroundings.
