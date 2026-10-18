@@ -105,6 +105,7 @@ var next_module := 1
 var joints := {}                  # joint record id -> {kind, a, b, eng ...} (machines/joints.gd)
 var next_joint := 1
 var module_pick := ""             # a module being placed (its id), or ""
+var joint_pick := ""              # a joint tool picked (its kind, machines/joints.gd), or ""
 var module_turns := 0
 var body_seen := {}               # body id -> cells x speed, as of body_seen_tick
 var body_seen_tick := -1
@@ -437,6 +438,7 @@ func _reset(s: int) -> void:
 	demolish_target = null
 	demolish_module = -1
 	tool_type = -1
+	joint_pick = ""
 	banner_text = ""
 	save_clock = 0.0
 	plans.clear()
@@ -2915,6 +2917,7 @@ func select_tool(type: int) -> void:
 		return
 	tool_type = type
 	module_pick = ""
+	joint_pick = ""
 	brush_mode = false
 	selected = null
 	if type == D.B_BULKHEAD:
@@ -2928,6 +2931,7 @@ func select_tool(type: int) -> void:
 func cancel_tool() -> void:
 	tool_type = -1
 	module_pick = ""
+	joint_pick = ""
 	drag_from = Vector2i(-1, -1)
 
 
@@ -3068,7 +3072,7 @@ func _mouse_button(e: InputEventMouseButton) -> void:
 		if e.pressed:
 			if brush_mode:
 				painting = 2
-			elif tool_type >= 0:
+			elif tool_type >= 0 or joint_pick != "":
 				cancel_tool()
 			elif plan_at(hover) >= 0 and building_at(hover) == null:
 				cut_plans(plan_at(hover))
@@ -3077,7 +3081,7 @@ func _mouse_button(e: InputEventMouseButton) -> void:
 				demolish_hold = 0.0
 				if demolish_target != null and (demolish_target.type == D.B_HUB or demolish_target.type == D.B_CRUCIBLE):
 					demolish_target = null
-				if demolish_target == null and module_pick == "":
+				if demolish_target == null and module_pick == "" and joint_pick == "":
 					demolish_module = int(MC.module_at(self, hover).get("id", -1))
 		else:
 			painting = 0
@@ -3155,7 +3159,7 @@ func _key(e: InputEventKey) -> void:
 			hud.toggle_help()
 		elif hud.research_visible():
 			hud.toggle_research()
-		elif tool_type >= 0 or module_pick != "":
+		elif tool_type >= 0 or module_pick != "" or joint_pick != "":
 			cancel_tool()
 		elif brush_mode:
 			brush_mode = false

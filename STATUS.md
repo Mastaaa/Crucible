@@ -4,6 +4,15 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A8 part 3: Bolt, Hinge, Motor and Piton
+
+Tests: full suite 34 lines `FAILURES: 0`, scenario_parts now has groups G and H. No engine change.
+- Two new techs, Joints (100 power) and Motor (200, needs Joints), put four tools at the foot of the Build list.
+- Pick a tool, click where two parts meet and they are joined there; click where a part meets rock and it is joined to the rock. A Bolt holds rigid, a Hinge swings, a Piton fixes a part to the rock. Each costs 1 Stone and a Motor 4. A click on an existing joint takes it off and gives the Stone back.
+- A Motor is clicked off, right, left, off. It turns at 1.2 rad/s, draws 0.05 power/s from the Hub's stock while it does, and holds its angle when idle or when the power runs out. It does not need a network link, unlike the Piston.
+- Joints show as dots (yellow hinge, grey bolt, orange motor with an arc, brown piton); with a tool picked, a ring shows where a click would join, red with the reason when it can't.
+- Joints go between modules, since modules are what exist to join; Struts and Ropes (part 4) add parts of your own.
+
 ## A8 part 2: joints in the game
 
 Tests: full suite 34 lines `FAILURES: 0`, including the new scenario_parts. No engine change.
