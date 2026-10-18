@@ -28,6 +28,9 @@ static func defs() -> Array:
 			],
 		},
 		{
+			"id": "test_plate", "name": "Test Plate", "size": Vector2i(40, 6), "wall": 3, "faces": [],
+		},
+		{
 			"id": "test_cap", "name": "Test Cap", "size": Vector2i(20, 14), "wall": 2,
 			"faces": [
 				{"type": F.PIXEL, "dir": F.UP, "at": 10, "w": 6, "name": "in"},

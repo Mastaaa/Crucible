@@ -987,6 +987,39 @@ func remove_body(_id: int) -> bool:
 	return false
 
 
+# Joints (A8) live only in the C++ sim, like the bodies they hold.
+func make_part(_w: int, _h: int, _pixels: PackedByteArray, _x: float, _y: float, _a: float) -> int:
+	return -1
+
+
+func add_joint(_p: Dictionary) -> int:
+	return -1
+
+
+func set_joint(_id: int, _p: Dictionary) -> bool:
+	return false
+
+
+func remove_joint(_id: int) -> bool:
+	return false
+
+
+func joint_state(_id: int) -> PackedFloat32Array:
+	return PackedFloat32Array()
+
+
+func joint_ids() -> PackedInt32Array:
+	return PackedInt32Array()
+
+
+func take_joint_events() -> PackedInt32Array:
+	return PackedInt32Array()
+
+
+func joint_count() -> int:
+	return 0
+
+
 # Temperature (A1): the GDScript sim has no field; everything sits at the ambient.
 var stat_tchunks := 0
 
