@@ -15,13 +15,12 @@ constexpr uint8_t AIR = 0;
 // Body `id` never turns back into ground, however still it lies. False if there's no
 // such body.
 bool CrucibleSim::set_module(int id, bool on) {
-	for (Body &b : bodies) {
-		if (b.id == id) {
-			b.module = on;
-			return true;
-		}
+	Body *b = body_by_id(id);
+	if (!b) {
+		return false;
 	}
-	return false;
+	b->module = on;
+	return true;
 }
 
 // Body `id` moves at (vx, vy) cells a tick and turns at `spin` radians a tick for the next two
@@ -30,16 +29,15 @@ bool CrucibleSim::set_module(int id, bool on) {
 // when the calls stop, gravity takes over. It still collides with ground and is pushed
 // out of it like any body. False if there's no such body.
 bool CrucibleSim::drive_body(int id, float vx, float vy, float spin) {
-	for (Body &b : bodies) {
-		if (b.id == id) {
-			b.drive = 2;
-			b.dvx = vx;
-			b.dvy = vy;
-			b.dspin = spin;
-			return true;
-		}
+	Body *b = body_by_id(id);
+	if (!b) {
+		return false;
 	}
-	return false;
+	b->drive = 2;
+	b->dvx = vx;
+	b->dvy = vy;
+	b->dspin = spin;
+	return true;
 }
 
 // Body `id`'s bitmap: [width, height, centre of mass x, centre of mass y, pixels]. The
@@ -47,17 +45,14 @@ bool CrucibleSim::drive_body(int id, float vx, float vy, float spin) {
 // pose uses. Empty if there's no such body.
 PackedFloat32Array CrucibleSim::body_info(int id) const {
 	PackedFloat32Array out;
-	for (const Body &b : bodies) {
-		if (b.id == id) {
-			out.resize(5);
-			float *o = out.ptrw();
-			o[0] = (float)b.w;
-			o[1] = (float)b.h;
-			o[2] = b.cx;
-			o[3] = b.cy;
-			o[4] = (float)b.count;
-			break;
-		}
+	if (const Body *b = body_by_id(id)) {
+		out.resize(5);
+		float *o = out.ptrw();
+		o[0] = (float)b->w;
+		o[1] = (float)b->h;
+		o[2] = b->cx;
+		o[3] = b->cy;
+		o[4] = (float)b->count;
 	}
 	return out;
 }
@@ -65,12 +60,9 @@ PackedFloat32Array CrucibleSim::body_info(int id) const {
 // Body `id`'s material per pixel, row by row (0 is empty); empty if there's no such body.
 PackedByteArray CrucibleSim::body_pixels(int id) const {
 	PackedByteArray out;
-	for (const Body &b : bodies) {
-		if (b.id == id) {
-			out.resize((int64_t)b.mat.size());
-			memcpy(out.ptrw(), b.mat.data(), b.mat.size());
-			break;
-		}
+	if (const Body *b = body_by_id(id)) {
+		out.resize((int64_t)b->mat.size());
+		memcpy(out.ptrw(), b->mat.data(), b->mat.size());
 	}
 	return out;
 }
@@ -82,36 +74,36 @@ int CrucibleSim::body_set_pixel(int id, int lx, int ly, int m) {
 	if (m < 0 || m > 255) {
 		return -1;
 	}
-	for (Body &b : bodies) {
-		if (b.id != id) {
-			continue;
-		}
-		if (lx < 0 || ly < 0 || lx >= b.w || ly >= b.h) {
-			return -1;
-		}
-		int li = ly * b.w + lx;
-		if (b.mat[li] == m) {
-			return b.count;
-		}
-		unstamp(b);
-		b.mat[li] = (uint8_t)m;
-		b.aux[li] = 0;
-		if (m != 0) {
-			// A pixel put back takes a neighbour's temperature.
-			const int nx[4] = { lx - 1, lx + 1, lx, lx }, ny[4] = { ly, ly, ly - 1, ly + 1 };
-			for (int k = 0; k < 4; k++) {
-				if (nx[k] >= 0 && ny[k] >= 0 && nx[k] < b.w && ny[k] < b.h && b.mat[ny[k] * b.w + nx[k]]) {
-					b.temp[li] = b.temp[ny[k] * b.w + nx[k]];
-					break;
-				}
-			}
-		}
-		if (!body_shape(b)) {
-			return -1; // nothing left: the game removes the body
-		}
-		restamp(b);
+	Body *bp = body_by_id(id);
+	if (!bp) {
+		return -1;
+	}
+	Body &b = *bp;
+	if (lx < 0 || ly < 0 || lx >= b.w || ly >= b.h) {
+		return -1;
+	}
+	int li = ly * b.w + lx;
+	if (b.mat[li] == m) {
 		return b.count;
 	}
+	unstamp(b);
+	b.mat[li] = (uint8_t)m;
+	b.aux[li] = 0;
+	if (m != 0) {
+		// A pixel put back takes a neighbour's temperature.
+		const int nx[4] = { lx - 1, lx + 1, lx, lx }, ny[4] = { ly, ly, ly - 1, ly + 1 };
+		for (int k = 0; k < 4; k++) {
+			if (nx[k] >= 0 && ny[k] >= 0 && nx[k] < b.w && ny[k] < b.h && b.mat[ny[k] * b.w + nx[k]]) {
+				b.temp[li] = b.temp[ny[k] * b.w + nx[k]];
+				break;
+			}
+		}
+	}
+	if (!body_shape(b)) {
+		return -1; // nothing left: the game removes the body
+	}
+	restamp(b);
+	return b.count;
 	return -1;
 }
 

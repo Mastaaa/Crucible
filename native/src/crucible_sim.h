@@ -261,6 +261,31 @@ public:
 		int drive = 0; // ticks left of a driven velocity (drive_body): no gravity, it moves at (dvx, dvy)
 		float dvx = 0, dvy = 0, dspin = 0; // ... and turns at dspin radians a tick
 		int age = 0, rest = 0, last_hit = -100;
+		float px0 = 0, py0 = 0, pa0 = 0; // where it was when this tick's body pass began (joints.cpp reads its speed off the move)
+		bool drove = false; // it was driven during this tick's body pass: a joint treats it as immovable
+		bool jointed = false; // a joint holds it (joints.cpp): it never turns back into ground
+		uint16_t group = 0; // the assembly it is in (bodies joined by pin, weld, motor or slide): they don't collide
+	};
+
+	// A joint (joints.cpp) holds two bodies, or a body and a point of the world (b is 0), to each other.
+	struct Joint {
+		enum Type : uint8_t { PIN, ROPE, WELD, MOTOR, SLIDE };
+		int id = 0, a = 0, b = 0;
+		uint8_t type = PIN;
+		bool drive = false; // MOTOR always; SLIDE: the position follows `goal`, else it is free between lo and hi
+		bool rooted = false; // a world joint that lets go when the cell under its anchor is no longer ground
+		float lax = 0, lay = 0, lbx = 0, lby = 0; // anchors: cells of each body's bitmap, or world cells when b is 0
+		float len = 0; // ROPE: the longest it gets
+		double rest = 0.0; // WELD, SLIDE: the angle of a minus the angle of b it holds
+		float sx = 1.0f, sy = 0.0f; // SLIDE: the way it slides, in a's frame
+		float lo = 0.0f, hi = 0.0f; // SLIDE: how far the anchors may be apart along that
+		float rate = 0.0f; // MOTOR: radians a tick; SLIDE: cells a tick it moves toward `goal`
+		float goal = 0.0f, lag = 0.05f; // SLIDE: where it is headed; MOTOR and SLIDE: how far its target may run ahead of the pose
+		double tgt = 0.0; // MOTOR: the angle it is turned to; SLIDE: the position it is asked to be at
+		float limit = 1e9f, max_load = 1e9f; // it snaps past this strain (cells) or this load (impulse a tick)
+		float ext0 = 0.0f; // SLIDE: how far apart the anchors were along the slide when it was made (lo, hi, goal and tgt count from here)
+		float strain = 0.0f, load = 0.0f; // last tick: the first pull (cells) and the impulse all passes put in
+		float lx = 0.0f, ly = 0.0f, lt = 0.0f; // the impulse so far this tick (linear, and turning)
 	};
 
 	struct Contact {
@@ -351,7 +376,14 @@ private:
 	// Rigid bodies (bodies.cpp).
 	std::vector<Body> bodies;
 	std::vector<uint16_t> owner; // the body a cell belongs to (0: none)
+	std::vector<int> bidx; // body id -> its place in `bodies`, or -1 (reindex() after any change to the list)
+	std::vector<uint16_t> bgrp; // body id -> its assembly (Body::group)
 	int next_body_id = 1;
+	std::vector<Joint> joints;
+	int next_joint = 1;
+	std::vector<int32_t> joint_events; // id, why: 1 snapped, 2 lost a body, 3 its anchor let go
+	std::vector<char> joint_moved;
+	std::vector<float> pre; // solve_joints: each body's pose before the passes
 	std::vector<int32_t> impacts; // x, y, speed (cells a second), mass, hit a building, body hit: 6 per hit
 	float body_g = 0.25f; // cells a tick, per tick
 	float body_max = 10.0f; // cells a tick
@@ -365,7 +397,8 @@ private:
 	int piece_room = 20; // open cells a ceiling needs under it to drop a piece (else it crumbles)
 	bool pieces = true; // collapse breaks ceilings off in pieces (false: cell by cell)
 	int bodies_made = 0, bodies_shattered = 0, bodies_settled = 0;
-	static constexpr int MAX_BODIES = 200;
+	static constexpr int MAX_BODIES = 800; // the most the game may make (parts, mites)
+	static constexpr int RUBBLE_MAX = 200; // collapse and reactions stop making bodies past this many
 	Rects cur;
 	Rects next;
 	Mat mats[256];
@@ -484,7 +517,18 @@ private:
 	int give_way(int y, int s, int e);
 	int break_off(int y, int s, int e);
 	int crumble_cell(int i, int x, int y);
-	int make_body_from(const std::vector<int32_t> &list, float vx, float vy, float spin);
+	int make_body_from(const std::vector<int32_t> &list, float vx, float vy, float spin, int cap = RUBBLE_MAX);
+	Body *body_by_id(int id) {
+		return id > 0 && id < (int)bidx.size() && bidx[id] >= 0 ? &bodies[bidx[id]] : nullptr;
+	}
+	const Body *body_by_id(int id) const {
+		return id > 0 && id < (int)bidx.size() && bidx[id] >= 0 ? &bodies[bidx[id]] : nullptr;
+	}
+	void reindex();
+	// joints.cpp
+	void solve_joints();
+	void rebuild_groups();
+	void drop_joints_of(int body);
 	bool body_shape(Body &b);
 	void step_bodies();
 	bool body_tick(Body &b);
@@ -595,6 +639,15 @@ public:
 	// modules.cpp: machine casings are bodies the game edits pixel by pixel.
 	bool set_module(int id, bool on);
 	bool drive_body(int id, float vx, float vy, float spin = 0.0f);
+	// joints.cpp: see the comment there for the keys.
+	int add_joint(const Dictionary &p);
+	bool set_joint(int id, const Dictionary &p);
+	bool remove_joint(int id);
+	PackedFloat32Array joint_state(int id) const;
+	PackedInt32Array joint_ids() const;
+	PackedInt32Array take_joint_events();
+	int joint_count() const { return (int)joints.size(); }
+	int make_part(int w, int h, const PackedByteArray &pixels, float x, float y, float a);
 	PackedFloat32Array body_info(int id) const;
 	PackedByteArray body_pixels(int id) const;
 	int body_set_pixel(int id, int lx, int ly, int m);

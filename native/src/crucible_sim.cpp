@@ -144,6 +144,9 @@ void CrucibleSim::set_size(int w, int h) {
 	vel.assign(N, 0);
 	owner.assign(N, 0);
 	bodies.clear();
+	joints.clear();
+	joint_events.clear();
+	reindex();
 	impacts.clear();
 	mem.assign(N, 0);
 	TW = (W + (1 << TSHIFT) - 1) >> TSHIFT;
@@ -3430,6 +3433,14 @@ void CrucibleSim::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("remove_body", "id"), &CrucibleSim::remove_body);
 	ClassDB::bind_method(D_METHOD("set_module", "id", "on"), &CrucibleSim::set_module);
 	ClassDB::bind_method(D_METHOD("drive_body", "id", "vx", "vy", "spin"), &CrucibleSim::drive_body, DEFVAL(0.0f));
+	ClassDB::bind_method(D_METHOD("make_part", "w", "h", "pixels", "x", "y", "a"), &CrucibleSim::make_part);
+	ClassDB::bind_method(D_METHOD("add_joint", "params"), &CrucibleSim::add_joint);
+	ClassDB::bind_method(D_METHOD("set_joint", "id", "params"), &CrucibleSim::set_joint);
+	ClassDB::bind_method(D_METHOD("remove_joint", "id"), &CrucibleSim::remove_joint);
+	ClassDB::bind_method(D_METHOD("joint_state", "id"), &CrucibleSim::joint_state);
+	ClassDB::bind_method(D_METHOD("joint_ids"), &CrucibleSim::joint_ids);
+	ClassDB::bind_method(D_METHOD("take_joint_events"), &CrucibleSim::take_joint_events);
+	ClassDB::bind_method(D_METHOD("joint_count"), &CrucibleSim::joint_count);
 	ClassDB::bind_method(D_METHOD("body_info", "id"), &CrucibleSim::body_info);
 	ClassDB::bind_method(D_METHOD("body_pixels", "id"), &CrucibleSim::body_pixels);
 	ClassDB::bind_method(D_METHOD("body_set_pixel", "id", "lx", "ly", "material"), &CrucibleSim::body_set_pixel);
