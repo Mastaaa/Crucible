@@ -74,6 +74,18 @@ index as [Stone, Glimmer, Obsidian, Water, Power].
   twice, counting the bytes and then writing them into one buffer.
 - `native/src/bodies.cpp`: rigid bodies and collapse into pieces (members of CrucibleSim);
   `native/src/rng.h`: the random helpers both share.
+- `native/src/joints.cpp` (A8): joints between bodies, solved by position after the body pass in
+  `step_bodies` (`solve_joints`). Types pin, rope, weld, motor, slide; `add_joint(dict)` takes world
+  anchors (keys in the file's header comment), `set_joint`, `remove_joint`, `joint_state(id)`
+  (strain, load, angle, extent, target), `joint_ids`, `take_joint_events` (id, why: 1 snapped, 2 lost
+  a body, 3 rooted anchor let go). Bodies joined by anything but a rope form an assembly
+  (`Body::group`, `bgrp`) whose members pass through each other in `overlap`; a jointed body never
+  settles. Driven bodies (`drove`) count as immovable to a joint. Collision wins: `depen` backs a
+  pulled body out of ground (turn first, then along the normal) and the joint stretches. Speeds of
+  moved bodies are read off their move over the tick. Saved with the engine state (version 3).
+- `bodies.cpp` also has the id table (`bidx`, `body_by_id`, `reindex`), `make_part(w, h, pixels, x, y,
+  a)` (a body from a bitmap, not the grid) and two caps: `MAX_BODIES` 800 for what the game makes
+  (`make_body`, `make_part`) and `RUBBLE_MAX` 200 for collapse pieces and reaction bodies.
 - `native/src/modules.cpp` (A3): the engine side of machine modules: `set_module` (a
   body that never settles; saved as a flag), `body_info` (size, centre of mass, pixels),
   `body_pixels` (its bitmap), `body_set_pixel` (opens and closes ports, knocks out walls),
@@ -153,6 +165,7 @@ sense (30), vision/light (15), Crucible. The engine's temperature pass runs insi
   (10 floats: pose, speeds, cells, age, rest), `take_impacts` (6 ints each: x, y, speed, cells,
   hit a building, body hit), `get_owner(x, y)`, `set_creature(id, on)` (never settles;
   grips on contact), `remove_body(id)`, `get_bodies_made/shattered/settled`.
+  A8: `make_part`, `add_joint`, `set_joint`, `remove_joint`, `joint_state`, `joint_ids`, `take_joint_events`, `joint_count`.
 - Stats: `stat_chunks`, `stat_updates`, `reactions`, `ignitions`, `eroded`, `crumbled`,
   `get_caved`, `get_washed`, `get_last_cave`, `get_tick`; `changed`/`heat_changed` flags.
   A2: `get_blasts` (detonations run), `get_forged` (bodies forged by a reaction's `emit`).

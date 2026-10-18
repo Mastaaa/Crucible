@@ -82,7 +82,7 @@ int CrucibleSim::make_body(int x, int y, int w, int h, double vx, double vy, dou
 			}
 		}
 	}
-	return make_body_from(list, (float)(vx / 60.0), (float)(vy / 60.0), (float)(spin / 60.0));
+	return make_body_from(list, (float)(vx / 60.0), (float)(vy / 60.0), (float)(spin / 60.0), MAX_BODIES);
 }
 
 // Per body: id, x0, y0, x1, y1 (the box round it), speed (cells a second), cells.
@@ -118,10 +118,8 @@ PackedInt32Array CrucibleSim::get_bodies() const {
 // contact] (a second's worth for the speeds), or empty if there's no such body.
 PackedFloat32Array CrucibleSim::body_state(int id) const {
 	PackedFloat32Array out;
-	for (const Body &b : bodies) {
-		if (b.id != id) {
-			continue;
-		}
+	if (const Body *bp = body_by_id(id)) {
+		const Body &b = *bp;
 		out.resize(10);
 		float *o = out.ptrw();
 		o[0] = b.x;
@@ -134,7 +132,6 @@ PackedFloat32Array CrucibleSim::body_state(int id) const {
 		o[7] = (float)b.age;
 		o[8] = (float)b.rest;
 		o[9] = (float)(b.age - b.last_hit);
-		break;
 	}
 	return out;
 }
@@ -163,35 +160,53 @@ int CrucibleSim::get_owner(int x, int y) const {
 // just lies still (body_state says how long) for the game to take back. False if
 // there's no such body.
 bool CrucibleSim::set_creature(int id, bool on) {
-	for (Body &b : bodies) {
-		if (b.id == id) {
-			b.creature = on;
-			if (on) {
-				b.toughness = creature_tough;
-			}
-			return true;
-		}
+	Body *b = body_by_id(id);
+	if (!b) {
+		return false;
 	}
-	return false;
+	b->creature = on;
+	if (on) {
+		b->toughness = creature_tough;
+	}
+	return true;
 }
 
 // Lift body `id` out of the grid (its cells go back to air) and forget it. False if
 // there's no such body.
 bool CrucibleSim::remove_body(int id) {
-	for (size_t k = 0; k < bodies.size(); k++) {
-		if (bodies[k].id == id) {
-			unstamp(bodies[k]);
-			bodies.erase(bodies.begin() + (long)k);
-			return true;
-		}
+	Body *b = body_by_id(id);
+	if (!b) {
+		return false;
 	}
-	return false;
+	unstamp(*b);
+	bodies.erase(bodies.begin() + bidx[id]);
+	drop_joints_of(id);
+	reindex();
+	rebuild_groups();
+	return true;
 }
 
 void CrucibleSim::clear_bodies() {
 	bodies.clear();
+	joints.clear();
+	joint_events.clear();
 	impacts.clear();
 	std::fill(owner.begin(), owner.end(), (uint16_t)0);
+	reindex();
+}
+
+// The id table: where each live body sits in `bodies`, and its assembly.
+void CrucibleSim::reindex() {
+	if (bidx.size() < 65536) {
+		bidx.assign(65536, -1);
+		bgrp.assign(65536, 0);
+	} else {
+		std::fill(bidx.begin(), bidx.end(), -1);
+	}
+	for (size_t k = 0; k < bodies.size(); k++) {
+		bidx[bodies[k].id] = (int)k;
+		bgrp[bodies[k].id] = bodies[k].group;
+	}
 }
 
 // --- Collapse into pieces --------------------------------------------------------
@@ -334,7 +349,7 @@ int CrucibleSim::break_off(int y, int s, int e) {
 	}
 	last_cave_x = (p0 + p1) >> 1;
 	last_cave_y = y;
-	if ((int)list.size() < body_min || (int)bodies.size() >= MAX_BODIES) {
+	if ((int)list.size() < body_min || (int)bodies.size() >= RUBBLE_MAX) {
 		int n = 0;
 		for (int x = p0; x <= p1; x++) {
 			int i = y * W + x;
@@ -351,8 +366,8 @@ int CrucibleSim::break_off(int y, int s, int e) {
 // --- Bodies ---------------------------------------------------------------------
 
 // The cells in `list` (all static, none a body's) become a body where they are.
-int CrucibleSim::make_body_from(const std::vector<int32_t> &list, float vx, float vy, float spin) {
-	if (list.empty() || (int)bodies.size() >= MAX_BODIES) {
+int CrucibleSim::make_body_from(const std::vector<int32_t> &list, float vx, float vy, float spin, int cap) {
+	if (list.empty() || (int)bodies.size() >= cap) {
 		return -1;
 	}
 	int x0 = W, y0 = H, x1 = -1, y1 = -1;
@@ -368,14 +383,7 @@ int CrucibleSim::make_body_from(const std::vector<int32_t> &list, float vx, floa
 	for (int tries = 0; tries < 70000 && id == 0; tries++) {
 		int c = next_body_id;
 		next_body_id = next_body_id >= 65535 ? 1 : next_body_id + 1;
-		bool used = false;
-		for (const Body &o : bodies) {
-			if (o.id == c) {
-				used = true;
-				break;
-			}
-		}
-		if (!used) {
+		if (bidx[c] < 0) {
 			id = c;
 		}
 	}
@@ -406,7 +414,56 @@ int CrucibleSim::make_body_from(const std::vector<int32_t> &list, float vx, floa
 	b.vy = vy;
 	b.spin = spin;
 	bodies.push_back(std::move(b));
+	bidx[id] = (int)bodies.size() - 1;
+	bgrp[id] = 0;
 	bodies_made++;
+	return id;
+}
+
+// A body from a bitmap (materials, 0 for empty), not from the grid: its centre of mass goes to (x, y)
+// at angle a, and it is stamped there (rock in the way hides its pixels). The game's Struts.
+// Returns its id, or -1.
+int CrucibleSim::make_part(int w, int h, const PackedByteArray &pixels, float x, float y, float a) {
+	if (w <= 0 || h <= 0 || pixels.size() != (int64_t)w * h || (int)bodies.size() >= MAX_BODIES) {
+		return -1;
+	}
+	int id = 0;
+	for (int tries = 0; tries < 70000 && id == 0; tries++) {
+		int c = next_body_id;
+		next_body_id = next_body_id >= 65535 ? 1 : next_body_id + 1;
+		if (bidx[c] < 0) {
+			id = c;
+		}
+	}
+	if (id == 0) {
+		return -1;
+	}
+	Body b;
+	b.id = id;
+	b.w = w;
+	b.h = h;
+	b.mat.assign(pixels.ptr(), pixels.ptr() + (size_t)w * h);
+	b.aux.assign((size_t)w * h, 0);
+	int gx = std::clamp((int)std::floor(x), 2, W - 3), gy = std::clamp((int)std::floor(y), 2, H - 3);
+	b.temp.assign((size_t)w * h, temp[gy * W + gx]);
+	if (!body_shape(b)) {
+		return -1;
+	}
+	b.x = x;
+	b.y = y;
+	b.a = a;
+	b.sx = x;
+	b.sy = y;
+	b.sa = a;
+	b.ax = x;
+	b.ay = y;
+	b.aa = a;
+	b.module = true;
+	bodies.push_back(std::move(b));
+	bidx[id] = (int)bodies.size() - 1;
+	bgrp[id] = 0;
+	bodies_made++;
+	restamp(bodies.back());
 	return id;
 }
 
@@ -485,12 +542,17 @@ void CrucibleSim::step_bodies() {
 		}
 	}
 	bodies.resize(keep);
+	reindex();
+	solve_joints();
 	changed = true;
 }
 
 // One tick of body b; false when it's gone (shattered or settled).
 bool CrucibleSim::body_tick(Body &b) {
 	b.age++;
+	b.px0 = b.x;
+	b.py0 = b.y;
+	b.pa0 = b.a;
 	// What's been knocked off it since last tick.
 	size_t keep = 0;
 	int lost = 0;
@@ -519,6 +581,7 @@ bool CrucibleSim::body_tick(Body &b) {
 	// Gravity, and liquid round a third of its edge slows it. A driven body (a module on
 	// a winch) takes its velocity from the game instead.
 	bool driven = b.drive > 0;
+	b.drove = driven;
 	if (driven) {
 		b.drive--;
 		b.vx = b.dvx;
@@ -566,7 +629,7 @@ bool CrucibleSim::body_tick(Body &b) {
 	{
 		Contact c;
 		overlap(b, b.x, b.y, b.a, skip, c, &skip);
-		if ((int)skip.size() > SKIP_MAX) {
+		if ((int)skip.size() > SKIP_MAX && !b.jointed) {
 			if (b.creature) {
 				shatter(b); // a mite wedged into rock is crushed
 			} else {
@@ -632,7 +695,7 @@ bool CrucibleSim::body_tick(Body &b) {
 		b.ay = b.y;
 		b.aa = b.a;
 	}
-	if (!b.creature && !b.module && (b.rest >= REST_TICKS || b.age >= MAX_AGE)) {
+	if (!b.creature && !b.module && !b.jointed && (b.rest >= REST_TICKS || b.age >= MAX_AGE)) {
 		settle_body(b);
 		return false;
 	}
@@ -649,6 +712,9 @@ bool CrucibleSim::overlap(const Body &b, float x, float y, float a, const std::v
 		std::vector<int32_t> *collect) const {
 	c = Contact();
 	const float cs = std::cos(a), sn = std::sin(a);
+	// Bodies in one assembly (joined by pins, welds, motors or slides) pass through each other.
+	const uint16_t grp = b.group;
+	auto mate = [&](int o) { return grp != 0 && o != 0 && bgrp[o] == grp; };
 	for (int li : b.edge) {
 		float dx = li % b.w + 0.5f - b.cx, dy = li / b.w + 0.5f - b.cy;
 		float px = x + cs * dx - sn * dy, py = y + sn * dx + cs * dy;
@@ -656,7 +722,7 @@ bool CrucibleSim::overlap(const Body &b, float x, float y, float a, const std::v
 		int gi = -1;
 		if (gx >= 2 && gx < W - 2 && gy >= 2 && gy < H - 2) {
 			gi = gy * W + gx;
-			if (owner[gi] == b.id || !solid(cells[gi])) {
+			if (owner[gi] == b.id || !solid(cells[gi]) || mate(owner[gi])) {
 				continue;
 			}
 		}
@@ -679,7 +745,7 @@ bool CrucibleSim::overlap(const Body &b, float x, float y, float a, const std::v
 				bool s = xx < 2 || xx >= W - 2 || yy < 2 || yy >= H - 2;
 				if (!s) {
 					int j = yy * W + xx;
-					s = owner[j] != b.id && solid(cells[j]);
+					s = owner[j] != b.id && solid(cells[j]) && !mate(owner[j]);
 				}
 				if (s) {
 					c.gx += ox;

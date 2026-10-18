@@ -25,7 +25,7 @@ using namespace godot;
 namespace {
 
 const uint32_t MAGIC = 0x56535243u; // "CRSV"
-const uint32_t VERSION = 2; // 2: per-cell temperatures (A1)
+const uint32_t VERSION = 3; // 2: per-cell temperatures (A1); 3: joints (A8)
 
 // Writing goes twice over the state: once with no buffer to count the bytes, then
 // into one buffer of that size (a growing vector copied the ~47 MB several times).
@@ -155,6 +155,20 @@ void CrucibleSim::write_state(O &o) const {
 		o.template put<int32_t>(b.rest);
 		o.template put<int32_t>(b.last_hit);
 	}
+	o.template put<int32_t>(next_joint);
+	o.template put<uint32_t>((uint32_t)joints.size());
+	for (const Joint &j : joints) {
+		o.template put<int32_t>(j.id);
+		o.template put<int32_t>(j.a);
+		o.template put<int32_t>(j.b);
+		o.template put<uint8_t>((uint8_t)(j.type | (j.drive ? 16 : 0) | (j.rooted ? 32 : 0)));
+		for (float v : { j.lax, j.lay, j.lbx, j.lby, j.len, j.sx, j.sy, j.lo, j.hi, j.rate, j.goal, j.lag, j.limit,
+					 j.max_load, j.ext0, j.strain, j.load }) {
+			o.put(v);
+		}
+		o.put(j.rest);
+		o.put(j.tgt);
+	}
 }
 
 bool CrucibleSim::load_state(const PackedByteArray &data) {
@@ -249,6 +263,30 @@ bool CrucibleSim::load_state(const PackedByteArray &data) {
 			break;
 		}
 	}
+	int njoint = 1;
+	std::vector<Joint> js;
+	if (version >= 3) {
+		njoint = in.get<int32_t>();
+		js.resize(in.ok ? in.get<uint32_t>() : 0);
+		for (Joint &j : js) {
+			j.id = in.get<int32_t>();
+			j.a = in.get<int32_t>();
+			j.b = in.get<int32_t>();
+			uint8_t t = in.get<uint8_t>();
+			j.type = t & 15;
+			j.drive = (t & 16) != 0;
+			j.rooted = (t & 32) != 0;
+			for (float *v : { &j.lax, &j.lay, &j.lbx, &j.lby, &j.len, &j.sx, &j.sy, &j.lo, &j.hi, &j.rate, &j.goal, &j.lag,
+						 &j.limit, &j.max_load, &j.ext0, &j.strain, &j.load }) {
+				*v = in.get<float>();
+			}
+			j.rest = in.get<double>();
+			j.tgt = in.get<double>();
+			if (!in.ok) {
+				break;
+			}
+		}
+	}
 	if (!in.ok || in.i != in.n) {
 		UtilityFunctions::push_error("CrucibleSim.load_state: the save is damaged");
 		return false;
@@ -293,6 +331,11 @@ bool CrucibleSim::load_state(const PackedByteArray &data) {
 	impacts.swap(imp);
 	parts.swap(ps);
 	bodies.swap(bs);
+	joints.swap(js);
+	next_joint = njoint;
+	joint_events.clear();
+	reindex();
+	rebuild_groups();
 	// Caches: worked out again from what was loaded.
 	std::fill(tile_dirty.begin(), tile_dirty.end(), (uint8_t)1);
 	std::fill(mem_dirty.begin(), mem_dirty.end(), (uint8_t)1);
