@@ -546,16 +546,9 @@ static func knock_out(g, id: int, pixels: Array) -> void:
 # --- Build list and input ---------------------------------------------------------
 
 const SNAP_DIST := 12.0         # a face this near (cells) to a free matching one snaps to it
-const COST_NAMES := ["Stone", "Glimmer", "Obsidian", "Water", "Power"]
-
-
 ## "6 Stone, 2 Glimmer" for a cost array.
 static func cost_text(cost: Array) -> String:
-	var parts: Array = []
-	for r in cost.size():
-		if cost[r] > 0:
-			parts.append("%d %s" % [cost[r], COST_NAMES[r]])
-	return ", ".join(parts) if not parts.is_empty() else "free"
+	return MU.cost_text(cost)
 
 
 static func affordable(g, def: Dictionary) -> bool:
@@ -588,6 +581,7 @@ static func add_build_buttons(hud, vb: VBoxContainer) -> void:
 			b.visible = pass_test or unlocked(hud.game, def)
 			hud.module_buttons.append({"button": b, "def": def})
 			vb.add_child(b)
+	JT.add_buttons(hud, vb)
 
 
 ## Shows a module's Build button once its tech is researched.
@@ -640,6 +634,9 @@ static func snap(g, def_id: String, turns: int, cell: Vector2i) -> Dictionary:
 
 ## A left click while a module is picked places it centred on `cell`. True if handled.
 static func click(g, cell: Vector2i) -> bool:
+	if g.joint_pick != "":
+		JT.click(g, cell)
+		return true
 	if g.module_pick == "":
 		return use(g, cell)
 	var def: Dictionary = defs[g.module_pick]
@@ -664,6 +661,8 @@ static func click(g, cell: Vector2i) -> bool:
 static func use(g, cell: Vector2i) -> bool:
 	if g.tool_type >= 0 or g.brush_mode:
 		return false
+	if JT.use(g, cell):
+		return true
 	var m := module_at(g, cell)
 	if m.is_empty():
 		return false
@@ -807,6 +806,7 @@ static func draw(ov, g, z: float) -> void:
 		var kind: Variant = kinds.get(def.get("kind", ""))
 		if kind != null:
 			kind.draw(ov, g, m, def, z)
+	JT.draw(ov, g, z)
 	if g.module_pick != "":
 		var sn := snap(g, g.module_pick, g.module_turns, g.hover)
 		var size: Vector2i = F.layout(defs[g.module_pick], g.module_turns)["size"]

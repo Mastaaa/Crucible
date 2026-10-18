@@ -240,6 +240,18 @@ static func rate(g, base: int) -> int:
 	return roundi(float(base) * (1.0 + MK_RATE * float(g.level("throughput"))))
 
 
+const COST_NAMES := ["Stone", "Glimmer", "Obsidian", "Water", "Power"]
+
+
+## "6 Stone, 2 Glimmer" for a cost array.
+static func cost_text(cost: Array) -> String:
+	var parts: Array = []
+	for r in cost.size():
+		if cost[r] > 0:
+			parts.append("%d %s" % [cost[r], COST_NAMES[r]])
+	return ", ".join(parts) if not parts.is_empty() else "free"
+
+
 ## Takes `amount` power from the Hub's stock if it's all there (less with Efficiency).
 static func take_power(g, amount: float) -> bool:
 	amount *= 1.0 - MK_POWER * float(g.level("efficiency"))

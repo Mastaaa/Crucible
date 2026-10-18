@@ -13,18 +13,31 @@ extends RefCounted
 
 const MU = preload("res://scripts/machines/mu.gd")
 const F = preload("res://scripts/machines/faces.gd")
+const M = preload("res://scripts/materials.gd")
 
 ## What each kind is in the engine (joints.cpp's types), whether the rig walk crosses it, the load it
 ## carries before it snaps (impulse a tick, the engine's `load`; a hanging module reads a quarter
 ## of its cells) and the stretch it takes (cells).
 const KINDS := {
-	"bolt": {"type": 2, "rigid": true, "name": "Bolt", "max_load": 900.0, "limit": 14.0},
-	"hinge": {"type": 0, "rigid": false, "name": "Hinge", "max_load": 700.0, "limit": 14.0},
-	"motor": {"type": 3, "rigid": false, "name": "Motor", "max_load": 700.0, "limit": 14.0},
-	"rope": {"type": 1, "rigid": false, "name": "Rope", "max_load": 500.0, "limit": 1e9},
-	"slide": {"type": 4, "rigid": false, "name": "Slide", "max_load": 900.0, "limit": 14.0},
+	"bolt": {"type": 2, "rigid": true, "name": "Bolt", "max_load": 900.0, "limit": 14.0, "cost": [1, 0, 0, 0, 0], "tech": "joints",
+			"blurb": "Joins two parts rigidly where they meet. Click again on a joint to take it off."},
+	"hinge": {"type": 0, "rigid": false, "name": "Hinge", "max_load": 700.0, "limit": 14.0, "cost": [1, 0, 0, 0, 0], "tech": "joints",
+			"blurb": "Joins two parts, or a part and the rock, so they swing about the spot. Click again on a joint to take it off."},
+	"motor": {"type": 3, "rigid": false, "name": "Motor", "max_load": 700.0, "limit": 14.0, "cost": [4, 0, 0, 0, 0], "tech": "motor",
+			"blurb": "A hinge that turns. Click it once to turn right, again to turn left, again to hold. It draws power while it turns."},
+	"piton": {"type": 2, "rigid": false, "name": "Piton", "max_load": 1100.0, "limit": 14.0, "cost": [1, 0, 0, 0, 0], "tech": "joints",
+			"blurb": "Fixes a part to the rock beside it, rigidly. Click again on a joint to take it off."},
+	"rope": {"type": 1, "rigid": false, "name": "Rope", "max_load": 500.0, "limit": 1e9, "cost": [1, 0, 0, 0, 0]},
+	"slide": {"type": 4, "rigid": false, "name": "Slide", "max_load": 900.0, "limit": 14.0, "cost": [0, 0, 0, 0, 0]},
 }
+const TOOLS := ["bolt", "hinge", "motor", "piton"]      # what the Build list offers
 const SNAP_RADIUS := 8.0        # cells: how far from a click an attach point or a body's surface is taken
+const GAP := 6.0                # cells: the most two parts (or a part and the rock) may be apart where a joint goes
+const TAKE_OFF_RADIUS := 2.5    # a click this near a joint's anchor takes it off
+const MOTOR_RATE := 1.2         # radians a second
+const MOTOR_POWER := 0.05       # power a second while a motor is turning
+const COLOURS := {"bolt": Color(0.75, 0.75, 0.8), "hinge": Color(0.95, 0.95, 0.6), "motor": Color(1.0, 0.6, 0.25),
+		"piton": Color(0.7, 0.5, 0.35), "rope": Color(0.8, 0.7, 0.5), "slide": Color(0.6, 0.8, 1.0)}
 
 
 static func reset(g) -> void:
@@ -60,7 +73,7 @@ static func attach(g, kind: String, a: int, b: int, at_a: Vector2, at_b := Vecto
 		return 0
 	var id: int = g.next_joint
 	g.next_joint += 1
-	g.joints[id] = {"id": id, "kind": kind, "a": a, "b": b, "eng": eng, "rigid": k["rigid"],
+	g.joints[id] = {"id": id, "kind": kind, "a": a, "b": b, "eng": eng, "rigid": k["rigid"], "mode": 0, "set": 0,
 			"la": _local(g, g.modules[a], at_a), "lb": _local(g, g.modules[b], at_b) if b != 0 else at_b}
 	return id
 
@@ -98,6 +111,9 @@ static func of_module(g, id: int) -> Array:
 static func tick(g) -> void:
 	if g.joints.is_empty():
 		return
+	for jid: int in g.joints:
+		if g.joints[jid]["kind"] == "motor":
+			_drive(g, g.joints[jid])
 	var ev: PackedInt32Array = g.sim.take_joint_events()
 	for i in range(0, ev.size(), 2):
 		for jid: int in g.joints.keys():
@@ -219,3 +235,189 @@ static func snap(g, p: Vector2, radius := SNAP_RADIUS) -> Dictionary:
 				best_d = d
 				best = {"module": by_body[owner], "pos": cell, "dir": Vector2.ZERO, "kind": "surface"}
 	return best
+
+
+# --- Motors ------------------------------------------------------------------------
+
+## Keeps a motor's engine joint to what its record asks: turning (mode 1 right, -1 left) while the
+## Hub has the power, holding its angle otherwise.
+static func _drive(g, j: Dictionary) -> void:
+	var want: int = j["mode"]
+	if want != 0 and not MU.take_power(g, MOTOR_POWER / 60.0):
+		want = 0
+	if want == j["set"]:
+		return
+	j["set"] = want
+	g.sim.set_joint(j["eng"], {"rate": float(want) * MOTOR_RATE} if want != 0 else {"hold": true})
+
+
+## A click on a motor's anchor, with nothing picked: off, right, left, off. True if one was there.
+static func use(g, cell: Vector2i) -> bool:
+	var p := Vector2(cell) + Vector2(0.5, 0.5)
+	var best := 4.0
+	var hit := 0
+	for jid: int in g.joints:
+		if g.joints[jid]["kind"] != "motor":
+			continue
+		var a: Array = anchors(g, jid)
+		if not a.is_empty() and p.distance_to(a[0]) <= best:
+			best = p.distance_to(a[0])
+			hit = jid
+	if hit == 0:
+		return false
+	var j: Dictionary = g.joints[hit]
+	j["mode"] = {0: 1, 1: -1, -1: 0}[j["mode"]]
+	g.show_banner("Motor: %s." % {0: "holding", 1: "turning right", -1: "turning left"}[j["mode"]], 1.5)
+	return true
+
+
+# --- Putting joints down -------------------------------------------------------------
+
+static func unlocked(g, kind: String) -> bool:
+	return not KINDS[kind].has("tech") or g.researched.has(KINDS[kind]["tech"])
+
+
+## Whether the cell is rock a rooted joint can hold on to: a static material no body owns.
+static func is_ground(g, x: int, y: int) -> bool:
+	if x < 2 or y < 2 or x >= g.sim.get_width() - 2 or y >= g.sim.get_height() - 2:
+		return false
+	return g.sim.get_owner(x, y) == 0 and M.KINDS[M.kind_of(g.sim.get_cell(x, y))] == "static"
+
+
+## What a click at world point `p` would join, for a tool of `kind`: {a, b, at} (b 0 is the rock,
+## `at` the spot) or {why}. Two parts a hand apart are joined half way between; one part and the
+## rock beside it are joined at the rock.
+static func grab(g, p: Vector2, kind: String) -> Dictionary:
+	var by_body := {}
+	for id: int in g.modules:
+		by_body[g.modules[id]["body"]] = id
+	var near := {}
+	var rock := Vector2.ZERO
+	var rock_d := 1e9
+	var r := int(ceil(SNAP_RADIUS))
+	for dy in range(-r, r + 1):
+		for dx in range(-r, r + 1):
+			var cx := int(floor(p.x)) + dx
+			var cy := int(floor(p.y)) + dy
+			if cx < 0 or cy < 0 or cx >= g.sim.get_width() or cy >= g.sim.get_height():
+				continue
+			var cell := Vector2(cx + 0.5, cy + 0.5)
+			var d := p.distance_to(cell)
+			if d > SNAP_RADIUS:
+				continue
+			var owner: int = g.sim.get_owner(cx, cy)
+			if owner != 0:
+				if by_body.has(owner) and (not near.has(by_body[owner]) or d < near[by_body[owner]]["d"]):
+					near[by_body[owner]] = {"d": d, "pos": cell}
+			elif d < rock_d and is_ground(g, cx, cy):
+				rock_d = d
+				rock = cell
+	var ids: Array = near.keys()
+	ids.sort_custom(func(x: int, y: int) -> bool: return near[x]["d"] < near[y]["d"])
+	if ids.is_empty():
+		return {"why": "Nothing here to join."}
+	var a: int = ids[0]
+	if ids.size() >= 2 and kind != "piton":
+		var b: int = ids[1]
+		var pa: Vector2 = near[a]["pos"]
+		var pb: Vector2 = near[b]["pos"]
+		if pa.distance_to(pb) > GAP:
+			return {"why": "Those parts are too far apart for a %s." % KINDS[kind]["name"].to_lower()}
+		return {"a": a, "b": b, "at": (pa + pb) * 0.5}
+	if rock_d < 1e9:
+		if (near[a]["pos"] as Vector2).distance_to(rock) > GAP:
+			return {"why": "The rock is too far from that part."}
+		return {"a": a, "b": 0, "at": rock}
+	return {"why": "A piton needs rock beside the part." if kind == "piton" else "Click where two parts meet, or a part meets the rock."}
+
+
+## The joint whose anchor is within TAKE_OFF_RADIUS of `p` (record id), or 0.
+static func joint_near(g, p: Vector2) -> int:
+	var best := TAKE_OFF_RADIUS
+	var hit := 0
+	for jid: int in g.joints:
+		var a: Array = anchors(g, jid)
+		if not a.is_empty() and p.distance_to(a[0]) <= best:
+			best = p.distance_to(a[0])
+			hit = jid
+	return hit
+
+
+static func affordable(g, cost: Array) -> bool:
+	for r in cost.size():
+		if g.stock[r] < cost[r]:
+			return false
+	return true
+
+
+## A left click with a joint tool picked: on a joint it takes it off (and gives back its price),
+## otherwise it joins what is there, for the price.
+static func click(g, cell: Vector2i) -> void:
+	var kind: String = g.joint_pick
+	if not unlocked(g, kind):
+		g.joint_pick = ""
+		return
+	var p := Vector2(cell) + Vector2(0.5, 0.5)
+	var old := joint_near(g, p)
+	if old != 0:
+		var ok: String = g.joints[old]["kind"]
+		for r in KINDS[ok]["cost"].size():
+			g.stock[r] += KINDS[ok]["cost"][r]
+		detach(g, old)
+		g.show_banner("Took off a %s." % KINDS[ok]["name"].to_lower(), 1.5)
+		return
+	var gr := grab(g, p, kind)
+	if gr.has("why"):
+		g.show_banner(gr["why"], 2.0)
+		return
+	var cost: Array = KINDS[kind]["cost"]
+	if not affordable(g, cost):
+		g.show_banner("Needs %s in the stockpile." % MU.cost_text(cost), 2.0)
+		return
+	if attach(g, kind, gr["a"], gr["b"], gr["at"]) == 0:
+		g.show_banner("That can't be joined.", 2.0)
+		return
+	for r in cost.size():
+		g.stock[r] -= cost[r]
+
+
+## Adds the joint tools under the Build list; the research that opens them shows them.
+static func add_buttons(hud, vb: VBoxContainer) -> void:
+	for kind: String in TOOLS:
+		var k: Dictionary = KINDS[kind]
+		var b: Button = hud._button("   %s  [%s]" % [k["name"], MU.cost_text(k["cost"])])
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.add_theme_font_size_override("font_size", 13)
+		b.tooltip_text = "%s\nClick where two parts meet, or a part meets the rock. Esc cancels." % k["blurb"]
+		b.pressed.connect(func() -> void:
+			hud.game.cancel_tool()
+			hud.game.joint_pick = kind
+			hud.game.show_banner("%s: click where two parts meet. Esc cancels." % k["name"], 3.0))
+		b.visible = unlocked(hud.game, kind)
+		hud.module_buttons.append({"button": b, "def": {"tech": k["tech"]}})
+		vb.add_child(b)
+
+
+# --- Drawing -----------------------------------------------------------------------
+
+## Every joint as a dot at its anchor; with a tool picked, where a click would join and why not.
+static func draw(ov, g, z: float) -> void:
+	for jid: int in g.joints:
+		var a: Array = anchors(g, jid)
+		if a.is_empty():
+			continue
+		var j: Dictionary = g.joints[jid]
+		var at: Vector2 = g.to_screen(a[0])
+		var col: Color = COLOURS.get(j["kind"], Color.WHITE)
+		ov.draw_circle(at, maxf(2.5, 2.2 * z), Color(0, 0, 0, 0.7))
+		ov.draw_circle(at, maxf(1.8, 1.6 * z), col)
+		if j["kind"] == "motor" and j["mode"] != 0:
+			ov.draw_arc(at, maxf(4.0, 4.0 * z), 0.0, TAU * 0.75 * float(j["mode"]), 16, col, 1.5)
+	if g.joint_pick != "":
+		var gr := grab(g, Vector2(g.hover) + Vector2(0.5, 0.5), g.joint_pick)
+		var ok := not gr.has("why")
+		var col: Color = ov.OK_COL if ok else ov.BAD_COL
+		var at: Vector2 = g.to_screen(gr["at"] if ok else Vector2(g.hover) + Vector2(0.5, 0.5))
+		ov.draw_arc(at, maxf(5.0, 5.0 * z), 0.0, TAU, 20, col, 1.5)
+		if not ok and ov.font != null:
+			ov.draw_string(ov.font, at + Vector2(10.0, 18.0), gr["why"], HORIZONTAL_ALIGNMENT_LEFT, 320.0, 13, Color(1, 1, 1, 0.9))
