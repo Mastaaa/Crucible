@@ -9,6 +9,8 @@ extends SceneTree
 ##  F. a save keeps the joints and the plate goes on hanging
 ##  G. the tools: Bolt, Hinge and Piton need their research, join what is under the click, cost Stone, and
 ##     a second click on a joint takes it off and gives the Stone back
+##  I. the line tools: a Rope holds a plate under the ceiling; a Strut bolted rock to rock carries a plate, is
+##     refused when too long or held nowhere, comes down for most of its price, and survives a save
 ##  H. the Motor: a click sets it turning right, left or holding; it draws power, turns the plate, and holds
 ##     when the power runs out
 ## Run: godot --headless --path . --script tests/scenario_parts.gd
@@ -45,6 +47,7 @@ func _process(_d: float) -> bool:
 		scenario_f()
 		scenario_g()
 		scenario_h()
+		scenario_i()
 		print("FAILURES: %d" % fails)
 		return true
 	return false
@@ -325,3 +328,98 @@ func scenario_h() -> void:
 	secs(2.0)
 	check(float(JT.state(game, mot)["angle"]) - a3 > 0.5, "and goes on when the power returns")
 	check(not JT.use(game, Vector2i(400, 150)), "a click away from a motor does nothing")
+
+
+func two_clicks(kind: String, a: Vector2i, b: Vector2i) -> void:
+	game.joint_pick = kind
+	MC.click(game, a)
+	MC.click(game, b)
+	game.joint_pick = ""
+
+
+func struts() -> Array:
+	var out: Array = []
+	for id: int in game.modules:
+		if (game.modules[id]["def"] as String).begins_with("strut_"):
+			out.append(id)
+	return out
+
+
+func scenario_i() -> void:
+	print("I. Struts and Ropes")
+	fresh()
+	game.researched["joints"] = true
+	game.stock[D.R_STONE] = 30.0
+	var pl := plate(421, 101)
+	two_clicks("rope", Vector2i(425, 98), Vector2i(425, 103))
+	check(game.joints.is_empty() and game.banner_text.contains("locked") == false, "a rope wants its research (%s)" % game.banner_text)
+	game.researched["rope"] = true
+	game.researched["strut"] = true
+	game.joint_pick = "rope"
+	MC.click(game, Vector2i(425, 98))
+	check(not game.joint_from.is_empty(), "the first click holds the rope's start")
+	game.cancel_tool()
+	check(game.joint_from.is_empty(), "cancelling lets go of it")
+	two_clicks("rope", Vector2i(425, 98), Vector2i(425, 103))
+	check(game.joints.size() == 1 and game.joints.values()[0]["kind"] == "rope", "a rope from the ceiling to the plate")
+	check(absf(game.stock[D.R_STONE] - 29.0) < 0.01, "for a Stone")
+	secs(4.0)
+	var rj: int = game.joints.keys()[0]
+	var gap := pin_gap(rj)
+	check(game.joints.has(rj) and gap > 2.0 and gap < 8.0, "it holds the plate hanging (%.1f cells)" % gap)
+	check(pos(pl).y > 105.0 and pos(pl).y < 135.0, "short of the floor (y %.1f)" % pos(pl).y)
+	two_clicks("rope", Vector2i(425, 98), Vector2i(425, 98))
+	check(game.joints.size() == 1, "a rope of no length is refused (%s)" % game.banner_text)
+	two_clicks("rope", Vector2i(380, 95), Vector2i(380, 96))
+	check(game.joints.size() == 1, "and a rope from rock to rock (%s)" % game.banner_text)
+	game.joint_pick = "rope"
+	MC.click(game, spot(rj))
+	check(game.joints.size() == 0 and absf(game.stock[D.R_STONE] - 30.0) < 0.01, "a click on a rope's anchor takes it off and refunds it")
+
+	# A Strut across a gap, rock to rock.
+	fresh()
+	game.researched["joints"] = true
+	game.researched["strut"] = true
+	game.stock[D.R_STONE] = 30.0
+	fill(Rect2i(380, 120, 12, 40), D.BEDROCK)
+	fill(Rect2i(448, 120, 12, 40), D.BEDROCK)
+	two_clicks("strut", Vector2i(391, 140), Vector2i(448, 140))
+	var st := struts()
+	check(st.size() == 1, "a strut is built across the gap (%s)" % game.banner_text)
+	if st.is_empty():
+		return
+	var sid: int = st[0]
+	var bolts := 0
+	for jid: int in game.joints:
+		if game.joints[jid]["kind"] == "bolt" and game.joints[jid]["a"] == sid and game.joints[jid]["b"] == 0:
+			bolts += 1
+	check(bolts == 2, "bolted to the rock at both ends (%d)" % bolts)
+	check(absf(game.stock[D.R_STONE] - 25.0) < 0.01, "for 5 Stone (%.0f left)" % game.stock[D.R_STONE])
+	var pl2 := plate(405, 132)
+	secs(4.0)
+	check(game.modules.has(pl2) and pos(pl2).y < 140.0, "a plate laid on it stays up (y %.1f)" % pos(pl2).y)
+	check(game.joints.size() == 2 and pos(sid).distance_to(Vector2(419.5, 140.5)) < 3.0, "and the strut has not moved (%s)" % str(pos(sid)))
+	# Refusals.
+	var before: float = game.stock[D.R_STONE]
+	two_clicks("strut", Vector2i(391, 150), Vector2i(470, 150))
+	check(struts().size() == 1 and game.banner_text.contains("Too long"), "a strut over 60 cells is refused (%s)" % game.banner_text)
+	two_clicks("strut", Vector2i(400, 110), Vector2i(412, 110))
+	check(struts().size() == 1 and game.banner_text.contains("need") , "one held nowhere is refused (%s)" % game.banner_text)
+	two_clicks("strut", Vector2i(391, 155), Vector2i(395, 155))
+	check(struts().size() == 1 and game.banner_text.contains("short"), "and one too short (%s)" % game.banner_text)
+	check(absf(game.stock[D.R_STONE] - before) < 0.01, "none of them cost anything")
+	# A save keeps it, and its definition comes back.
+	secs(1.0)
+	var path := "user://parts_test2.save"
+	Save.write(game, path)
+	MC.defs.erase(game.modules[sid]["def"])
+	game.continue_run(path)
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	game.paused = true
+	check(game.modules.has(sid) and MC.defs.has(game.modules[sid]["def"]), "a loaded strut finds its definition")
+	secs(3.0)
+	check(game.modules.has(pl2) and pos(pl2).y < 140.0 and game.joints.size() == 2, "and goes on carrying the plate")
+	# Taking it down.
+	var stone: float = game.stock[D.R_STONE]
+	MC.take_down(game, sid)
+	check(struts().is_empty() and game.joints.is_empty() and game.stock[D.R_STONE] > stone, "taking it down clears its bolts and gives Stone back")
