@@ -5,12 +5,17 @@ extends RefCounted
 ## face and everything joined to that (the Winch's rig, `MU.rig`); the mover adds its velocity to
 ## all of them (`MU.drive`), so a Gantry can carry a Piston's load too. Clicking a mover cycles
 ## its mode: run (out and back with a pause at each end), out, back. Moving costs power.
+## A8: the load hangs on a slide joint (the engine's, `JT.mount_slide`) and the rest of the rig is
+## bolted to it face by face (`JT.hold_rig`), so a load that meets something solid is held back by
+## the world and the joint reads where it really is.
 
 const MU = preload("res://scripts/machines/mu.gd")
+const JT = preload("res://scripts/machines/joints.gd")
 const D = preload("res://scripts/defs.gd")
 
 const ARRIVED := 0.05           # cells from the goal that count as there
 const MODES := ["run", "out", "back"]
+const TRAIL := 12                # ticks of position kept to tell a load that is held back
 
 
 ## The line the load slides along, in the world: the face's normal (a Piston) or at right
@@ -23,13 +28,12 @@ static func _axis(fr: Dictionary, def: Dictionary) -> Vector2:
 	return MU.turn(fr, d)
 
 
-## Where the load sits relative to the mover (body centres), in the world.
-static func _rel(g, m: Dictionary, t: int) -> Vector2:
-	var a: PackedFloat32Array = g.sim.body_state(m["body"])
-	var b: PackedFloat32Array = g.sim.body_state(g.modules[t]["body"])
-	if a.size() < 2 or b.size() < 2:
-		return Vector2.ZERO
-	return Vector2(b[0] - a[0], b[1] - a[1])
+## Hangs the load `t` on a slide joint through the middle of the mover's face.
+static func _mount(g, m: Dictionary, def: Dictionary, t: int) -> void:
+	var fr := MU.frame(g, m, def)
+	var at := MU.world(fr, fr["lay"]["faces"][MU.face_index(def, def["params"]["face"])]["centre"])
+	var p: Dictionary = def["params"]
+	m["jid"] = JT.mount_slide(g, m["id"], t, at, _axis(fr, def), float(p["stroke"]), float(p["speed"]))
 
 
 static func scan(g, m: Dictionary, def: Dictionary) -> void:
@@ -43,7 +47,7 @@ static func scan(g, m: Dictionary, def: Dictionary) -> void:
 		m["dir"] = 1
 		m["stall"] = 0
 		if t != 0:
-			m["rel0"] = _rel(g, m, t)
+			_mount(g, m, def, t)
 	if not m.has("mode"):
 		m["mode"] = "run"
 		m["tether"] = t
@@ -51,6 +55,10 @@ static func scan(g, m: Dictionary, def: Dictionary) -> void:
 	m["net"] = MU.networked(g, m, def)
 	if t == 0:
 		return
+	if not g.joints.has(m.get("jid", 0)):
+		_mount(g, m, def, t)            # the joint snapped or was lost: the load is hung again where it is
+		m["pos"] = 0.0
+		m["last_pos"] = 0.0
 	var rig := MU.rig(g, t, m["id"])
 	for id: int in m.get("rig", []):
 		if not rig.has(id) and g.modules.has(id) and g.modules[id].get("rig_of", 0) == m["id"]:
@@ -60,9 +68,12 @@ static func scan(g, m: Dictionary, def: Dictionary) -> void:
 	for id: int in rig:
 		g.modules[id]["powered"] = m["net"]
 		g.modules[id]["rig_of"] = m["id"]
+	JT.hold_rig(g, m["id"], rig, false)
 
 
 static func _release(g, m: Dictionary) -> void:
+	JT.drop_auto(g, m["id"])
+	m["jid"] = 0
 	for id: int in m.get("rig", []):
 		if g.modules.has(id) and g.modules[id].get("rig_of", 0) == m["id"]:
 			g.modules[id]["powered"] = false
@@ -72,11 +83,11 @@ static func _release(g, m: Dictionary) -> void:
 
 static func step(g, m: Dictionary, def: Dictionary) -> void:
 	var t: int = m.get("tether", 0)
-	if t == 0 or not g.modules.has(t) or m.get("rig", []).is_empty():
+	var jid: int = m.get("jid", 0)
+	if t == 0 or not g.modules.has(t) or m.get("rig", []).is_empty() or not g.joints.has(jid):
 		return
 	var p: Dictionary = def["params"]
-	var axis := _axis(MU.frame(g, m, def), def)
-	var pos: float = (_rel(g, m, t) - m["rel0"]).dot(axis)
+	var pos: float = JT.state(g, jid).get("extent", 0.0)
 	m["pos"] = pos
 	var stroke := float(p["stroke"])
 	var goal := 0.0
@@ -102,8 +113,14 @@ static func step(g, m: Dictionary, def: Dictionary) -> void:
 		v = clampf(goal - pos, -float(p["speed"]), float(p["speed"]))
 	else:
 		why = "Waiting for power."
-	# A load that is meant to move and doesn't (something solid in the way) is blocked.
-	if v != 0.0 and absf(pos - m["last_pos"]) < absf(v) * 0.25:
+	# A load that is meant to move and doesn't (something solid in the way) is blocked. The joint lets a
+	# load that has met something shuffle a little, so the move is judged over a dozen ticks.
+	var trail: Array = m.get("trail", [])
+	trail.append(pos)
+	if trail.size() > TRAIL:
+		trail.pop_front()
+	m["trail"] = trail
+	if v != 0.0 and trail.size() >= TRAIL and absf(pos - float(trail[0])) < absf(v) * float(TRAIL) * 0.25:
 		m["stall"] += 1
 	else:
 		m["stall"] = 0
@@ -114,10 +131,7 @@ static func step(g, m: Dictionary, def: Dictionary) -> void:
 			m["dir"] = -m["dir"]
 	m["last_pos"] = pos
 	m["why"] = why
-	for id: int in m["rig"]:
-		var mm: Dictionary = g.modules.get(id, {})
-		if not mm.is_empty():
-			MU.drive(mm, axis * v)
+	JT.slide_to(g, jid, goal if v != 0.0 else -1.0, float(p["speed"]))
 
 
 ## A click on the module: run, then out, then back, then run again.

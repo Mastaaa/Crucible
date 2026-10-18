@@ -8,6 +8,8 @@ extends SceneTree
 ##     spinning), the arm keeps its length and turns with the hub, hold rests on a quarter, and a
 ##     solid in the way blocks it
 ##  E. research: the Build buttons wait for their techs
+##  F. joints under the movers: a Piston hangs its load on a slide joint and bolts the rest of the rig to it,
+##     so a rig of two Tanks rises as one; taking the Piston down clears every joint it kept
 ## Run: godot --headless --path . --script tests/scenario_movers.gd
 
 # A6: the world is 1024 wide and the Hub moved from x 384 to 512, so every bench x below is the old one plus 128.
@@ -39,6 +41,7 @@ func _process(_d: float) -> bool:
 		scenario_c()
 		scenario_d()
 		scenario_e()
+		scenario_f()
 		print("FAILURES: %d" % fails)
 		return true
 	return false
@@ -229,6 +232,15 @@ func click_hub(m: Dictionary) -> void:
 	MC.kinds["turntable"].use(game, m, MC.defs["turntable"])
 
 
+## How many bolts a mover keeps over its rig.
+func bolts_of(mover: int) -> int:
+	var n := 0
+	for jid: int in game.joints:
+		if game.joints[jid].get("auto", 0) == mover and game.joints[jid]["kind"] == "bolt":
+			n += 1
+	return n
+
+
 func com_of(id: int) -> Vector2:
 	var st: PackedFloat32Array = game.sim.body_state(game.modules[id]["body"])
 	return Vector2(st[0], st[1])
@@ -304,7 +316,7 @@ func scenario_d() -> void:
 	game.paused = true
 	var m2: Dictionary = game.modules[r["mover"]]
 	var a2: float = m2["ang"]
-	check(m2["mode"] == "spin" and m2["rig"] == [r["load"]] and m2["pose"].has(r["load"]), "the hub loads back spinning with its arm (%.2f rad)" % a2)
+	check(m2["mode"] == "spin" and m2["rig"] == [r["load"]] and bolts_of(m2["id"]) == 1, "the hub loads back spinning with its arm (%.2f rad)" % a2)
 	secs(2.0)
 	check(m2["ang"] > a2 + 1.5 and absf((com_of(r["load"]) - com_of(r["mover"])).length() - 22.0) < 2.0, "and goes on turning it (%.2f rad)" % m2["ang"])
 
@@ -316,3 +328,42 @@ func scenario_e() -> void:
 		check(not MC.unlocked(game, MC.defs[id]), "the %s is locked at first" % id)
 		game.researched[id] = true
 		check(MC.unlocked(game, MC.defs[id]), "and open once researched")
+
+
+func scenario_f() -> void:
+	print("F. joints under the movers")
+	fresh()
+	var r := build_piston()
+	var top := place("tank", X0 - 7, SURFACE - 26 - 60, 2)      # its out face on the first Tank's in face, a few cells to the side
+	secs(1.0)
+	var m: Dictionary = game.modules[r["mover"]]
+	check(top != 0 and m["rig"].size() == 2 and m["rig"].has(top), "a second Tank on the first is in the rig (%s)" % str(m["rig"]))
+	var slide: Dictionary = game.joints.get(m.get("jid", 0), {})
+	check(slide.get("kind", "") == "slide" and slide["a"] == r["mover"] and slide["b"] == r["load"], "the first hangs on a slide joint from the Piston")
+	check(bolts_of(r["mover"]) == 1, "and the second is bolted to the first")
+	var d0 := y_of(r["load"]) - y_of(top)
+	var y0 := y_of(top)
+	m["mode"] = "out"
+	check(until(func() -> bool: return m["pos"] > 19.5, 20.0), "it runs out the stroke (%.1f)" % m["pos"])
+	check(absf((y0 - y_of(top)) - m["pos"]) < 0.8, "and the top Tank is up by as much (%.1f)" % (y0 - y_of(top)))
+	check(absf((y_of(r["load"]) - y_of(top)) - d0) < 0.8, "with the two held the same distance apart (%.1f, was %.1f)" % [y_of(r["load"]) - y_of(top), d0])
+	check(game.joints.size() == 2, "no joint snapped on the way")
+	MC.remove(game, r["mover"])
+	check(game.joints.is_empty() and game.sim.joint_count() == 0, "taking the Piston down clears the slide and the bolt")
+
+	# A Turntable's arm of two Tanks swings as one.
+	fresh()
+	var t := build_turntable()
+	var sn2 := MC.snap(game, "tank", 1, Vector2i(380, 140))
+	var far := MC.place(game, "tank", sn2["at"], 1)
+	secs(1.0)
+	var hub: Dictionary = game.modules[t["mover"]]
+	check(far != 0 and sn2["snapped"] and hub["rig"].size() == 2, "a second Tank on the first makes the arm two long (%s)" % str(hub["rig"]))
+	check(bolts_of(t["mover"]) == 2, "bolted hub to Tank and Tank to Tank")
+	var pivot := com_of(t["mover"])
+	var r1 := (com_of(t["load"]) - pivot).length()
+	var r2 := (com_of(far) - pivot).length()
+	click_hub(hub)
+	check(until(func() -> bool: return hub["ang"] > 1.5, 30.0), "the hub turns a quarter (%.2f rad)" % hub["ang"])
+	check(absf((com_of(t["load"]) - pivot).length() - r1) < 2.5 and absf((com_of(far) - pivot).length() - r2) < 3.5, "and both Tanks keep their reach (%.1f, %.1f; was %.1f, %.1f)" % [(com_of(t["load"]) - pivot).length(), (com_of(far) - pivot).length(), r1, r2])
+	check((com_of(far) - pivot).y < -r2 + 6.0, "the far one is now above the hub")
