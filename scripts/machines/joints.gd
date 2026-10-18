@@ -358,6 +358,25 @@ static func grab(g, p: Vector2, kind: String) -> Dictionary:
 	return {"why": "A piton needs rock beside the part." if kind == "piton" else "Click where two parts meet, or a part meets the rock."}
 
 
+## True if module `id` is held to the ground by a chain of joints (a rooted joint at the far end).
+static func grounded(g, id: int) -> bool:
+	var seen := {id: true}
+	var todo: Array = [id]
+	while not todo.is_empty():
+		var m: int = todo.pop_back()
+		for jid: int in g.joints:
+			var j: Dictionary = g.joints[jid]
+			if j["a"] != m and j["b"] != m:
+				continue
+			if j["b"] == 0 or j["a"] == 0:
+				return true
+			var o: int = j["b"] if j["a"] == m else j["a"]
+			if not seen.has(o):
+				seen[o] = true
+				todo.append(o)
+	return false
+
+
 ## The joint whose anchor is within TAKE_OFF_RADIUS of `p` (record id), or 0.
 static func joint_near(g, p: Vector2) -> int:
 	var best := TAKE_OFF_RADIUS
@@ -408,7 +427,12 @@ static func click(g, cell: Vector2i) -> void:
 	if not affordable(g, cost):
 		g.show_banner("Needs %s in the stockpile." % MU.cost_text(cost), 2.0)
 		return
-	var id := attach(g, kind, gr["a"], gr["b"], gr["at"])
+	var ma: int = gr["a"]
+	var mb: int = gr["b"]
+	if kind == "motor" and mb != 0 and grounded(g, ma) and not grounded(g, mb):
+		ma = gr["b"]              # the free arm is the one that turns: "right" is clockwise for it
+		mb = gr["a"]
+	var id := attach(g, kind, ma, mb, gr["at"])
 	if id == 0:
 		g.show_banner("That can't be joined.", 2.0)
 		return
