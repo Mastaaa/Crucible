@@ -30,7 +30,18 @@ const KINDS := {
 	"rope": {"type": 1, "rigid": false, "name": "Rope", "max_load": 500.0, "limit": 1e9, "cost": [1, 0, 0, 0, 0]},
 	"slide": {"type": 4, "rigid": false, "name": "Slide", "max_load": 900.0, "limit": 14.0, "cost": [0, 0, 0, 0, 0]},
 }
-const TOOLS := ["bolt", "hinge", "motor", "piton"]      # what the Build list offers
+const TOOLS := ["bolt", "hinge", "motor", "piton"]      # the point tools the Build list offers
+## The line tools: two clicks. A Strut is a module of its own (a thin body between the ends, bolted to what
+## it meets); a Rope is a rope joint between the ends. `per` is the cells one price covers.
+const LINES := {
+	"strut": {"name": "Strut", "tech": "strut", "per": 12.0, "min": 8.0, "max": 60.0, "cost": [1, 0, 0, 0, 0],
+			"blurb": "A rigid beam between two points, bolted to whatever it meets at each end (rock too). 1 Stone for every 12 cells, up to 60 long."},
+	"rope": {"name": "Rope", "tech": "rope", "per": 30.0, "min": 4.0, "max": 120.0, "cost": [1, 0, 0, 0, 0],
+			"blurb": "A rope between two points: it holds the ends no further apart than it is long and goes slack when they are closer. 1 Stone for every 30 cells, up to 120 long."},
+}
+const STRUT_T := 4              # a Strut's thickness, cells
+const END_RADIUS := 4.0         # cells: a line's end takes hold of a part or rock this near the click
+const CUT := 1.5                # cells a Strut's end stops short of what it is bolted to
 const SNAP_RADIUS := 8.0        # cells: how far from a click an attach point or a body's surface is taken
 const GAP := 6.0                # cells: the most two parts (or a part and the rock) may be apart where a joint goes
 const TAKE_OFF_RADIUS := 2.5    # a click this near a joint's anchor takes it off
@@ -38,6 +49,11 @@ const MOTOR_RATE := 1.2         # radians a second
 const MOTOR_POWER := 0.05       # power a second while a motor is turning
 const COLOURS := {"bolt": Color(0.75, 0.75, 0.8), "hinge": Color(0.95, 0.95, 0.6), "motor": Color(1.0, 0.6, 0.25),
 		"piton": Color(0.7, 0.5, 0.35), "rope": Color(0.8, 0.7, 0.5), "slide": Color(0.6, 0.8, 1.0)}
+
+
+## Makes a module with a bitmap body (a Strut): machines.gd sets it, as this file can't preload that one.
+static var module_maker := Callable()
+static var module_remover := Callable()
 
 
 static func reset(g) -> void:
@@ -274,7 +290,8 @@ static func use(g, cell: Vector2i) -> bool:
 # --- Putting joints down -------------------------------------------------------------
 
 static func unlocked(g, kind: String) -> bool:
-	return not KINDS[kind].has("tech") or g.researched.has(KINDS[kind]["tech"])
+	var t: Dictionary = LINES[kind] if LINES.has(kind) else KINDS[kind]
+	return not t.has("tech") or g.researched.has(t["tech"])
 
 
 ## Whether the cell is rock a rooted joint can hold on to: a static material no body owns.
@@ -287,14 +304,14 @@ static func is_ground(g, x: int, y: int) -> bool:
 ## What a click at world point `p` would join, for a tool of `kind`: {a, b, at} (b 0 is the rock,
 ## `at` the spot) or {why}. Two parts a hand apart are joined half way between; one part and the
 ## rock beside it are joined at the rock.
-static func grab(g, p: Vector2, kind: String) -> Dictionary:
+static func _scan(g, p: Vector2, radius: float) -> Dictionary:
 	var by_body := {}
 	for id: int in g.modules:
 		by_body[g.modules[id]["body"]] = id
 	var near := {}
 	var rock := Vector2.ZERO
 	var rock_d := 1e9
-	var r := int(ceil(SNAP_RADIUS))
+	var r := int(ceil(radius))
 	for dy in range(-r, r + 1):
 		for dx in range(-r, r + 1):
 			var cx := int(floor(p.x)) + dx
@@ -303,7 +320,7 @@ static func grab(g, p: Vector2, kind: String) -> Dictionary:
 				continue
 			var cell := Vector2(cx + 0.5, cy + 0.5)
 			var d := p.distance_to(cell)
-			if d > SNAP_RADIUS:
+			if d > radius:
 				continue
 			var owner: int = g.sim.get_owner(cx, cy)
 			if owner != 0:
@@ -312,6 +329,14 @@ static func grab(g, p: Vector2, kind: String) -> Dictionary:
 			elif d < rock_d and is_ground(g, cx, cy):
 				rock_d = d
 				rock = cell
+	return {"near": near, "rock": rock, "rock_d": rock_d}
+
+
+static func grab(g, p: Vector2, kind: String) -> Dictionary:
+	var sc := _scan(g, p, SNAP_RADIUS)
+	var near: Dictionary = sc["near"]
+	var rock: Vector2 = sc["rock"]
+	var rock_d: float = sc["rock_d"]
 	var ids: Array = near.keys()
 	ids.sort_custom(func(x: int, y: int) -> bool: return near[x]["d"] < near[y]["d"])
 	if ids.is_empty():
@@ -358,13 +383,18 @@ static func click(g, cell: Vector2i) -> void:
 		g.joint_pick = ""
 		return
 	var p := Vector2(cell) + Vector2(0.5, 0.5)
-	var old := joint_near(g, p)
-	if old != 0:
-		var ok: String = g.joints[old]["kind"]
-		for r in KINDS[ok]["cost"].size():
-			g.stock[r] += KINDS[ok]["cost"][r]
-		detach(g, old)
-		g.show_banner("Took off a %s." % KINDS[ok]["name"].to_lower(), 1.5)
+	if kind != "strut":
+		var old := joint_near(g, p)
+		if old != 0:
+			var ok: String = g.joints[old]["kind"]
+			var paid: Array = g.joints[old].get("paid", KINDS[ok]["cost"])
+			for r in paid.size():
+				g.stock[r] += paid[r]
+			detach(g, old)
+			g.show_banner("Took off a %s." % KINDS[ok]["name"].to_lower(), 1.5)
+			return
+	if LINES.has(kind):
+		_line_click(g, kind, p)
 		return
 	var gr := grab(g, p, kind)
 	if gr.has("why"):
@@ -374,9 +404,11 @@ static func click(g, cell: Vector2i) -> void:
 	if not affordable(g, cost):
 		g.show_banner("Needs %s in the stockpile." % MU.cost_text(cost), 2.0)
 		return
-	if attach(g, kind, gr["a"], gr["b"], gr["at"]) == 0:
+	var id := attach(g, kind, gr["a"], gr["b"], gr["at"])
+	if id == 0:
 		g.show_banner("That can't be joined.", 2.0)
 		return
+	g.joints[id]["paid"] = cost
 	for r in cost.size():
 		g.stock[r] -= cost[r]
 
@@ -396,6 +428,19 @@ static func add_buttons(hud, vb: VBoxContainer) -> void:
 		b.visible = unlocked(hud.game, kind)
 		hud.module_buttons.append({"button": b, "def": {"tech": k["tech"]}})
 		vb.add_child(b)
+	for kind: String in LINES:
+		var l: Dictionary = LINES[kind]
+		var b: Button = hud._button("   %s  [%d Stone per %d cells]" % [l["name"], l["cost"][0], int(l["per"])])
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.add_theme_font_size_override("font_size", 13)
+		b.tooltip_text = "%s\nClick the start, then the end. Esc cancels." % l["blurb"]
+		b.pressed.connect(func() -> void:
+			hud.game.cancel_tool()
+			hud.game.joint_pick = kind
+			hud.game.show_banner("%s: click where it starts, then where it ends. Esc cancels." % l["name"], 3.0))
+		b.visible = unlocked(hud.game, kind)
+		hud.module_buttons.append({"button": b, "def": {"tech": l["tech"]}})
+		vb.add_child(b)
 
 
 # --- Drawing -----------------------------------------------------------------------
@@ -409,11 +454,31 @@ static func draw(ov, g, z: float) -> void:
 		var j: Dictionary = g.joints[jid]
 		var at: Vector2 = g.to_screen(a[0])
 		var col: Color = COLOURS.get(j["kind"], Color.WHITE)
+		if j["kind"] == "rope" and a.size() == 2:
+			ov.draw_line(at, g.to_screen(a[1]), Color(col, 0.9), maxf(1.0, 0.7 * z))
+			ov.draw_circle(g.to_screen(a[1]), maxf(1.5, 1.2 * z), col)
 		ov.draw_circle(at, maxf(2.5, 2.2 * z), Color(0, 0, 0, 0.7))
 		ov.draw_circle(at, maxf(1.8, 1.6 * z), col)
 		if j["kind"] == "motor" and j["mode"] != 0:
 			ov.draw_arc(at, maxf(4.0, 4.0 * z), 0.0, TAU * 0.75 * float(j["mode"]), 16, col, 1.5)
-	if g.joint_pick != "":
+	if LINES.has(g.joint_pick):
+		var kind: String = g.joint_pick
+		var e := hold(g, Vector2(g.hover) + Vector2(0.5, 0.5))
+		var why := ""
+		if not g.joint_from.is_empty():
+			why = _line_why(g, kind, g.joint_from, e)
+		var col: Color = ov.OK_COL if why == "" else ov.BAD_COL
+		var at: Vector2 = g.to_screen(e["pos"])
+		ov.draw_arc(at, maxf(5.0, 5.0 * z), 0.0, TAU, 20, ov.OK_COL if e["hit"] else Color(1.0, 1.0, 1.0, 0.5), 1.5)
+		if not g.joint_from.is_empty():
+			var from: Vector2 = g.to_screen(g.joint_from["pos"])
+			ov.draw_line(from, at, Color(col, 0.8), 1.5)
+			ov.draw_arc(from, maxf(5.0, 5.0 * z), 0.0, TAU, 20, ov.OK_COL, 1.5)
+			var span: float = (g.joint_from["pos"] as Vector2).distance_to(e["pos"])
+			var txt := why if why != "" else "%d cells, %s" % [roundi(span), MU.cost_text(_line_cost(kind, span))]
+			if ov.font != null:
+				ov.draw_string(ov.font, at + Vector2(10.0, 18.0), txt, HORIZONTAL_ALIGNMENT_LEFT, 320.0, 13, Color(1, 1, 1, 0.9))
+	elif g.joint_pick != "":
 		var gr := grab(g, Vector2(g.hover) + Vector2(0.5, 0.5), g.joint_pick)
 		var ok := not gr.has("why")
 		var col: Color = ov.OK_COL if ok else ov.BAD_COL
@@ -421,3 +486,136 @@ static func draw(ov, g, z: float) -> void:
 		ov.draw_arc(at, maxf(5.0, 5.0 * z), 0.0, TAU, 20, col, 1.5)
 		if not ok and ov.font != null:
 			ov.draw_string(ov.font, at + Vector2(10.0, 18.0), gr["why"], HORIZONTAL_ALIGNMENT_LEFT, 320.0, 13, Color(1, 1, 1, 0.9))
+
+
+# --- Lines: Struts and Ropes -----------------------------------------------------------
+
+## What a line's end takes hold of at world point `p`: {hit, pos, mod}, `mod` the part (0 for rock) and
+## `pos` the cell it holds, or {hit: false, pos: p} when nothing is within END_RADIUS.
+static func hold(g, p: Vector2) -> Dictionary:
+	var sc := _scan(g, p, END_RADIUS)
+	var best := {"hit": false, "pos": p, "mod": 0}
+	var best_d := 1e9
+	for id: int in sc["near"]:
+		if sc["near"][id]["d"] < best_d:
+			best_d = sc["near"][id]["d"]
+			best = {"hit": true, "pos": sc["near"][id]["pos"], "mod": id}
+	if sc["rock_d"] < best_d - 0.5:
+		best = {"hit": true, "pos": sc["rock"], "mod": 0}
+	return best
+
+
+## The price of a line `span` cells long.
+static func _line_cost(kind: String, span: float) -> Array:
+	var l: Dictionary = LINES[kind]
+	var n: int = maxi(1, int(ceil(span / float(l["per"]))))
+	var out: Array = []
+	for c in l["cost"]:
+		out.append(c * n)
+	return out
+
+
+## Why a line from `a` to `b` can't be made ("" if it can).
+static func _line_why(g, kind: String, a: Dictionary, b: Dictionary) -> String:
+	var l: Dictionary = LINES[kind]
+	var span: float = (a["pos"] as Vector2).distance_to(b["pos"])
+	if span < l["min"]:
+		return "Too short."
+	if span > l["max"]:
+		return "Too long (%d cells at most)." % int(l["max"])
+	if kind == "rope":
+		if not a["hit"] or not b["hit"]:
+			return "A rope needs something to hold at both ends."
+		if a["mod"] == 0 and b["mod"] == 0:
+			return "A rope needs a part at one end."
+		if a["mod"] == b["mod"]:
+			return "Both ends are on the same part."
+	elif not a["hit"] and not b["hit"]:
+		return "A strut needs to be held at one end at least."
+	if not affordable(g, _line_cost(kind, span)):
+		return "Needs %s in the stockpile." % MU.cost_text(_line_cost(kind, span))
+	return ""
+
+
+static func _line_click(g, kind: String, p: Vector2) -> void:
+	var e := hold(g, p)
+	if g.joint_from.is_empty():
+		g.joint_from = e
+		g.show_banner("%s: now click where it ends." % LINES[kind]["name"], 2.0)
+		return
+	var s: Dictionary = g.joint_from
+	g.joint_from = {}
+	var why := _line_why(g, kind, s, e)
+	if why != "":
+		g.show_banner(why, 2.5)
+		return
+	var span: float = (s["pos"] as Vector2).distance_to(e["pos"])
+	var cost := _line_cost(kind, span)
+	var made := 0
+	if kind == "rope":
+		var first: Dictionary = s if s["mod"] != 0 else e
+		var second: Dictionary = e if s["mod"] != 0 else s
+		made = attach(g, "rope", first["mod"], second["mod"], first["pos"], second["pos"], {"len": span})
+		if made != 0:
+			g.joints[made]["paid"] = cost
+	else:
+		made = _strut(g, s, e)
+	if made == 0:
+		g.show_banner("There is no room for that %s." % kind, 2.0)
+		return
+	for r in cost.size():
+		g.stock[r] -= cost[r]
+
+
+## A Strut from end `s` to end `e`: a thin module along the line, its ends stopping CUT short of what they
+## hold (one cell further each time it finds rock in the way), bolted to each at the held cell. Returns the
+## strut's module id, or 0.
+static func _strut(g, s: Dictionary, e: Dictionary) -> int:
+	if not module_maker.is_valid() or not module_remover.is_valid():
+		return 0
+	var d: Vector2 = ((e["pos"] as Vector2) - s["pos"]).normalized()
+	for extra in 4:
+		var cut := CUT + float(extra)
+		var p1: Vector2 = s["pos"] + d * (cut if s["hit"] else 0.0)
+		var p2: Vector2 = e["pos"] - d * (cut if e["hit"] else 0.0)
+		var l := int(round(p1.distance_to(p2)))
+		if l < 4:
+			return 0
+		var def_id := strut_def(l)
+		var id: int = module_maker.call(g, def_id, (p1 + p2) * 0.5, d.angle())
+		if id == 0:
+			continue
+		if _whole(g, id):
+			for end: Dictionary in [s, e]:
+				if end["hit"]:
+					attach(g, "bolt", id, end["mod"], end["pos"], end["pos"])
+			return id
+		module_remover.call(g, id)
+	return 0
+
+
+## Whether every pixel of module `id`'s body is up (none hidden in rock).
+static func _whole(g, id: int) -> bool:
+	var m: Dictionary = g.modules[id]
+	var bl: PackedInt32Array = g.sim.get_bodies()
+	for k in range(0, bl.size(), 7):
+		if bl[k] == m["body"]:
+			return bl[k + 6] >= m["designed"]
+	return false
+
+
+## A Strut definition `l` cells long, registered on first use (and again after a load).
+static func strut_def(l: int) -> String:
+	var id := "strut_%d" % l
+	if not MU.defs.has(id):
+		MU.defs[id] = {"id": id, "name": "Strut", "size": Vector2i(l, STRUT_T), "wall": STRUT_T, "faces": [],
+				"cost": [maxi(1, int(ceil(float(l) / 12.0))), 0, 0, 0, 0], "hidden": true}
+	return id
+
+
+## After a load: the definitions of the Struts in the game.
+static func restore_defs(g) -> void:
+	for id: int in g.modules:
+		var def_id: String = g.modules[id]["def"]
+		if def_id.begins_with("strut_") and not MU.defs.has(def_id):
+			strut_def(int(def_id.substr(6)))

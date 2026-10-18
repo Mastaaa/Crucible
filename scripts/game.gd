@@ -106,6 +106,7 @@ var joints := {}                  # joint record id -> {kind, a, b, eng ...} (ma
 var next_joint := 1
 var module_pick := ""             # a module being placed (its id), or ""
 var joint_pick := ""              # a joint tool picked (its kind, machines/joints.gd), or ""
+var joint_from := {}              # a line tool's first end, once clicked (machines/joints.gd `hold`)
 var module_turns := 0
 var body_seen := {}               # body id -> cells x speed, as of body_seen_tick
 var body_seen_tick := -1
@@ -439,6 +440,7 @@ func _reset(s: int) -> void:
 	demolish_module = -1
 	tool_type = -1
 	joint_pick = ""
+	joint_from = {}
 	banner_text = ""
 	save_clock = 0.0
 	plans.clear()
@@ -2918,6 +2920,7 @@ func select_tool(type: int) -> void:
 	tool_type = type
 	module_pick = ""
 	joint_pick = ""
+	joint_from = {}
 	brush_mode = false
 	selected = null
 	if type == D.B_BULKHEAD:
@@ -2932,6 +2935,7 @@ func cancel_tool() -> void:
 	tool_type = -1
 	module_pick = ""
 	joint_pick = ""
+	joint_from = {}
 	drag_from = Vector2i(-1, -1)
 
 

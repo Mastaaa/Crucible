@@ -4,6 +4,15 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A8 part 4: Strut and Rope
+
+Tests: full suite 34 lines `FAILURES: 0`, scenario_parts now has group I. No engine change.
+- Two more techs, Strut and Rope (both need Joints), and two line tools: click where it starts and where it ends.
+- A Rope joins two points. It holds them no further apart than it is long and goes slack when they are closer. 1 Stone per 30 cells, up to 120. One end can be rock, but not both.
+- A Strut is a rigid beam, a module in its own right, 4 cells thick and 8 to 60 long. Each end is bolted to the part or the rock it lands on; one end may hang free. 1 Stone per 12 cells. A plate laid on a Strut bolted rock to rock stays up. A held right-click takes it down for 80% back, like any module.
+- While drawing, a ring shows what each end will take hold of, and the line turns red with the reason when it can't be made (too long, too short, nothing to hold, or no Stone).
+- Saves keep Struts: their definitions are registered again on load.
+
 ## A8 part 3: Bolt, Hinge, Motor and Piton
 
 Tests: full suite 34 lines `FAILURES: 0`, scenario_parts now has groups G and H. No engine change.

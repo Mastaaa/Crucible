@@ -62,6 +62,7 @@ const TAKE_DOWN_REFUND := 0.8   # share of its price a module taken down gives b
 
 static var defs := MU.defs      # id -> definition (shared with the behaviours, which can't preload this file)
 static var kinds := {}          # kind -> behaviour script: scan, step, info, draw (see tank.gd)
+static var _ready := false      # ensure_defs has run (a Strut's definition may be registered before it)
 
 
 static func register(def: Dictionary) -> void:
@@ -70,7 +71,10 @@ static func register(def: Dictionary) -> void:
 
 ## The module data files' definitions, then the throwaway test modules, registered once.
 static func ensure_defs() -> void:
-	if defs.is_empty():
+	if not _ready:
+		_ready = true
+		JT.module_maker = place_part
+		JT.module_remover = remove
 		kinds = {"tank": K_TANK, "funnel": K_FUNNEL, "cutter": K_CUTTER, "winch": K_WINCH, "windmill": K_WINDMILL, "waterwheel": K_WATERWHEEL,
 				"lab": K_LAB, "lamp": K_LAMP, "slide": K_SLIDE, "turntable": K_TURNTABLE, "laser": K_LASER, "thumper": K_THUMPER,
 				"macerator": K_MACERATOR, "press": K_PRESS, "thermal": K_THERMAL, "caster": K_CASTER, "combustor": K_COMBUSTOR, "separator": K_SEPARATOR, "electrolyser": K_ELECTROLYSER, "pump": K_PUMP, "shorer": K_SHORER, "filler": K_FILLER, "sensor": K_SENSOR, "thermoelectric": K_THERMOELECTRIC,
@@ -126,6 +130,29 @@ static func place(g, def_id: String, at: Vector2i, turns: int) -> int:
 	if body <= 0:
 		_clear_footprint(g, at, size, cells)
 		return 0
+	return _register(g, def_id, turns, body, lay, Vector2(at) + Vector2(size) * 0.5)
+
+
+## A module whose body is a bitmap at a pose, not a box cut from the grid: the Strut. `def_id` is a
+## registered definition (its size is the bitmap's, every casing cell a pixel), `centre` and `angle`
+## the pose. Returns the module's id, or 0 if the engine had no room for the body.
+static func place_part(g, def_id: String, centre: Vector2, angle: float) -> int:
+	var lay := F.layout(defs[def_id], 0)
+	var size: Vector2i = lay["size"]
+	var cells: PackedByteArray = lay["cells"]
+	var pixels := PackedByteArray()
+	pixels.resize(cells.size())
+	for i in cells.size():
+		pixels[i] = CS.MATERIAL if cells[i] == F.CASING else 0
+	var body: int = g.sim.make_part(size.x, size.y, pixels, centre.x, centre.y, angle)
+	if body <= 0:
+		return 0
+	return _register(g, def_id, 0, body, lay, centre)
+
+
+## The module record for a body that is up, and its first pairing with whatever it touches.
+static func _register(g, def_id: String, turns: int, body: int, lay: Dictionary, centre: Vector2) -> int:
+	var def: Dictionary = defs[def_id]
 	g.sim.set_module(body, true)
 	var fl: Array = []
 	for _f in lay["faces"]:
@@ -136,7 +163,7 @@ static func place(g, def_id: String, at: Vector2i, turns: int) -> int:
 		"id": id, "def": def_id, "turns": posmod(turns, 4), "body": body,
 		"designed": lay["designed"], "opened": 0, "count": lay["designed"], "dirty": true,
 		"integrity": 1.0, "breach": Vector2i(-1, -1), "faces": fl, "contents": {},
-		"at": Vector2(at) + Vector2(size) * 0.5, "sim": null, "box": Rect2i(),
+		"at": centre, "sim": null, "box": Rect2i(),
 	}
 	INT.ensure(g.modules[id], def)
 	if not g.firsts.has(def_id):
@@ -566,7 +593,7 @@ static func add_build_buttons(hud, vb: VBoxContainer) -> void:
 	for pass_test in [false, true]:
 		for id: String in defs:
 			var def: Dictionary = defs[id]
-			if def.get("test", false) != pass_test:
+			if def.get("test", false) != pass_test or def.get("hidden", false):
 				continue
 			var label := "   %s (module)" % def["name"] if pass_test else "   %s  [%s]" % [def["name"], cost_text(def.get("cost", []))]
 			var b: Button = hud._button(label)
