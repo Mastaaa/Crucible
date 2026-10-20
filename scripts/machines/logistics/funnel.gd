@@ -9,11 +9,14 @@ const LN = preload("res://scripts/machines/lines.gd")
 
 
 static func scan(g, m: Dictionary, def: Dictionary) -> void:
+	var power := float(def["params"].get("power", 0.0)) if LN.via_line(g, m, def) != 0 else 0.0     # Network cost: only a port banking through a line pays
 	var left := mini(MU.rate(g, int(def["params"]["bank"])), LN.bank_room(g, m, def))     # out of reach, a Network line takes it
 	for mat: int in m["contents"].keys():
 		var n := mini(left, m["contents"][mat])
 		if M.is_good(mat):
 			n = mini(n, g.good_room_cells(mat))      # a full bank holds a good back
+		while n > 0 and not MU.take_power(g, power * n):      # a fixed cost a cell at a Network port
+			n = n >> 1
 		if n <= 0:
 			continue
 		n = MU.take(m, mat, n)

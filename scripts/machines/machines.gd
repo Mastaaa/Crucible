@@ -105,7 +105,7 @@ static func ensure_defs() -> void:
 static func reset(g) -> void:
 	g.modules.clear()
 	g.overseers.clear()
-	g.reach.clear()
+	g.net_reach.clear()
 	g.next_module = 1
 	JT.reset(g)
 

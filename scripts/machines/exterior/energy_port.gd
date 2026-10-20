@@ -13,7 +13,7 @@ static func scan(g, m: Dictionary, def: Dictionary) -> void:
 		m["state"] = "No Cable: lay one with the Cable tool."
 	elif MU.direct(g, m, def):
 		m["state"] = "In reach of the network itself. %s" % g.modules[line].get("state", "")
-	elif g.reach.has(m["id"]):
+	elif g.net_reach.has(m["id"]):
 		m["state"] = "Fed through its Cable."
 	else:
 		m["state"] = "Out of reach. %s" % g.modules[line].get("state", "")

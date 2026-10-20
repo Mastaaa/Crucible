@@ -206,13 +206,32 @@ func scenario_d() -> void:
 	if line == 0:
 		return
 	var s0 := float(game.stock[D.R_STONE])
+	game.stock[D.R_POWER] = 0.0
 	MC.add_contents(game, far, D.DIRT, 30)
+	for _t in 60:
+		game.run_ticks(1)
+		game.stock[D.R_POWER] = 0.0
+	check(held(far, D.DIRT) == 30 and MU.stored(game.modules[line]) == 0, "a port banking through a line pays a power a cell: with none, it holds back")
+	game.stock[D.R_POWER] = 90.0
 	secs(1.0)
 	check(held(far, D.DIRT) < 30, "the far Funnel passes its cells into the line (%d left)" % held(far, D.DIRT))
 	secs(3.0)
 	check(held(far, D.DIRT) == 0 and MU.stored(game.modules[line]) == 0, "which carries them to the near port (%d in transit)" % MU.stored(game.modules[line]))
 	check(float(game.stock[D.R_STONE]) > s0, "where they are banked (%.2f Stone)" % (game.stock[D.R_STONE] - s0))
 	check(game.modules[line]["carried"] == 30, "the line counted them (%d)" % game.modules[line]["carried"])
+	MC.add_contents(game, near, D.DIRT, 30)
+	game.stock[D.R_POWER] = 0.0
+	for _t in 60:
+		game.run_ticks(1)
+		game.stock[D.R_POWER] = 0.0
+	check(held(near, D.DIRT) == 0, "a port in reach of the Hub banks for nothing")
+	# The Node transit view counts the packets in flight through a building.
+	var pk = game.Packet.new()
+	pk.res = D.R_STONE
+	pk.hops = [game.hub]
+	game.packets.append(pk)
+	check(game.transit_through(game.hub).get(D.R_STONE, 0) == 1, "a Node (here the Hub) reports the packets passing through it")
+	game.packets.erase(pk)
 	# Cut it: what the line holds is delivered if the far port stands.
 	MC.add_contents(game, far, D.DIRT, 10)
 	secs(0.2)

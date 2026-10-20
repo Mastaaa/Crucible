@@ -4,6 +4,14 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A9 exterior parts, part 3: Network cost and the Node transit view
+
+Tests: scenario_lines extended. No engine change; the quarry bot is unchanged (seed 7: Drill Bit 1 at 3:07, depth 500 at 24:11).
+- A Funnel that banks through a Network line pays 0.002 power a cell (a Bus Hopper already paid 0.004 a cell). A Funnel in reach of the Hub still banks for nothing: a cost there moved the bot's depth 500 from 24:11 to 24:46, and Alex's note was about the Network's ports. With no power the port holds its cells back.
+- A Node's panel lists the packets passing through it ("In transit through here: 3 Stone, 1 Water"). A span that is destroyed already refunds its packets to the stockpile (`_validate_packets`), so the "hand it to the nearest piece, delete the rest" rule holds for Nodes, lines (`rescue`) and Pipes.
+- `g.reach` became `g.net_reach` (a local in game.gd shadowed it).
+- Fixed in the same push: the Spout and Vacuum hold nothing of their own (`cap` 0); before, a Tank under the Spout handed its sand back up into the Spout's hollow. The Spout spreads its pour sideways so a pile does not swallow cells.
+
 ## A9 exterior parts, part 2: hookups and the three lines
 
 Tests: full suite `FAILURES: 0` (scenario_lines is new; scenario_a9_points group D is live). No engine change.

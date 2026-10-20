@@ -75,7 +75,7 @@
 				{"type": "pixel", "dir": "down", "at": 6, "w": 6, "name": "in"},
 				{"type": "line", "dir": "up", "at": 7, "w": 4, "name": "net"}
 			],
-			"params": {"bank": 40}
+			"params": {"bank": 40, "power": 0.002}
 		},
 		{
 			"id": "bus_hopper", "layer": "exterior", "needs": [], "name": "Bus Hopper", "kind": "bus_hopper", "size": [26, 22], "wall": 2, "interior": true, "front": "up", "anchored": true,

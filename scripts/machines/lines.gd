@@ -8,7 +8,7 @@ extends RefCounted
 ##    end hookup, or into a Router; a click reverses it.
 ##  - Cable: power, held as `charge` (not `contents`: that is keyed by material id and spills as pixels). A
 ##    Cable with a Node or the Hub in reach of one end fills from the Hub's stock; once it holds half its
-##    charge the assemblies at both ends count as networked (`g.reach`, read by `MU.networked`).
+##    charge the assemblies at both ends count as networked (`g.net_reach`, read by `MU.networked`).
 ##  - Network: goods in cells (`contents`) from a port outside the network's reach to one inside it, banked there.
 ##    The remote port banks into the line (`bank`), the line banks them at the far end, and the far port needs
 ##    a Node or the Hub in reach.
@@ -272,9 +272,9 @@ static func add_buttons(hud, vb: VBoxContainer) -> Array:
 # --- The network's reach ------------------------------------------------------------------
 
 ## Every machine scan, after the assemblies are found (`LY.scan`): which parts a live Cable or Network line puts
-## in the network's reach (`g.reach`), and which lines are live (a Node or the Hub in reach of an end).
+## in the network's reach (`g.net_reach`), and which lines are live (a Node or the Hub in reach of an end).
 static func scan(g) -> void:
-	g.reach.clear()
+	g.net_reach.clear()
 	var lines := all(g)
 	if lines.is_empty():
 		return
@@ -302,7 +302,7 @@ static func scan(g) -> void:
 					changed = true
 	for id: int in g.modules:
 		if live.has(comp[id]) and not direct[id]:
-			g.reach[id] = true
+			g.net_reach[id] = true
 	for lid: int in lines:
 		var m: Dictionary = g.modules[lid]
 		var kind: String = MU.defs[m["def"]]["kind"]
@@ -318,7 +318,7 @@ static func scan(g) -> void:
 			var dst: int = b if m.get("dir", 1) > 0 else a
 			m["live"] = direct[dst]
 			if direct[dst] and not direct[src]:
-				g.reach[src] = true
+				g.net_reach[src] = true
 		else:
 			m["live"] = true
 
