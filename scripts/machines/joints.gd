@@ -56,6 +56,9 @@ const COLOURS := {"bolt": Color(0.75, 0.75, 0.8), "hinge": Color(0.95, 0.95, 0.6
 ## Makes a module with a bitmap body (a Strut): machines.gd sets it, as this file can't preload that one.
 static var module_maker := Callable()
 static var module_remover := Callable()
+## Line tools another file runs (machines/lines.gd: Pipe, Cable, Network): kind -> {name, tech, click, draw}. The click
+## Callable takes (g, kind, p) and the draw one (ov, g, z, kind); this file only routes to them.
+static var ext_tools := {}
 
 
 static func reset(g) -> void:
@@ -292,7 +295,7 @@ static func use(g, cell: Vector2i) -> bool:
 # --- Putting joints down -------------------------------------------------------------
 
 static func unlocked(g, kind: String) -> bool:
-	var t: Dictionary = LINES[kind] if LINES.has(kind) else KINDS[kind]
+	var t: Dictionary = ext_tools[kind] if ext_tools.has(kind) else (LINES[kind] if LINES.has(kind) else KINDS[kind])
 	return not t.has("tech") or g.researched.has(t["tech"])
 
 
@@ -406,6 +409,9 @@ static func click(g, cell: Vector2i) -> void:
 		g.joint_pick = ""
 		return
 	var p := Vector2(cell) + Vector2(0.5, 0.5)
+	if ext_tools.has(kind):
+		ext_tools[kind]["click"].call(g, kind, p)
+		return
 	if kind != "strut":
 		var old := joint_near(g, p)
 		if old != 0:
@@ -508,6 +514,8 @@ static func draw(ov, g, z: float) -> void:
 			var txt := why if why != "" else "%d cells, %s" % [roundi(span), MU.cost_text(_line_cost(kind, span))]
 			if ov.font != null:
 				ov.draw_string(ov.font, at + Vector2(10.0, 18.0), txt, HORIZONTAL_ALIGNMENT_LEFT, 320.0, 13, Color(1, 1, 1, 0.9))
+	elif ext_tools.has(g.joint_pick):
+		ext_tools[g.joint_pick]["draw"].call(ov, g, z, g.joint_pick)
 	elif g.joint_pick != "":
 		var gr := grab(g, Vector2(g.hover) + Vector2(0.5, 0.5), g.joint_pick)
 		var ok := not gr.has("why")
@@ -520,9 +528,31 @@ static func draw(ov, g, z: float) -> void:
 
 # --- Lines: Struts and Ropes -----------------------------------------------------------
 
+## The declared hookup or anchor point of a module (an `attach` entry: a Hookup, Anchor Hookup, Energy Port, Pipe
+## Router or Network port) nearest world point `p` within SNAP_RADIUS: {module, pos, dir, kind, name}, or {}.
+static func hook_point(g, p: Vector2, radius := SNAP_RADIUS) -> Dictionary:
+	var best := {}
+	var best_d := radius
+	for id: int in g.modules:
+		var m: Dictionary = g.modules[id]
+		if not MU.defs[m["def"]].has("attach"):
+			continue
+		for pt: Dictionary in points(g, m):
+			if (pt["kind"] != "hookup" and pt["kind"] != "anchor") or pt["name"] == "":
+				continue
+			var d: float = p.distance_to(pt["pos"])
+			if d <= best_d:
+				best_d = d
+				best = {"module": id, "pos": pt["pos"], "dir": pt["dir"], "kind": pt["kind"], "name": pt["name"]}
+	return best
+
+
 ## What a line's end takes hold of at world point `p`: {hit, pos, mod}, `mod` the part (0 for rock) and
 ## `pos` the cell it holds, or {hit: false, pos: p} when nothing is within END_RADIUS.
 static func hold(g, p: Vector2) -> Dictionary:
+	var hp := hook_point(g, p)
+	if not hp.is_empty():
+		return {"hit": true, "pos": hp["pos"], "mod": hp["module"], "kind": hp["kind"], "name": hp["name"]}
 	var sc := _scan(g, p, END_RADIUS)
 	var best := {"hit": false, "pos": p, "mod": 0}
 	var best_d := 1e9

@@ -12,6 +12,30 @@ Tests: full suite 37 lines `FAILURES: 0`. No engine change.
 - Save version 6. A save from version 4 or 5 loads and takes down its old Caster and Centrifuge (and, from 4, the first half of the recut), returning their price.
 - After this the processing group has no chambers left.
 
+## A9 exterior parts, part 3: Network cost and the Node transit view
+
+Tests: scenario_lines extended. No engine change; the quarry bot is unchanged (seed 7: Drill Bit 1 at 3:07, depth 500 at 24:11).
+- A Funnel that banks through a Network line pays 0.002 power a cell (a Bus Hopper already paid 0.004 a cell). A Funnel in reach of the Hub still banks for nothing: a cost there moved the bot's depth 500 from 24:11 to 24:46, and Alex's note was about the Network's ports. With no power the port holds its cells back.
+- A Node's panel lists the packets passing through it ("In transit through here: 3 Stone, 1 Water"). A span that is destroyed already refunds its packets to the stockpile (`_validate_packets`), so the "hand it to the nearest piece, delete the rest" rule holds for Nodes, lines (`rescue`) and Pipes.
+- `g.reach` became `g.net_reach` (a local in game.gd shadowed it).
+- Fixed in the same push: the Spout and Vacuum hold nothing of their own (`cap` 0); before, a Tank under the Spout handed its sand back up into the Spout's hollow. The Spout spreads its pour sideways so a pile does not swallow cells.
+
+## A9 exterior parts, part 2: hookups and the three lines
+
+Tests: full suite `FAILURES: 0` (scenario_lines is new; scenario_a9_points group D is live). No engine change.
+- Parts: Pipe Hookup, Energy Port and Anchor Hookup (exterior, plug into a base's socket) and the Pipe Router (anchored). New face type `line` (a point where a line ends; it joins but never opens). They declare `attach` points, so a joint tool clicked there takes the hookup, not the base behind it.
+- Lines (`machines/lines.gd`): Pipe, Cable and Network line are laid with a two-click tool (like the Strut) from one hookup point to another. Each is a thin hinge-held body with an inventory; the two hinges belong to the line, so it goes when an end is taken down (80% refund, load handed on) and is left cut if a hinge snaps.
+- Pipe (tech "Pipes", after the Case): moves loose pixels from the base behind its start hookup into the base behind its end, 30 cells a scan, up to 100 long; a click reverses it. The Router merges Pipes and splits its stock between the Pipes that leave it.
+- Cable (tech "Cables", tier 2): a Cable's in-transit power is `charge`, a separate float, not `contents` (contents are material cells and spill as pixels). It fills from the Hub's stock; at half full the assembly at its far end counts as networked (`g.reach`, read by `MU.networked`), so a machine out of the network's reach can be fed through it. Taken down, its charge goes back to the Hub's stock.
+- Network line (tech "Network Line", tier 2): carries goods from a Funnel or Bus Hopper out of the network's reach to one inside it, which banks them. A port with no line banks as before.
+- Taken down or destroyed, a line hands its load on: a Pipe to the base it came from, a Cable's charge to the Hub, a Network line's goods to its far port; what will not fit is gone.
+
+## A9 exterior parts, part 1: Spout and Vacuum
+
+Tests: full suite `FAILURES: 0` (scenario_exterior is new). No engine change.
+- Spout (tech "Spout", tier 1, after the Pump): an exterior part that plugs into a Tank's or Case's side socket and pours the base's contents out of its mouth as loose pixels, 20 cells a scan for 0.004 power a cell. Joined at its mouth to a Chute or Tank it passes them in there instead. It will not pour into rock or a pile that has reached the mouth; the cells stay in the base.
+- Vacuum (tech "Vacuum", tier 2, after the Spout): plugs into a base's socket and pulls the loose pixels (powder, liquid, gas) of a 40 by 20 patch in front of its mouth into the base, nearest row first, up to 60 cells a scan. It stops when the base is full. The Drone Cage stays as the slow one that takes a single material.
+- Both need a Node or the Hub in reach, like every module. New material mask `M.mask("loose")`; shared helpers in scripts/machines/exterior/ext.gd.
 ## A9 processing recut: machines on a base, strips between two
 
 Tests: full suite 37 lines `FAILURES: 0` (processing, thermal, fluids, wave2, interior and layers were reworked for the new layouts). No engine change.

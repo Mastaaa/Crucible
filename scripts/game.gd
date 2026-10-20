@@ -102,6 +102,7 @@ var fallers: Array = []           # buildings falling right now
 var crushed := {}                 # body id -> {link key: true} for the links it has already hit
 var modules := {}                 # module id -> its state (machines/machines.gd)
 var next_module := 1
+var net_reach := {}                 # module id -> true when a Cable or Network line puts it in the network's reach; derived every scan, not saved (machines/lines.gd)
 var overseers := {}               # assembly id (lowest module id) -> {members, lead, name}; derived every scan, not saved (machines/layers.gd)
 var joints := {}                  # joint record id -> {kind, a, b, eng ...} (machines/joints.gd)
 var next_joint := 1
@@ -2389,6 +2390,16 @@ func take_good(mat: int, units: float) -> float:
 
 
 ## Packets per second the Hub sent over the last second.
+## Packets in flight right now that pass through building `b` (a Node's transit inventory): resource -> count.
+## A Node that goes takes its packets with it: they are refunded to the stockpile (`_validate_packets`).
+func transit_through(b: Building) -> Dictionary:
+	var out := {}
+	for p: Packet in packets:
+		if p.hops.has(b):
+			out[p.res] = int(out.get(p.res, 0)) + 1
+	return out
+
+
 func hub_output() -> int:
 	return send_log.size()
 

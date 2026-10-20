@@ -1039,6 +1039,13 @@ func _status_text(b: Building) -> String:
 		lines.append("Drowned: not relaying.")
 	if b.type != D.B_HUB and b.type != D.B_CRUCIBLE:
 		lines.append("HP %d / %d   depth %d" % [int(ceil(b.hp)), int(b.max_hp), b.y])
+	if b.type == D.B_NODE:
+		var t: Dictionary = g.transit_through(b)
+		if not t.is_empty():
+			var parts: Array = []
+			for r: int in t:
+				parts.append("%d %s" % [t[r], D.RES_NAMES[r]])
+			lines.append("In transit through here: %s." % ", ".join(parts))
 	match b.type:
 		D.B_HUB:
 			lines.append("Sending %d of 6 packets a second." % g.hub_output())

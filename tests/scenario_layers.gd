@@ -100,10 +100,14 @@ func scenario_a() -> void:
 	for id: String in ["cutter", "laser", "thumper", "pump", "funnel", "bus_hopper"]:
 		check(MC.defs[id]["layer"] == "exterior" and MC.defs[id]["needs"].is_empty(), "%s is exterior and works without a base" % id)
 	var stubs := 0
+	var exterior_stubs := 0
 	for id: String in MC.defs:
 		if MC.defs[id].get("stub", false):
 			stubs += 1
-	check(stubs == 13, "thirteen stubs (found %d)" % stubs)
+			if MC.defs[id]["track"] == "exterior":
+				exterior_stubs += 1
+	check(stubs == 4, "four stubs left, none on the exterior track (found %d)" % stubs)
+	check(exterior_stubs == 0, "the exterior track has filled in every stub (%d left)" % exterior_stubs)
 	check(MC.defs["pipe"].has("inventory") and MC.defs["cable"].has("inventory") and MC.defs["network"].has("inventory"), "the lines carry an inventory")
 	var hooks := 0
 	for id: String in MC.defs:
@@ -233,14 +237,19 @@ func scenario_d() -> void:
 func scenario_e() -> void:
 	print("E. a line part's inventory")
 	fresh()
-	var a := MC.place(game, "pipe", Vector2i(380, SURFACE - 12), 0)
-	var b := MC.place(game, "pipe", Vector2i(420, SURFACE - 12), 0)
+	# The drawn lines (lines.gd) rescue their own loads; this is the fallback for any other part with an inventory.
+	for id: String in ["test_line", "test_line_b"]:
+		MC.register({"id": id, "name": "Test line", "layer": "line", "size": Vector2i(40, 5), "wall": 2, "test": true, "hidden": true,
+				"inventory": {"cap": 60}, "cost": [1, 0, 0, 0, 0],
+				"faces": [{"type": F.PIXEL, "dir": F.LEFT, "at": 2, "w": 4, "name": "end_a"}, {"type": F.PIXEL, "dir": F.RIGHT, "at": 2, "w": 4, "name": "end_b"}]})
+	var a := MC.place(game, "test_line", Vector2i(380, SURFACE - 12), 0)
+	var b := MC.place(game, "test_line_b", Vector2i(420, SURFACE - 12), 0)
 	game.run_ticks(12)
-	check(game.modules[a]["faces"][1]["link_m"] == b, "two Pipes join end to end")
-	check(MC.capacity(game.modules[a]) == 60, "a Pipe holds 60 in transit")
+	check(game.modules[a]["faces"][1]["link_m"] == b, "two line parts join end to end")
+	check(MC.capacity(game.modules[a]) == 60, "a line part holds 60 in transit")
 	check(MC.add_contents(game, a, 6, 45) == 45 and MC.add_contents(game, a, 6, 30) == 15, "it takes up to its cap")
 	MC.take_down(game, a)
-	check(MC.stored(game.modules[b]) == 60, "taken down, it hands what it carried to the Pipe next to it (%d)" % MC.stored(game.modules[b]))
+	check(MC.stored(game.modules[b]) == 60, "taken down, it hands what it carried to the part next to it (%d)" % MC.stored(game.modules[b]))
 	MC.take_down(game, b)
 	check(game.modules.is_empty(), "and the last one spills its own")
 
@@ -308,4 +317,4 @@ func scenario_h() -> void:
 		check(ok and MC.info(game, m).length() > 0, "%s: \"%s\"" % [id, m["state"]])
 		MC.remove(game, m_id)
 		n += 1
-	check(n == 13, "all thirteen placed and taken down (%d)" % n)
+	check(n == 4, "all four placed and taken down (%d)" % n)
