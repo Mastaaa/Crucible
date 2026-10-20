@@ -28,6 +28,17 @@ Tests: full suite `FAILURES: 0` (scenario_exterior is new). No engine change.
 - Spout (tech "Spout", tier 1, after the Pump): an exterior part that plugs into a Tank's or Case's side socket and pours the base's contents out of its mouth as loose pixels, 20 cells a scan for 0.004 power a cell. Joined at its mouth to a Chute or Tank it passes them in there instead. It will not pour into rock or a pile that has reached the mouth; the cells stay in the base.
 - Vacuum (tech "Vacuum", tier 2, after the Spout): plugs into a base's socket and pulls the loose pixels (powder, liquid, gas) of a 40 by 20 patch in front of its mouth into the base, nearest row first, up to 60 cells a scan. It stops when the base is full. The Drone Cage stays as the slow one that takes a single material.
 - Both need a Node or the Hub in reach, like every module. New material mask `M.mask("loose")`; shared helpers in scripts/machines/exterior/ext.gd.
+## A9 processing recut: machines on a base, strips between two
+
+Tests: full suite 37 lines `FAILURES: 0` (processing, thermal, fluids, wave2, interior and layers were reworked for the new layouts). No engine change.
+- The Press, Heater, Chiller and the new Blender plug into the side of a Tank or Case (either side) and work on what the base holds, through the wall. They stand 30 tall with a plug on each side, flush with the ground beside a Tank, and can sit between two bases (they work on the first).
+- The Boiler and Furnace are one Heater: Boil at 130 degrees (Water to Steam, only the gas and what it leaves go on), and with the Smelting tech a click sets Smelt at 950 degrees (Glass, Slag, bars). The Chiller chills to 20 below zero. Anything a machine does not let out stays in the base to cook.
+- The Press keeps its pressable powder in its base while it presses. A machine states what may leave its base with `lets` and `holds` rules (`processing/base_work.gd`); the base's own `pass` faces and the strips read them.
+- The Sieve, Macerator and Electrolyser are interior strips between two bases (`in` and `out`). The Sieve passes liquids and gas; the Macerator grinds loose bodies at its mouth and the `in` base's rock into the `out` base; the Electrolyser sends Lye to `out` and Chlor and Lift to a third base on top (Lye and Chlor destroy each other in one base).
+- New: the Blender (stirs a base until its materials lie mixed so alloys form) and the Heat Dispersal Unit (evens the heat of two bases). Both have techs. Chiller, Heater and HDU stay separate parts.
+- First peer rule: a Heater holds (`m["waits"]`) while a Blender on the same base is stirring. Parts still work alone.
+- Save version 5. A version 4 save loads, takes down its old processing parts and returns their price to stock with one alert. The Caster and Centrifuge are unchanged chambers.
+- `LY.validate` allows a strip a third pixel face. Notes for the other tracks are in claude/A9_FOUNDATION.md.
 
 ## A9 foundation: layers, sockets, the overseer, the Case
 

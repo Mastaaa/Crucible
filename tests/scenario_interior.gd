@@ -250,8 +250,8 @@ func scenario_h() -> void:
 	print("H. Other vessels")
 	fresh()
 	MC.ensure_defs()
-	var want := ["press", "macerator", "bus_hopper", "cutter", "laser"]
-	var at := {"press": Vector2i(210, SURFACE - 26), "macerator": Vector2i(240, SURFACE - 26), "bus_hopper": Vector2i(270, SURFACE - 30),
+	var want := ["bus_hopper", "cutter", "laser", "caster"]
+	var at := {"caster": Vector2i(210, SURFACE - 26), "bus_hopper": Vector2i(270, SURFACE - 30),
 			"cutter": Vector2i(210, SURFACE - 70), "laser": Vector2i(250, SURFACE - 70)}
 	for d: String in want:
 		var id := MC.place(game, d, at[d], 0)

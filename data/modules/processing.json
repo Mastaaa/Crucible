@@ -1,64 +1,47 @@
 {
-	"_about": "Module definitions for the processing group (A4, A5). See logistics.json for the shape. `front` is where a Macerator's mouth and a Press's or Caster's block are. The Sieve and Centrifuge share the separator kind, with `pass` as a list of rules (one per out face; `kinds`, `heavy`, `light`, `power` a cell). The Electrolyser splits Brine and Water in its own kind (rate cells a scan, power a cell). The Boiler, Chiller and Furnace share the thermal kind: params target (degrees), rate (degrees a scan), power (a second while it works), cap; `pass` with `kinds` or `mats` lets only those out of its face; `melts` is the temperature its casing stands.",
+	"_about": "Module definitions for the processing group (A4, A5; recut in A9). See logistics.json for the shape. Machines (layer `machine`: Press, Heater, Chiller, Blender) plug into a base's socket and act on its contents; interior strips (layer `interior`: Sieve, Macerator, Electrolyser, Heat Dispersal Unit) join a base on each pixel face and work on what passes between them. Strips name their faces `in` and `out` (the HDU `a` and `b`; the Electrolyser has a third, `gas`). `front` is where a Macerator's mouth and a Press's or Caster's block are. The Heater and Chiller share the thermal kind: `params.modes` lists {name, target (degrees), lets (what may leave the base while it is on), tech}, rate (degrees a scan), power (a second while it works). The Sieve is the strip kind: `params.rule` is a `pass` style filter. The Centrifuge and Caster are still chambers fed by a Tank's pass rule (separator and caster kinds).",
 	"modules": [
 		{
-			"id": "macerator", "name": "Macerator", "kind": "macerator", "size": [26, 18], "wall": 2, "interior": true, "front": "up", "anchored": true,
+			"id": "macerator", "name": "Macerator", "layer": "interior", "kind": "macerator", "size": [26, 16], "wall": 2, "front": "up",
 			"tech": "macerator", "cost": [12, 4, 0, 0, 0],
-			"blurb": "Bolted in place. Grinds the loose rigid bodies (a collapsed slab, a Press's block) that touch its open top into powder, a few cells at a time: Stone becomes Rubble. The powder goes out of its side face into a Tank or Funnel joined there. Needs a Node or the Hub in reach, and power per cell.",
+			"blurb": "A strip between two bases. Grinds solid cells the base on its in side holds, and loose rigid bodies (a collapsed slab, a Press's block) that touch its open top, into powder for the base on its out side: Stone becomes Rubble. Needs a Node or the Hub in reach, and power per cell.",
 			"faces": [
-				{"type": "pixel", "dir": "left", "at": 6, "w": 6, "name": "out"}
+				{"type": "pixel", "dir": "left", "at": 8, "w": 6, "name": "in"},
+				{"type": "pixel", "dir": "right", "at": 8, "w": 6, "name": "out"}
 			],
-			"pass": {"face": 0, "rate": 30},
-			"params": {"rate": 24, "power_mult": 4.0, "cap": 400}
+			"params": {"rate": 24, "power_mult": 4.0}
 		},
 		{
-			"id": "press", "name": "Press", "kind": "press", "size": [26, 18], "wall": 2, "interior": true, "front": "right", "anchored": true,
+			"id": "press", "name": "Press", "layer": "machine", "kind": "press", "size": [20, 30], "wall": 2, "front": "up",
 			"tech": "press", "cost": [12, 4, 0, 0, 0],
-			"blurb": "Bolted in place. Powder joined into its bottom face is squeezed, once there is enough of one kind, into a solid block (a rigid body) that comes out of its side: Rubble becomes Stone, Loose dirt becomes Dirt. Each block takes 3 seconds and some power, and needs open air in front for the block.",
+			"blurb": "Plugs into the side of a Tank or Case, on either of its sides. Powder in its base is squeezed, once there is enough of one kind, into a solid block (a rigid body) that comes out of its top: Rubble becomes Stone, Loose dirt becomes Dirt. Its base keeps that powder in while it is there. Each block takes 3 seconds and some power, and needs open air above for the block.",
 			"faces": [
-				{"type": "pixel", "dir": "down", "at": 10, "w": 6, "name": "in"}
+				{"type": "socket", "dir": "left", "at": 9, "w": 10, "name": "plug_l"},
+				{"type": "socket", "dir": "right", "at": 9, "w": 10, "name": "plug_r"}
 			],
-			"params": {"slab": [12, 8], "time": 3.0, "power": 3.0, "cap": 400}
+			"params": {"slab": [12, 8], "time": 3.0, "power": 3.0}
 		},
 		{
-			"id": "boiler", "name": "Boiler", "kind": "thermal", "size": [26, 30], "wall": 2, "interior": true, "anchored": true, "melts": 700,
+			"id": "heater", "name": "Heater", "layer": "machine", "kind": "thermal", "size": [20, 30], "wall": 2,
 			"tech": "boiler", "cost": [14, 4, 0, 0, 0],
-			"blurb": "Bolted in place. Heats what a Tank passes into its bottom face to 130 degrees, so Water boils to Steam, and lets only the gas out of its top face into whatever is joined there. What the boiling leaves behind (Salt from Brine, Pitch from Slick) goes out of its left face. Needs a Node or the Hub in reach, and power while it heats.",
+			"blurb": "Plugs into either side of a Tank or Case (a part with a plug on each side can sit between two bases and works on the first) and heats what the base holds. On Boil it holds 130 degrees: Water becomes Steam and only the gas leaves the base, with the Salt or Pitch the boiling leaves behind. With Smelting researched, a click sets it to Smelt at 950 degrees: Sand fuses to Glass, Ferrite or Veinstone with Flux smelts to Slag and Ferrite bars or Wire, and only those leave. Everything else stays in to cook. Smelt wants a Case, whose wall stands the heat. Needs a Node or the Hub in reach, and power while it heats.",
 			"faces": [
-				{"type": "pixel", "dir": "down", "at": 6, "w": 6, "name": "in"},
-				{"type": "pixel", "dir": "up", "at": 13, "w": 6, "name": "out"},
-				{"type": "signal", "dir": "right", "at": 15, "w": 4, "name": "gate"},
-				{"type": "pixel", "dir": "left", "at": 24, "w": 6, "name": "residue"}
+				{"type": "socket", "dir": "left", "at": 9, "w": 10, "name": "plug_l"},
+				{"type": "socket", "dir": "right", "at": 9, "w": 10, "name": "plug_r"},
+				{"type": "signal", "dir": "up", "at": 10, "w": 4, "name": "gate"}
 			],
-			"pass": [
-				{"face": 1, "rate": 30, "kinds": ["gas"]},
-				{"face": 3, "rate": 30, "mats": ["Salt", "Pitch"]}
-			],
-			"params": {"target": 130, "rate": 20, "power": 0.25, "cap": 300}
+			"params": {"rate": 20, "power": 0.25, "modes": [{"name": "Boil", "target": 130, "lets": [{"kinds": ["gas"]}, {"mats": ["Salt", "Pitch"]}]}, {"name": "Smelt", "target": 950, "tech": "furnace", "lets": [{"mats": ["Glass", "Ferrite bar", "Wire", "Slag", "Slag crust"]}]}]}
 		},
 		{
-			"id": "chiller", "name": "Chiller", "kind": "thermal", "size": [26, 30], "wall": 2, "interior": true, "anchored": true,
+			"id": "chiller", "name": "Chiller", "layer": "machine", "kind": "thermal", "size": [20, 30], "wall": 2,
 			"tech": "chiller", "cost": [14, 6, 0, 0, 0],
-			"blurb": "Bolted in place. Cools what a Tank passes into its bottom face to 20 below zero, so Water freezes to Ice and Brine turns to Chillant, and lets only Ice and Chillant out of its top face. Needs a Node or the Hub in reach, and power while it cools.",
+			"blurb": "Plugs into the side of a Tank or Case and cools what the base holds to 20 below zero, so Water freezes to Ice and Brine turns to Chillant. Only Ice and Chillant leave the base. Needs a Node or the Hub in reach, and power while it cools.",
 			"faces": [
-				{"type": "pixel", "dir": "down", "at": 6, "w": 6, "name": "in"},
-				{"type": "pixel", "dir": "up", "at": 13, "w": 6, "name": "out"},
-				{"type": "signal", "dir": "right", "at": 15, "w": 4, "name": "gate"}
+				{"type": "socket", "dir": "left", "at": 9, "w": 10, "name": "plug_l"},
+				{"type": "socket", "dir": "right", "at": 9, "w": 10, "name": "plug_r"},
+				{"type": "signal", "dir": "up", "at": 10, "w": 4, "name": "gate"}
 			],
-			"pass": {"face": 1, "rate": 30, "mats": ["Ice", "Chillant"]},
-			"params": {"target": -20, "rate": 20, "power": 0.25, "cap": 300}
-		},
-		{
-			"id": "furnace", "name": "Furnace", "kind": "thermal", "size": [26, 30], "wall": 2, "interior": true, "anchored": true, "melts": 1500,
-			"tech": "furnace", "cost": [20, 8, 0, 0, 0],
-			"blurb": "Bolted in place. Heats what a Tank passes into its bottom face to 950 degrees: Sand fuses to Glass, and Ferrite or Veinstone with Flux smelts to Slag and Ferrite bars or Wire. Glass, bars, Wire and Slag go out of its top face; everything else stays in to cook. Its casing stands 1500 degrees. Needs a Node or the Hub in reach, and power while it heats.",
-			"faces": [
-				{"type": "pixel", "dir": "down", "at": 6, "w": 6, "name": "in"},
-				{"type": "pixel", "dir": "up", "at": 13, "w": 6, "name": "out"},
-				{"type": "signal", "dir": "right", "at": 15, "w": 4, "name": "gate"}
-			],
-			"pass": {"face": 1, "rate": 30, "mats": ["Glass", "Ferrite bar", "Wire", "Slag", "Slag crust"]},
-			"params": {"target": 950, "rate": 24, "power": 0.5, "cap": 300}
+			"params": {"rate": 20, "power": 0.25, "modes": [{"name": "Chill", "target": -20, "lets": [{"mats": ["Ice", "Chillant"]}]}]}
 		},
 		{
 			"id": "caster", "name": "Caster", "kind": "caster", "size": [26, 18], "wall": 2, "interior": true, "front": "right", "anchored": true,
@@ -71,36 +54,25 @@
 			"params": {"slab": [12, 8], "time": 4.0, "power": 4.0, "cap": 300}
 		},
 		{
-			"id": "electrolyser", "name": "Electrolyser", "kind": "electrolyser", "size": [26, 30], "wall": 2, "interior": true, "anchored": true,
-			"tech": "electrolyser", "cost": [16, 6, 0, 0, 0],
-			"blurb": "Bolted in place. Splits what a Tank passes into its bottom face, for power a cell from a Node or the Hub in reach: two cells of Brine become two Lye, a Chlor and a Lift, and a cell of Water becomes a Lift (the oxygen vents). Lift goes out of its top face, Lye out of the left and Chlor out of the right; Brine and Water stay in until they are split.",
-			"faces": [
-				{"type": "pixel", "dir": "down", "at": 6, "w": 6, "name": "in"},
-				{"type": "pixel", "dir": "up", "at": 13, "w": 6, "name": "lift"},
-				{"type": "pixel", "dir": "left", "at": 24, "w": 6, "name": "lye"},
-				{"type": "pixel", "dir": "right", "at": 24, "w": 6, "name": "chlor"}
-			],
-			"pass": [
-				{"face": 1, "rate": 30, "mats": ["Lift"]},
-				{"face": 2, "rate": 30, "mats": ["Lye"]},
-				{"face": 3, "rate": 30, "mats": ["Chlor"]}
-			],
-			"params": {"rate": 12, "power": 0.5, "cap": 300}
-		},
-		{
-			"id": "sieve", "name": "Sieve", "kind": "separator", "size": [26, 30], "wall": 2, "interior": true, "anchored": true,
+			"id": "electrolyser", "name": "Electrolyser", "layer": "interior", "kind": "electrolyser", "size": [14, 30], "wall": 2,
+				"tech": "electrolyser", "cost": [16, 6, 0, 0, 0],
+				"blurb": "A strip between two bases, with a third on top for the gases. Splits what the base on its in side holds, for power a cell from a Node or the Hub in reach: two cells of Brine become two Lye, a Chlor and a Lift, and a cell of Water becomes a Lift (the oxygen vents). The Lye goes into the base on its out side and the gases into the base on top. Kept apart, because Lye and Chlor eat each other. Brine and Water wait in the first base until they are split.",
+				"faces": [
+					{"type": "pixel", "dir": "left", "at": 22, "w": 6, "name": "in"},
+					{"type": "pixel", "dir": "right", "at": 22, "w": 6, "name": "out"},
+					{"type": "pixel", "dir": "up", "at": 4, "w": 6, "name": "gas"}
+				],
+				"params": {"rate": 12, "power": 0.5}
+			},
+			{
+				"id": "sieve", "name": "Sieve", "layer": "interior", "kind": "strip", "size": [14, 16], "wall": 2,
 			"tech": "sieve", "cost": [14, 4, 0, 0, 0],
-			"blurb": "Bolted in place. A Tank passes a mix into its bottom face; liquids and gases go out of its top face and solids (powder and rock) out of its left face, each into whatever is joined there. Needs a Node or the Hub in reach, and a little power a cell.",
+			"blurb": "A strip between two bases. Liquids and gases pass from the base on its in side into the base on its out side; solids (powder and rock) stay where they are. Needs a Node or the Hub in reach, and a little power a cell.",
 			"faces": [
-				{"type": "pixel", "dir": "down", "at": 6, "w": 6, "name": "in"},
-				{"type": "pixel", "dir": "up", "at": 13, "w": 6, "name": "fluid"},
-				{"type": "pixel", "dir": "left", "at": 24, "w": 6, "name": "solid"}
+				{"type": "pixel", "dir": "left", "at": 8, "w": 6, "name": "in"},
+				{"type": "pixel", "dir": "right", "at": 8, "w": 6, "name": "out"}
 			],
-			"pass": [
-				{"face": 1, "rate": 30, "kinds": ["liquid", "gas"], "power": 0.004},
-				{"face": 2, "rate": 30, "kinds": ["powder", "static"], "power": 0.004}
-			],
-			"params": {"cap": 300}
+			"params": {"rule": {"kinds": ["liquid", "gas"]}, "rate": 30, "power": 0.004}
 		},
 		{
 			"id": "centrifuge", "name": "Centrifuge", "kind": "separator", "size": [26, 30], "wall": 2, "interior": true, "anchored": true,
@@ -111,28 +83,28 @@
 				{"type": "pixel", "dir": "up", "at": 13, "w": 6, "name": "light"},
 				{"type": "pixel", "dir": "left", "at": 24, "w": 6, "name": "heavy"}
 			],
-			"pass": [
-				{"face": 1, "rate": 30, "light": true, "power": 0.01},
-				{"face": 2, "rate": 30, "heavy": true, "power": 0.01}
-			],
+			"pass": [{"face": 1, "rate": 30, "light": true, "power": 0.01}, {"face": 2, "rate": 30, "heavy": true, "power": 0.01}],
 			"params": {"cap": 300}
 		},
 		{
-			"id": "blender", "name": "Blender", "layer": "machine", "kind": "stub", "stub": true, "track": "processing", "size": [24, 22], "wall": 2,
-			"cost": [10, 0, 0, 0, 0],
-			"blurb": "Stirs and disperses the contents of its base evenly, mainly so alloys mix.",
+			"id": "blender", "name": "Blender", "layer": "machine", "kind": "blender", "size": [20, 30], "wall": 2,
+			"tech": "blender", "cost": [10, 4, 0, 0, 0],
+			"blurb": "Plugs into the side of a Tank or Case and stirs what the base holds until the materials lie mixed through it, so alloys form where layers would not. It stirs when a new material arrives and a Heater on the same base waits until it has finished. Needs a Node or the Hub in reach, and power while it stirs.",
 			"faces": [
-				{"type": "socket", "dir": "left", "at": 11, "w": 10, "name": "plug"}
-			]
+				{"type": "socket", "dir": "left", "at": 9, "w": 10, "name": "plug_l"},
+				{"type": "socket", "dir": "right", "at": 9, "w": 10, "name": "plug_r"}
+			],
+			"params": {"time": 3.0, "swaps": 40, "power": 0.3, "rest": 2.0}
 		},
 		{
-			"id": "hdu", "name": "Heat Dispersal Unit", "layer": "interior", "kind": "stub", "stub": true, "track": "processing", "size": [14, 26], "wall": 2,
-			"cost": [10, 0, 0, 0, 0],
-			"blurb": "A strip between two bases that spreads out the heat of what passes through it.",
+			"id": "hdu", "name": "Heat Dispersal Unit", "layer": "interior", "kind": "hdu", "size": [14, 16], "wall": 2,
+			"tech": "hdu", "cost": [10, 4, 0, 0, 0],
+			"blurb": "A strip between two bases that carries heat from the hotter one to the cooler until their loads sit at the same temperature. Needs a Node or the Hub in reach, and a little power while it moves heat.",
 			"faces": [
-				{"type": "pixel", "dir": "left", "at": 13, "w": 6, "name": "a"},
-				{"type": "pixel", "dir": "right", "at": 13, "w": 6, "name": "b"}
-			]
+				{"type": "pixel", "dir": "left", "at": 8, "w": 6, "name": "a"},
+				{"type": "pixel", "dir": "right", "at": 8, "w": 6, "name": "b"}
+			],
+			"params": {"rate": 10, "power": 0.1, "gap": 4}
 		}
 	]
 }

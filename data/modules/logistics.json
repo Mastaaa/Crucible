@@ -31,7 +31,7 @@
 			"params": {"pack": 4, "fill": [0.5, 1.0, 2.0, 4.0]}
 		},
 		{
-			"id": "case", "layer": "base", "name": "Case", "kind": "tank", "size": [26, 26], "wall": 4, "interior": true,
+			"id": "case", "layer": "base", "name": "Case", "kind": "tank", "size": [26, 26], "wall": 4, "interior": true, "melts": 1500,
 			"tech": "case", "cost": [10, 0, 0, 0, 0],
 			"blurb": "A base with a thick wall and a small hollow, for work that runs hot or hard. Machines and exterior parts plug into its side sockets, interior strips join its side ports, and it passes what it holds out of its top face. Tank Size research does not touch it.",
 			"faces": [

@@ -316,8 +316,8 @@ static func validate(def: Dictionary) -> Array:
 	if needs.has("socket") and sockets < 1:
 		bad.append("%s: needs a base at a socket but has no socket face" % id)
 	if needs.has("base_each_face"):
-		if pixels.size() != 2 or (pixels[0]["dir"] + pixels[1]["dir"]) != Vector2i.ZERO:
-			bad.append("%s: an interior strip has two pixel faces on opposite sides" % id)
+		if pixels.size() < 2 or pixels.size() > 3 or (pixels[0]["dir"] + pixels[1]["dir"]) != Vector2i.ZERO:
+			bad.append("%s: an interior strip has two pixel faces on opposite sides (and may have a third)" % id)
 	if layer == "anchored" and not def.get("anchored", false):
 		bad.append("%s: an anchored part is `anchored`" % id)
 	if def.has("inventory"):
