@@ -8,6 +8,7 @@
 		{"name": "Quarry rig", "has": ["kind:winch"], "any": ["kind:cutter", "kind:laser", "kind:thumper", "kind:pump"]},
 		{"name": "Mover rig", "any": ["kind:slide", "kind:turntable", "kind:winch"]},
 		{"name": "Processing line", "has": ["layer:base"], "any": ["layer:machine", "layer:interior"]},
-		{"name": "Harvester", "has": ["layer:base", "layer:exterior"]}
+		{"name": "Harvester", "has": ["layer:base", "layer:exterior"]},
+		{"name": "Field line", "has": ["layer:line"], "any": ["kind:area_vac", "kind:scoop", "kind:grabber"]}
 	]
 }
