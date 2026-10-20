@@ -146,6 +146,9 @@ of their price, Tier 1 build prices hold no Glimmer, and chapter 0's goal ends w
 9. A9, expanded machine suite and self-programming: Alex's module kit (base Case, Tank and Cell;
    machine, interior and exterior modules; standalone tools), machines that work out their job
    from their parts, placement and surroundings.
+   Status: the foundation is in (layers, side sockets, interior strips, the overseer and its readout, the Case,
+   the Build list by layer, stub definitions for every new part; claude/A9_FOUNDATION.md). The processing
+   recut, the exterior parts and lines, and the standalone tools follow as tracks that fill the stubs.
 10. A10, economy: machines nearly free with research and upgrades dear, a grid for power
     (capacity against draw), unlimited Hub storage with a Modem to share it, cheap weak Windmills,
     about 80% back on take-down, Coal as a fuel good. Priced after A8 and A9 so it prices the real game.

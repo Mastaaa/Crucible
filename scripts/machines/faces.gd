@@ -2,7 +2,8 @@ extends RefCounted
 ## Module faces and layouts (A3 machine framework). A face is a stretch of a module's
 ## wall with a type and an outward direction. It stays closed (plain casing) until a
 ## face of the same type and width touches it, square on, at a multiple of 90 degrees;
-## both then open, and they close again when the contact ends.
+## both then open, and they close again when the contact ends. A socket face (A9) joins the same
+## way but never opens: it is how a machine or exterior part plugs into a base's side.
 ##
 ## A module's template (see test_modules.gd) is a hollow rectangle: `size`, a `wall`
 ## thickness and a list of faces {type, dir, at, w, name}, where `at` is the middle of
@@ -14,7 +15,9 @@ const PIXEL := 0
 const POWER := 1
 const MECH := 2
 const SIGNAL := 3
-const TYPE_NAMES := ["pixel", "power", "mechanical", "signal"]
+const SOCKET := 4          # A9: a base's side socket and the plug of a machine or exterior part; it joins but stays shut
+const TYPE_NAMES := ["pixel", "power", "mechanical", "signal", "socket"]
+const SOCKET_W := 10       # every socket and plug is this wide, so any part fits any base's socket
 
 const UP := Vector2i(0, -1)
 const RIGHT := Vector2i(1, 0)

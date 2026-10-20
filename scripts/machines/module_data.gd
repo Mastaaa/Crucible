@@ -15,9 +15,11 @@ const FILES := [
 	"res://data/modules/power.json",
 	"res://data/modules/sensing.json",
 	"res://data/modules/support.json",
+	"res://data/modules/exterior.json",
+	"res://data/modules/tools.json",
 ]
 
-const TYPES := {"pixel": F.PIXEL, "power": F.POWER, "mech": F.MECH, "signal": F.SIGNAL}
+const TYPES := {"pixel": F.PIXEL, "power": F.POWER, "mech": F.MECH, "signal": F.SIGNAL, "socket": F.SOCKET}
 const DIRS := {"up": F.UP, "down": F.DOWN, "left": F.LEFT, "right": F.RIGHT}
 
 

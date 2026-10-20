@@ -282,6 +282,8 @@ const TECHS := [
 		"text": "A block hung from a Winch that is lifted and dropped: each hard landing blasts a 90 degree cone below it and breaks rock the Cutter can't."},
 	{"id": "chute", "name": "Chute", "tier": 1, "needs": [], "power": 120, "module": "chute",
 		"text": "A bolted pipe: powder passed into one end comes out of the other, so a line of them carries it across a gap."},
+	{"id": "case", "name": "Case", "tier": 1, "needs": ["chute"], "power": 150, "module": "case",
+		"text": "A base with a thick wall and a small hollow. Machines and exterior parts plug into its side sockets, and interior strips join its side ports."},
 	{"id": "conveyor", "name": "Conveyor", "tier": 1, "needs": ["chute"], "power": 220, "module": "conveyor",
 		"text": "A bolted belt that carries loose powder and loose rigid bodies lying on it along its length, and lets them into a Tank or Funnel at the end."},
 	{"id": "bus_hopper", "name": "Bus Hopper", "tier": 1, "needs": ["chute"], "power": 300, "module": "bus_hopper",

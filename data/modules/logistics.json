@@ -5,23 +5,48 @@
 		"dir up|down|left|right, at (middle along the wall), w, name}], cost [stone, glimmer, obsidian, water, power], blurb,",
 		"anchored (bolted in place: it holds still until something drives it), pass {face, rate} (units a scan moved out of",
 		"that face into what's joined there), interior (true: its contents live in a sim of their own, scripts/machines/interior.gd),",
-		"params (the behaviour's own numbers)."
+		"params (the behaviour's own numbers).",
+		"A9 foundation keys (the format every module file shares; scripts/machines/layers.gd checks it): `layer` (base, machine, interior,",
+		"exterior, line, standalone or anchored; none means 'Other' in the Build list), `needs` (what the layer asks of the part: the default",
+		"is a socket joined to a base for machine and exterior, a base joined at each pixel face for interior; [] asks nothing), socket faces",
+		"(type socket, w 10, shut when joined; a base has them on its sides, a machine or exterior part has one to plug in), `attach`",
+		"(face names that offer joint points: [{face, kind: hookup|anchor}]), `inventory` ({cap}: what a line part carries in transit; a",
+		"destroyed one hands it to a joined neighbour first), `stub` (true: defined, not built; kind 'stub', named `track`)."
 	],
 	"modules": [
 		{
-			"id": "tank", "name": "Tank", "kind": "tank", "size": [26, 30], "wall": 2, "interior": true,
+			"id": "tank", "layer": "base", "name": "Tank", "kind": "tank", "size": [26, 30], "wall": 2, "interior": true,
 			"cost": [8, 0, 0, 0, 0],
 			"blurb": "Holds what the Excavator below it digs, packed four cells to a slot of its hollow. Hooks onto a Winch at the top and empties through a Funnel when it docks. Tank Size research makes it hold more.",
 			"faces": [
 				{"type": "pixel", "dir": "up", "at": 6, "w": 6, "name": "out"},
 				{"type": "mech", "dir": "up", "at": 20, "w": 4, "name": "hook"},
-				{"type": "pixel", "dir": "down", "at": 13, "w": 6, "name": "in"}
+				{"type": "pixel", "dir": "down", "at": 13, "w": 6, "name": "in"},
+				{"type": "socket", "dir": "left", "at": 9, "w": 10, "name": "socket_l"},
+				{"type": "socket", "dir": "right", "at": 9, "w": 10, "name": "socket_r"},
+				{"type": "pixel", "dir": "left", "at": 22, "w": 6, "name": "port_l"},
+				{"type": "pixel", "dir": "right", "at": 22, "w": 6, "name": "port_r"}
 			],
 			"pass": {"face": 0, "rate": 40},
 			"params": {"pack": 4, "fill": [0.5, 1.0, 2.0, 4.0]}
 		},
 		{
-			"id": "chute", "name": "Chute", "kind": "chute", "size": [14, 24], "wall": 2, "anchored": true,
+			"id": "case", "layer": "base", "name": "Case", "kind": "tank", "size": [26, 26], "wall": 4, "interior": true,
+			"tech": "case", "cost": [10, 0, 0, 0, 0],
+			"blurb": "A base with a thick wall and a small hollow, for work that runs hot or hard. Machines and exterior parts plug into its side sockets, interior strips join its side ports, and it passes what it holds out of its top face. Tank Size research does not touch it.",
+			"faces": [
+				{"type": "pixel", "dir": "up", "at": 13, "w": 6, "name": "out"},
+				{"type": "pixel", "dir": "down", "at": 13, "w": 6, "name": "in"},
+				{"type": "socket", "dir": "left", "at": 8, "w": 10, "name": "socket_l"},
+				{"type": "socket", "dir": "right", "at": 8, "w": 10, "name": "socket_r"},
+				{"type": "pixel", "dir": "left", "at": 18, "w": 6, "name": "port_l"},
+				{"type": "pixel", "dir": "right", "at": 18, "w": 6, "name": "port_r"}
+			],
+			"pass": {"face": 0, "rate": 40},
+			"params": {"pack": 4, "fill": [0.5]}
+		},
+		{
+			"id": "chute", "layer": "line", "name": "Chute", "kind": "chute", "size": [14, 24], "wall": 2, "anchored": true,
 			"tech": "chute", "cost": [3, 0, 0, 0, 0],
 			"blurb": "A bolted pipe. Powder passed into its bottom end comes out of its top end, so a line of Chutes joined end to end (turn them with R) carries what an Excavator or a Macerator gives up across a gap to a Tank or a Funnel. It holds only a little, so a blocked line backs up.",
 			"faces": [
@@ -32,7 +57,7 @@
 			"params": {"cap": 60}
 		},
 		{
-			"id": "conveyor", "name": "Conveyor", "kind": "conveyor", "size": [50, 10], "wall": 2, "front": "up", "anchored": true,
+			"id": "conveyor", "layer": "line", "name": "Conveyor", "kind": "conveyor", "size": [50, 10], "wall": 2, "front": "up", "anchored": true,
 			"tech": "conveyor", "cost": [10, 0, 0, 0, 0],
 			"blurb": "A bolted belt. Loose powder lying on top of it, and what a joined module passes in at either end, rides to the far end; loose rigid bodies lying on it are carried along too. At the end it goes into a Tank, Funnel or Chute joined there, or falls off. Click it to reverse. Draws a little power while it carries a load; needs a Node or the Hub in reach.",
 			"faces": [
@@ -42,7 +67,7 @@
 			"params": {"speed": 12.0, "rate": 40, "cap": 200, "power": 0.05}
 		},
 		{
-			"id": "funnel", "name": "Funnel", "kind": "funnel", "size": [14, 14], "wall": 2,
+			"id": "funnel", "layer": "exterior", "needs": [], "name": "Funnel", "kind": "funnel", "size": [14, 14], "wall": 2,
 			"cost": [4, 0, 0, 0, 0], "anchored": true,
 			"blurb": "Bolted in place. A Tank docked under it empties into it, and what it takes goes into the Hub's stockpile.",
 			"faces": [
@@ -51,7 +76,7 @@
 			"params": {"bank": 40}
 		},
 		{
-			"id": "bus_hopper", "name": "Bus Hopper", "kind": "bus_hopper", "size": [26, 22], "wall": 2, "interior": true, "front": "up", "anchored": true,
+			"id": "bus_hopper", "layer": "exterior", "needs": [], "name": "Bus Hopper", "kind": "bus_hopper", "size": [26, 22], "wall": 2, "interior": true, "front": "up", "anchored": true,
 			"tech": "bus_hopper", "cost": [10, 0, 0, 0, 0],
 			"blurb": "Bolted in place. The network's way in and out. Importing, it swallows the loose powder, liquid and gas in its open top and whatever a joined Tank, Chute or Conveyor passes into its left face, and banks it: goods under their own names, the rest as the Hub's stockpiles. Click it to export a banked good (or Water) instead, out of its right face or, with nothing joined there, out of its mouth. Needs a Node or the Hub in reach, and a little power per cell.",
 			"faces": [
@@ -62,19 +87,21 @@
 			"params": {"cap": 200, "rate": 24, "depth": 4, "power": 0.004}
 		},
 		{
-			"id": "vault", "name": "Vault Cell", "kind": "vault", "size": [16, 16], "wall": 2, "anchored": true,
+			"id": "vault", "layer": "base", "name": "Vault Cell", "kind": "vault", "size": [16, 16], "wall": 2, "anchored": true,
 			"tech": "vault", "cost": [12, 4, 0, 0, 0],
 			"blurb": "A bolted storage cell. Cells set side by side join into one bank, and a bank with a Node or the Hub in reach raises the Hub's power store by 150 and its goods store by 40 units a cell. Lose a cell and its share goes with it, and whatever no longer fits.",
 			"faces": [
 				{"type": "power", "dir": "up", "at": 8, "w": 6, "name": "up"},
 				{"type": "power", "dir": "down", "at": 8, "w": 6, "name": "down"},
 				{"type": "power", "dir": "left", "at": 8, "w": 6, "name": "left"},
-				{"type": "power", "dir": "right", "at": 8, "w": 6, "name": "right"}
+				{"type": "power", "dir": "right", "at": 8, "w": 6, "name": "right"},
+				{"type": "socket", "dir": "left", "at": 8, "w": 10, "name": "socket_l"},
+				{"type": "socket", "dir": "right", "at": 8, "w": 10, "name": "socket_r"}
 			],
 			"params": {"power": 150, "goods": 40}
 		},
 		{
-			"id": "pump", "name": "Pump", "kind": "pump", "size": [26, 16], "wall": 2, "interior": true, "front": "down",
+			"id": "pump", "layer": "exterior", "needs": [], "name": "Pump", "kind": "pump", "size": [26, 16], "wall": 2, "interior": true, "front": "down",
 			"tech": "pump", "cost": [10, 0, 0, 0, 0],
 			"blurb": "Lifts liquid. Takes the liquid in front of its mouth into its hollow and passes it up through its top face into a Tank or Chute joined there. Hung under a rig's Tank in place of the Cutter it drains the liquid ahead (the Winch lowers it as the shaft empties, then brings the rig up); put the Cutter back to dig on. A shaft is too narrow for the two side by side. Needs a Node or the Hub in reach, and a little power a cell.",
 			"faces": [

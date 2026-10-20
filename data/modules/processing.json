@@ -116,6 +116,23 @@
 				{"face": 2, "rate": 30, "heavy": true, "power": 0.01}
 			],
 			"params": {"cap": 300}
+		},
+		{
+			"id": "blender", "name": "Blender", "layer": "machine", "kind": "stub", "stub": true, "track": "processing", "size": [24, 22], "wall": 2,
+			"cost": [10, 0, 0, 0, 0],
+			"blurb": "Stirs and disperses the contents of its base evenly, mainly so alloys mix.",
+			"faces": [
+				{"type": "socket", "dir": "left", "at": 11, "w": 10, "name": "plug"}
+			]
+		},
+		{
+			"id": "hdu", "name": "Heat Dispersal Unit", "layer": "interior", "kind": "stub", "stub": true, "track": "processing", "size": [14, 26], "wall": 2,
+			"cost": [10, 0, 0, 0, 0],
+			"blurb": "A strip between two bases that spreads out the heat of what passes through it.",
+			"faces": [
+				{"type": "pixel", "dir": "left", "at": 13, "w": 6, "name": "a"},
+				{"type": "pixel", "dir": "right", "at": 13, "w": 6, "name": "b"}
+			]
 		}
 	]
 }

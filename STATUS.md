@@ -4,6 +4,17 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A9 foundation: layers, sockets, the overseer, the Case
+
+Tests: full suite 37 lines `FAILURES: 0` (scenario_layers is new). No engine change.
+- A module definition now has a layer: base, machine, interior, exterior, line, standalone or anchored. The Build list groups by it; what has no layer yet sits under "Other".
+- Bases (Tank, Vault Cell, the new Case) have sockets on their sides. A machine or exterior part plugs into one, the join stays shut so the base keeps its walls and contents, and the part is bolted to the base so the pair moves as one. Tank and Case also have side ports for interior strips.
+- A part short of its layer's needs (a machine with no base, an interior strip with a base on one side only) does nothing and says what is missing.
+- Every assembly of joined parts gets an overseer. Hovering a part shows one line from it, such as "Processing line, 2 parts: Blender: Not built yet". Parts still work alone.
+- The Case is a base with a thick wall and a small hollow (tech "Case", tier 1, after Chute).
+- Fifteen new parts exist as stubs (not in the Build list, "Not built yet." if placed by hand) so the processing, exterior and tools tracks only fill in behaviour. Line parts carry an inventory and hand it to a neighbour when taken down.
+- The rules for the tracks are in claude/A9_FOUNDATION.md.
+
 ## A8 part 6: demo contraptions, Motor direction, A9 meeting points
 
 Tests: full suite 36 lines `FAILURES: 0` (scenario_contraptions and scenario_a9_points are new). No engine change.
