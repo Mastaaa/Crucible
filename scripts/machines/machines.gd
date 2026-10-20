@@ -33,7 +33,6 @@ const K_MACERATOR = preload("res://scripts/machines/processing/macerator.gd")
 const K_PRESS = preload("res://scripts/machines/processing/press.gd")
 const K_THERMAL = preload("res://scripts/machines/processing/thermal.gd")
 const K_CASTER = preload("res://scripts/machines/processing/caster.gd")
-const K_SEPARATOR = preload("res://scripts/machines/processing/separator.gd")
 const K_ELECTROLYSER = preload("res://scripts/machines/processing/electrolyser.gd")
 const K_STRIP = preload("res://scripts/machines/processing/strip.gd")
 const K_BLENDER = preload("res://scripts/machines/processing/blender.gd")
@@ -95,7 +94,7 @@ static func ensure_defs() -> void:
 		JT.module_remover = remove
 		kinds = {"tank": K_TANK, "funnel": K_FUNNEL, "cutter": K_CUTTER, "winch": K_WINCH, "windmill": K_WINDMILL, "waterwheel": K_WATERWHEEL,
 				"lab": K_LAB, "lamp": K_LAMP, "slide": K_SLIDE, "turntable": K_TURNTABLE, "laser": K_LASER, "thumper": K_THUMPER,
-				"macerator": K_MACERATOR, "press": K_PRESS, "thermal": K_THERMAL, "caster": K_CASTER, "combustor": K_COMBUSTOR, "separator": K_SEPARATOR, "electrolyser": K_ELECTROLYSER, "pump": K_PUMP, "shorer": K_SHORER, "filler": K_FILLER, "sensor": K_SENSOR, "thermoelectric": K_THERMOELECTRIC,
+				"macerator": K_MACERATOR, "press": K_PRESS, "thermal": K_THERMAL, "caster": K_CASTER, "combustor": K_COMBUSTOR, "electrolyser": K_ELECTROLYSER, "pump": K_PUMP, "shorer": K_SHORER, "filler": K_FILLER, "sensor": K_SENSOR, "thermoelectric": K_THERMOELECTRIC,
 				"chute": K_CHUTE, "conveyor": K_CONVEYOR, "bus_hopper": K_BUS_HOPPER, "vault": K_VAULT,
 				"drone_cage": K_DRONE_CAGE, "spout": K_SPOUT, "vacuum": K_VACUUM,
 				"pipe": K_LINE, "cable": K_LINE, "network": K_LINE, "hookup": K_HOOKUP, "anchor": K_ANCHOR, "energy_port": K_ENERGY_PORT, "router": K_ROUTER,
@@ -135,27 +134,33 @@ static func migrate(g) -> void:
 ## with what each cost, for a save from before it: they are taken down and their price goes back to stock.
 const RECUT_COSTS := {"boiler": [14, 4, 0, 0, 0], "furnace": [20, 8, 0, 0, 0], "chiller": [14, 6, 0, 0, 0], "press": [12, 4, 0, 0, 0],
 		"sieve": [14, 4, 0, 0, 0], "macerator": [12, 4, 0, 0, 0], "electrolyser": [16, 6, 0, 0, 0]}
+## The second half of the recut (save version 6): the Caster became a machine on a base and the Centrifuge a strip.
+const RECUT2_COSTS := {"caster": [16, 6, 0, 0, 0], "centrifuge": [16, 6, 0, 0, 0]}
 
 
 ## After loading a save older than the recut (Save.restore calls it before the interiors come back): every module
-## of a recut kind goes, its whole price returns, what it held is lost, and one alert says so. Runs before
-## `migrate`, so a module whose definition no longer exists is never looked up.
-static func retire_recut(g) -> void:
+## of a recut kind goes, its whole price returns, what it held is lost, and one alert says so. `from_version` is the
+## save's version: before 5 both halves of the recut apply, 5 only the second. Runs before `migrate`, so a module
+## whose definition no longer exists is never looked up.
+static func retire_recut(g, from_version := 4) -> void:
 	ensure_defs()
+	var costs := RECUT2_COSTS.duplicate()
+	if from_version < 5:
+		costs.merge(RECUT_COSTS)
 	var gone: Array = []
 	for id: int in g.modules:
-		if RECUT_COSTS.has(g.modules[id]["def"]):
+		if costs.has(g.modules[id]["def"]):
 			gone.append(id)
 	for id: int in gone:
 		var m: Dictionary = g.modules[id]
 		for fi in m["faces"].size():
 			var fs: Dictionary = m["faces"][fi]
 			var other: Dictionary = g.modules.get(fs["link_m"], {})
-			if not other.is_empty() and other["faces"].size() > fs["link_f"] and not RECUT_COSTS.has(other["def"]):
+			if not other.is_empty() and other["faces"].size() > fs["link_f"] and not costs.has(other["def"]):
 				other["faces"][fs["link_f"]]["link_m"] = 0
 				other["faces"][fs["link_f"]]["link_f"] = -1
 				_set_open(g, other, fs["link_f"], false)
-		var cost: Array = RECUT_COSTS[m["def"]]
+		var cost: Array = costs[m["def"]]
 		for r in cost.size():
 			g.stock[r] += float(cost[r])
 		g.stock[D.R_POWER] = minf(g.stock[D.R_POWER], g.power_cap())

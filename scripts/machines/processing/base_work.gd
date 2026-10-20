@@ -6,7 +6,7 @@ extends RefCounted
 ##
 ## A machine publishes two optional lists of `pass` style rules (see MU.passes) on its record each scan:
 ##   m["lets"]   only what these match may leave the base (a Heater on Boil: steam and what it leaves behind)
-##   m["holds"]  what these match stays in the base (a Press keeps its pressable powder)
+##   m["holds"]  what these match stays in the base (a Press keeps its pressable powder, a Caster its castable liquid)
 ## `may_leave` reads them over a base's machines; the base's own `pass` rule and any strip drawing from it
 ## ask it, so the Tank keeps its feed in while a machine works on it. machines.gd clears both before a scan,
 ## so a part that is off or short of a base holds nothing back.
@@ -20,6 +20,12 @@ const F = preload("res://scripts/machines/faces.gd")
 static func plug_base(g, m: Dictionary) -> Dictionary:
 	var ids := LY.bases_of(g, m)
 	return g.modules[ids[0]] if not ids.is_empty() else {}
+
+
+## The base joined at the face named `name`, or {} (none there, not a base, or no hollow).
+static func base_at(g, m: Dictionary, def: Dictionary, name: String) -> Dictionary:
+	var p := MU.partner(g, m, def, name)
+	return p if not p.is_empty() and LY.layer_of(MU.defs[p["def"]]) == "base" and p.get("sim") != null else {}
 
 
 ## A strip's two ends, [in, out]: the bases joined at the faces named `in` and `out` (or `a` and `b`), {} for a missing one.

@@ -2,8 +2,8 @@ extends SceneTree
 ## A5 part 5, moving and sorting fluids, on seed 7:
 ##  A. the Pump lifts the liquid in front of its mouth (Water, then oil) up into a Tank, and leaves powder alone
 ##  B. with no power it lifts nothing
-##  C. the Sieve sends liquids and gases out of its top and solids out of its left face
-##  D. the Centrifuge sends the lightest material up and the densest out of its left face, the one left goes the heavy way
+##  C. the Sieve (a strip between two Tanks) passes liquids and gases on and keeps solids behind
+##  D. the Centrifuge (a strip with a Tank on top) sends the lightest material up and the densest out of its side, the one left goes the heavy way
 ##  E. research gates the three Build buttons; the data has densities
 ##  F. a Winch rig: the Cutter halts on Sourwater, the Pump takes its place, drains the pocket and the rig comes up, the Cutter goes on
 ##  G. the Cutter wades through oil (Slick) and Brine without a halt, and is still stopped by a liquid that would hurt it (Sourwater, Gall)
@@ -23,7 +23,6 @@ const SLICK := 35
 const SOUR := 36
 const BRINE := 54
 const GALL := 64
-const STONE := 2
 const TECHS := ["pump", "sieve", "centrifuge"]
 
 
@@ -146,49 +145,32 @@ func scenario_b() -> void:
 	check(held(r["tank"], WATER) == 0 and pit_left(WATER) == 120, "with no power it lifts nothing (%d in the Tank)" % held(r["tank"], WATER))
 
 
-## A Sieve or Centrifuge on a Stone pedestal with a Tank on top and a turned Tank at its left face.
-func sorter(def: String, mix: Dictionary, dead := false) -> Dictionary:
-	fresh()
-	if dead:
-		game.stock[D.R_POWER] = 0.0
-	fill(Rect2i(428, SURFACE - 7, 26, 7), STONE)
-	var s := place(def, 428, SURFACE - 7 - 30)
-	var top_sn := MC.snap(game, "tank", 0, Vector2i(441, SURFACE - 7 - 30 - 15))
-	var top := MC.place(game, "tank", top_sn["at"], 0)
-	var side_sn := {"snapped": false, "at": Vector2i()}
-	var turns := 1
-	for t in [1, 3]:
-		side_sn = MC.snap(game, "tank", t, Vector2i(412, SURFACE - 13))
-		turns = t
-		if side_sn["snapped"]:
-			break
-	var side := MC.place(game, "tank", side_sn["at"], turns)
-	for mat: int in mix:
-		MC.add_contents(game, s, mat, mix[mat])
-	for _i in 30:
-		if dead:
-			game.stock[D.R_POWER] = 0.0
-		game.run_ticks(1)
-	return {"sorter": s, "top": top, "side": side, "snapped": top_sn["snapped"] and side_sn["snapped"]}
-
-
 ## A strip between two Tanks on the ground: `mix` goes into the left one. Returns the strip and both Tanks.
-func striped(def: String, mix: Dictionary, dead := false) -> Dictionary:     # the Sieve is 14 wide
+func striped(def: String, mix: Dictionary, dead := false, up := false) -> Dictionary:     # the strips here are 14 wide
 	fresh()
 	if dead:
 		game.stock[D.R_POWER] = 0.0
+	var w: int = MC.defs[def]["size"][0]
 	var feed := place("tank", 386, SURFACE - 30)
-	var sn := MC.snap(game, def, 0, Vector2i(425, SURFACE - 8))
+	var sn := MC.snap(game, def, 0, Vector2i(425, SURFACE - (int(MC.defs[def]["size"][1]) >> 1)))
 	var strip := MC.place(game, def, sn["at"], 0)
-	var sn2 := MC.snap(game, "tank", 0, Vector2i(sn["at"].x + int(MC.defs[def]["size"][0]) + 13, SURFACE - 15))
+	var sn2 := MC.snap(game, "tank", 0, Vector2i(sn["at"].x + w + 13, SURFACE - 15))
 	var out := MC.place(game, "tank", sn2["at"], 0)
+	var top := 0
+	var joined: bool = sn["snapped"] and sn2["snapped"]
+	if up:
+		var sn3 := MC.snap(game, "tank", 0, Vector2i(sn["at"].x + (w >> 1), SURFACE - 30 - 15))
+		top = MC.place(game, "tank", sn3["at"], 0)
+		joined = joined and sn3["snapped"]
+		secs(0.2)
+		MC.JT.hold_rig(game, top, [feed, out], true)          # a Tank on a narrow strip slides off, so it is bolted on
 	for mat: int in mix:
 		MC.add_contents(game, feed, mat, mix[mat])
 	for _i in 30:
 		if dead:
 			game.stock[D.R_POWER] = 0.0
 		game.run_ticks(1)
-	return {"strip": strip, "feed": feed, "out": out, "snapped": sn["snapped"] and sn2["snapped"]}
+	return {"strip": strip, "feed": feed, "out": out, "top": top, "snapped": joined}
 
 
 func scenario_c() -> void:
@@ -209,19 +191,19 @@ func scenario_c() -> void:
 
 func scenario_d() -> void:
 	print("D. Centrifuge")
-	var r := sorter("centrifuge", {SAND: 90, SLICK: 30, WATER: 30})
-	check(r["snapped"], "both Tanks join the Centrifuge")
+	var r := striped("centrifuge", {SAND: 90, SLICK: 30, WATER: 30}, false, true)
+	check(r["snapped"], "a Tank joins each side of the Centrifuge and a third its top")
 	var top: int = r["top"]
-	var side: int = r["side"]
-	until(func() -> bool: return held(top, SLICK) >= 30 and held(top, WATER) >= 30 and held(side, SAND) >= 90, 40.0)
+	var out: int = r["out"]
+	until(func() -> bool: return held(top, SLICK) >= 30 and held(top, WATER) >= 30 and held(out, SAND) >= 90, 40.0)
 	check(held(top, SLICK) >= 30 and held(top, WATER) >= 30, "the light materials go up (%d Slick, %d Water)" % [held(top, SLICK), held(top, WATER)])
-	check(held(side, SAND) >= 90 and held(side, SLICK) == 0 and held(side, WATER) == 0, "the densest goes out of the side (%d Sand, %d Slick, %d Water)" % [held(side, SAND), held(side, SLICK), held(side, WATER)])
+	check(held(out, SAND) >= 90 and held(out, SLICK) == 0 and held(out, WATER) == 0, "the densest goes out of the side (%d Sand, %d Slick, %d Water)" % [held(out, SAND), held(out, SLICK), held(out, WATER)])
 	check(held(top, SAND) == 0, "and the last of it goes the heavy way, not up (%d Sand up top)" % held(top, SAND))
-	r = sorter("centrifuge", {SAND: 60, WATER: 30}, true)
+	r = striped("centrifuge", {SAND: 60, WATER: 30}, true, true)
 	for _i in 600:
 		game.stock[D.R_POWER] = 0.0
 		game.run_ticks(1)
-	check(held(r["side"], SAND) == 0 and held(r["top"], WATER) == 0, "with no power it sorts nothing")
+	check(held(r["out"], SAND) == 0 and held(r["top"], WATER) == 0, "with no power it sorts nothing")
 
 
 func scenario_e() -> void:

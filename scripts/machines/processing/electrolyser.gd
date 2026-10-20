@@ -9,14 +9,7 @@ extends RefCounted
 
 const MU = preload("res://scripts/machines/mu.gd")
 const M = preload("res://scripts/materials.gd")
-const LY = preload("res://scripts/machines/layers.gd")
 const BW = preload("res://scripts/machines/processing/base_work.gd")
-
-
-## The base joined at the `gas` face, or {}.
-static func gas_base(g, m: Dictionary, def: Dictionary) -> Dictionary:
-	var p := MU.partner(g, m, def, "gas")
-	return p if not p.is_empty() and LY.layer_of(MU.defs[p["def"]]) == "base" and p.get("sim") != null else {}
 
 
 static func scan(g, m: Dictionary, def: Dictionary) -> void:
@@ -30,7 +23,7 @@ static func scan(g, m: Dictionary, def: Dictionary) -> void:
 		return
 	var src: Dictionary = ends[0]
 	var dst: Dictionary = ends[1]
-	var gas_to := gas_base(g, m, def)
+	var gas_to := BW.base_at(g, m, def, "gas")
 	if gas_to.is_empty():
 		m["state"] = "Needs a base joined on top for the gases."
 		return

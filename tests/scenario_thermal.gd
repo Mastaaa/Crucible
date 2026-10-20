@@ -5,7 +5,7 @@ extends SceneTree
 ##  B. the Heater on Boil turns a Tank's Water to Steam and the Tank passes only the gas on; with no power it stays cold
 ##  C. the Chiller freezes Water and the Tank passes only Ice
 ##  D. the Heater on Smelt fuses Sand to Glass and smelts Ferrite with Flux to Slag and bars; a click changes the setting
-##  E. the Caster sets Lava into a block of Obsidian (a body), and waits for enough liquid
+##  E. the Caster plugged into a Tank sets its Lava into a block of Obsidian (a body), and waits for enough liquid
 ##  F. the Combustor burns the richest fuel first into the Hub's power, and stops when it is full
 ##  G. casing wear: heat past the melting point and acid cost casing pixels, water and cool rooms do not
 ##  H. research gates the Build buttons; the material data names what casts and what burns
@@ -141,23 +141,6 @@ func rig(def: String, mat: int, n: int, out := true) -> Dictionary:
 	return {"tank": tank, "vessel": machine, "top": top, "snapped": sn["snapped"]}
 
 
-## A feed Tank on the ground at x 300, the chamber `def` bolted on top of it and, when `out` is set, a second
-## Tank on top of that (the Caster is still a chamber).
-func line(def: String, mat: int, n: int, out := true) -> Dictionary:
-	fresh()
-	var tank := place("tank", 428, SURFACE - 30)
-	var tall: bool = MC.defs[def]["size"].y > 20
-	var sn := MC.snap(game, def, 0, Vector2i(441, SURFACE - 30 - (15 if tall else 9)))
-	var vessel := MC.place(game, def, sn["at"], 0)
-	var top := 0
-	if out:
-		var sn2 := MC.snap(game, "tank", 0, Vector2i(441, SURFACE - 30 - (30 if tall else 18) - 15))
-		top = MC.place(game, "tank", sn2["at"], 0)
-	MC.add_contents(game, tank, mat, n)
-	secs(0.5)
-	return {"tank": tank, "vessel": vessel, "top": top, "snapped": sn["snapped"]}
-
-
 func scenario_a() -> void:
 	print("A. solids lie on the floor, `pass` filters")
 	fresh()
@@ -242,7 +225,7 @@ func scenario_d() -> void:
 
 func scenario_e() -> void:
 	print("E. Caster")
-	var r := line("caster", LAVA, 120, false)
+	var r := rig("caster", LAVA, 120, false)
 	var c: Dictionary = game.modules[r["vessel"]]
 	check(until(func() -> bool: return c.get("blocks", 0) >= 1, 40.0), "it casts a block (%s)" % c["state"])
 	var found := false
@@ -255,9 +238,9 @@ func scenario_e() -> void:
 			var px: PackedByteArray = game.sim.body_pixels(bl[k])
 			found = found or (px.size() > 0 and px.count(OBSIDIAN) == 96)
 	check(found, "a loose body of 96 Obsidian cells")
-	var left := held(r["tank"], LAVA) + held(r["vessel"], LAVA)
+	var left := held(r["tank"], LAVA)
 	check(left == 24, "paid for with 96 cells of Lava (%d left)" % left)
-	r = line("caster", LAVA, 40, false)
+	r = rig("caster", LAVA, 40, false)
 	c = game.modules[r["vessel"]]
 	secs(8.0)
 	check(c.get("blocks", 0) == 0 and "Waiting for liquid" in c["state"], "short of liquid it waits (%s)" % c["state"])
