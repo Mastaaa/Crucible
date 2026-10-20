@@ -106,7 +106,7 @@ func scenario_a() -> void:
 			stubs += 1
 			if MC.defs[id]["track"] == "exterior":
 				exterior_stubs += 1
-	check(stubs == 4, "four stubs left, none on the exterior track (found %d)" % stubs)
+	check(stubs == 0, "every stub has been filled in (%d left)" % stubs)
 	check(exterior_stubs == 0, "the exterior track has filled in every stub (%d left)" % exterior_stubs)
 	check(MC.defs["pipe"].has("inventory") and MC.defs["cable"].has("inventory") and MC.defs["network"].has("inventory"), "the lines carry an inventory")
 	var hooks := 0
@@ -269,7 +269,7 @@ func scenario_f() -> void:
 	for h: Dictionary in hud.module_headers:
 		shown[(h["label"] as Label).text] = (h["label"] as Label).visible
 	check(shown["Bases"] and shown["Exterior parts"] and shown["Other"] and shown["Test modules"], "Bases, Exterior parts, Other and Test modules show")
-	check(not shown["Machines"] and not shown["Interiors"] and not shown["Standalone tools"] and not shown["Anchored parts"], "headings with only stubs under them stay hidden")
+	check(not shown["Machines"] and not shown["Interiors"] and not shown["Standalone tools"] and not shown["Anchored parts"], "headings with nothing unlocked under them stay hidden")
 	check(not shown["Lines"], "and Lines waits for the Chute")
 	game.researched["chute"] = true
 	MC.refresh_buttons(hud)
@@ -300,21 +300,18 @@ func scenario_g() -> void:
 
 
 func scenario_h() -> void:
-	print("H. every stub")
+	print("H. a stub")
 	fresh()
-	var n := 0
-	for id: String in MC.defs:
-		var def: Dictionary = MC.defs[id]
-		if not def.get("stub", false):
-			continue
-		var m_id := MC.place(game, id, Vector2i(400, AIR_Y), 0)
-		if m_id == 0:
-			check(false, "%s can be placed" % id)
-			continue
+	# Every real part is built now; the stub kind stays for whatever comes next, so it is checked on a throwaway definition.
+	MC.register({"id": "test_stub", "name": "Test Stub", "layer": "standalone", "kind": "stub", "stub": true, "track": "tools",
+			"size": Vector2i(20, 12), "wall": 2, "faces": [], "needs": [], "cost": [1, 0, 0, 0, 0], "blurb": "A stub for the test."})
+	var m_id := MC.place(game, "test_stub", Vector2i(400, AIR_Y), 0)
+	check(m_id != 0, "a stub can be placed by hand")
+	if m_id != 0:
 		game.run_ticks(12)
 		var m: Dictionary = game.modules[m_id]
-		var ok: bool = m["state"] == "Not built yet." or m["state"] == m["needs"]
-		check(ok and MC.info(game, m).length() > 0, "%s: \"%s\"" % [id, m["state"]])
+		check(m["state"] == "Not built yet." and MC.info(game, m).length() > 0, "and says \"%s\"" % m["state"])
+		check(not MC.unlocked(game, MC.defs["test_stub"]), "it never shows in the Build list")
 		MC.remove(game, m_id)
-		n += 1
-	check(n == 4, "all four placed and taken down (%d)" % n)
+	check(LY.validate(MC.defs["test_stub"]).is_empty(), "a stub passes the definition checks")
+	MC.defs.erase("test_stub")

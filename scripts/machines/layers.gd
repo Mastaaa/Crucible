@@ -19,6 +19,7 @@ extends RefCounted
 const MU = preload("res://scripts/machines/mu.gd")
 const F = preload("res://scripts/machines/faces.gd")
 const JT = preload("res://scripts/machines/joints.gd")
+const MT = preload("res://scripts/machines/tools/mount.gd")
 
 const ORDER := ["base", "machine", "interior", "exterior", "line", "standalone", "anchored"]
 const NAMES := {"base": "Bases", "machine": "Machines", "interior": "Interiors", "exterior": "Exterior parts",
@@ -26,6 +27,7 @@ const NAMES := {"base": "Bases", "machine": "Machines", "interior": "Interiors",
 const NAME_RULES := "res://data/overseer.json"
 ## What a layer asks of a part whose definition has no `needs` of its own.
 ##   socket: one of its socket faces joined to a base.   base_each_face: every pixel face joined to a base.
+##   line: its `mount` side against a drawn line it takes (`mounts`), a standalone tool's (machines/tools/mount.gd).
 const DEFAULT_NEEDS := {"machine": ["socket"], "exterior": ["socket"], "interior": ["base_each_face"]}
 const MOVERS := ["winch", "slide", "turntable"]
 const LEAD_RANK := {"exterior": 1, "machine": 2, "interior": 3, "base": 4}
@@ -101,6 +103,10 @@ static func unmet(g, m: Dictionary, def: Dictionary) -> String:
 				var o: int = m["faces"][i]["link_m"] if i < m["faces"].size() else 0
 				if o == 0 or not g.modules.has(o) or layer_of(_def(g, o)) != "base":
 					return "Needs a base joined on each side: nothing at its %s face." % f.get("name", "open")
+		elif need == "line":
+			m["on"] = MT.line_under(g, m, def)
+			if m["on"] == 0:
+				return MT.missing(def)
 	return ""
 
 
@@ -245,6 +251,9 @@ static func status_of(g, m: Dictionary) -> String:
 ## A machine, interior or exterior part that needs a base is bolted to the base(s) it is joined to, so
 ## the assembly is one rigid piece wherever it stands (the bolts are `hold_rig`'s, owned by the part).
 static func weld(g, m: Dictionary, def: Dictionary) -> void:
+	if def.has("mount"):
+		MT.hold(g, m, def)        # a standalone tool is bolted to its line
+		return
 	if needs_of(def).is_empty():
 		return
 	var bases := bases_of(g, m)
@@ -318,6 +327,11 @@ static func validate(def: Dictionary) -> Array:
 	if needs.has("base_each_face"):
 		if pixels.size() < 2 or pixels.size() > 3 or (pixels[0]["dir"] + pixels[1]["dir"]) != Vector2i.ZERO:
 			bad.append("%s: an interior strip has two pixel faces on opposite sides (and may have a third)" % id)
+	if needs.has("line"):
+		if not MU.FRONT_DIRS.has(def.get("mount", "")) or def.get("mounts", []).is_empty():
+			bad.append("%s: a part that needs a line names its `mount` side and the `mounts` it takes" % id)
+		elif MU.FRONT_DIRS[def["mount"]] + MU.FRONT_DIRS.get(def.get("front", "down"), Vector2i.ZERO) != Vector2i.ZERO:
+			bad.append("%s: its `front` is opposite its `mount`" % id)
 	if layer == "anchored" and not def.get("anchored", false):
 		bad.append("%s: an anchored part is `anchored`" % id)
 	if def.has("inventory"):

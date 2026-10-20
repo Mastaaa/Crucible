@@ -11,7 +11,9 @@
 		"is a socket joined to a base for machine and exterior, a base joined at each pixel face for interior; [] asks nothing), socket faces",
 		"(type socket, w 10, shut when joined; a base has them on its sides, a machine or exterior part has one to plug in), `attach`",
 		"(face names that offer joint points: [{face, kind: hookup|anchor}]), `inventory` ({cap}: what a line part carries in transit; a",
-		"destroyed one hands it to a joined neighbour first), `stub` (true: defined, not built; kind 'stub', named `track`)."
+		"destroyed one hands it to a joined neighbour first), `stub` (true: defined, not built; kind 'stub', named `track`),",
+		"`mount`, `mounts`, `front` with `needs: ['line']` (a standalone tool: the side whose middle rests on a line, the line kinds it takes,",
+		"and the side it works on; see tools.json and scripts/machines/tools/mount.gd)."
 	],
 	"modules": [
 		{

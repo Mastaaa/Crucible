@@ -1,29 +1,37 @@
 {
-	"_about": "Stubs: parts A9 has defined (layer, faces, attach points, price) and not built. `kind` is 'stub', so a stub can't be picked from the Build list and says 'Not built yet.' when placed by hand. The track named in `track` fills one in by giving it a real kind and behaviour and dropping `stub` and `track`. Prices are placeholders until A10. See logistics.json for the format. Standalone tools stand on a line (a Pipe, Cable or Network) where it meets their centre.",
+	"_about": "Standalone tools (A9 tools track). A tool stands on a line where its centre meets it: its `mount` side (the foot, middle of that edge) rests against a drawn line it takes (`mounts`: pipe, cable, network, strut) and is bolted there, and `front` (opposite the mount) is the side it works on. `needs: ['line']` makes a tool short of its line do nothing and say so. See machines/tools/mount.gd. Prices are placeholders until A10. See logistics.json for the format.",
 	"modules": [
 		{
-			"id": "area_vac", "name": "Area Vac", "layer": "standalone", "kind": "stub", "stub": true, "track": "tools", "size": [30, 20], "wall": 2,
-			"cost": [10, 0, 0, 0, 0],
-			"blurb": "A tool that stands on a line and draws the loose pixels of an area into it.",
-			"faces": []
+			"id": "area_vac", "name": "Area Vac", "layer": "standalone", "kind": "area_vac", "size": [30, 20], "wall": 2,
+			"mount": "up", "front": "down", "mounts": ["pipe"], "needs": ["line"],
+			"tech": "area_vac", "cost": [10, 0, 0, 0, 0],
+			"blurb": "Stands on a Pipe, its top against the pipe, and draws every loose pixel (powder, liquid, gas) of a wide patch under it into the Pipe, nearest row first, for a little power a cell. The Pipe carries them to its far base. The Vacuum does this into its own base; the Area Vac reaches wherever a Pipe runs.",
+			"faces": [],
+			"params": {"rate": 60, "width": 48, "depth": 24, "power": 0.004}
 		},
 		{
-			"id": "scoop", "name": "Scoop", "layer": "standalone", "kind": "stub", "stub": true, "track": "tools", "size": [24, 16], "wall": 2,
-			"cost": [10, 0, 0, 0, 0],
-			"blurb": "A tool that stands on a line and lifts a measured scoop of powder or liquid out of what is under it.",
-			"faces": []
+			"id": "scoop", "name": "Scoop", "layer": "standalone", "kind": "scoop", "size": [24, 16], "wall": 2,
+			"mount": "up", "front": "down", "mounts": ["pipe"], "needs": ["line"],
+			"tech": "scoop", "cost": [8, 0, 0, 0, 0],
+			"blurb": "Stands on a Pipe, its top against the pipe, and lifts a measured scoop of one powder or liquid out of the small spot under it into the Pipe. It picks the most plentiful material there and keeps to it until none is left.",
+			"faces": [],
+			"params": {"scoop": 12, "width": 10, "depth": 10, "power": 0.004}
 		},
 		{
-			"id": "grabber", "name": "Grabber", "layer": "standalone", "kind": "stub", "stub": true, "track": "tools", "size": [24, 18], "wall": 2,
-			"cost": [10, 0, 0, 0, 0],
-			"blurb": "A tool that stands on a line and picks up loose rigid bodies and sets them down.",
-			"faces": []
+			"id": "grabber", "name": "Grabber", "layer": "standalone", "kind": "grabber", "size": [24, 18], "wall": 2,
+			"mount": "up", "front": "down", "mounts": ["strut", "pipe", "cable", "network"], "needs": ["line"],
+			"tech": "grabber", "cost": [10, 0, 0, 0, 0],
+			"blurb": "Stands on a line (a Strut, Pipe, Cable or Network line), its top against it, and takes hold of a loose rigid body that comes between its jaws. It carries the body wherever its line is carried until a click lets go. A click steps grab, hold, off. A grab costs a little power.",
+			"faces": [],
+			"params": {"width": 22, "depth": 8, "max_cells": 1500, "load": 1500.0, "power": 0.3}
 		},
 		{
-			"id": "floodlight", "name": "Floodlight", "layer": "standalone", "kind": "stub", "stub": true, "track": "tools", "size": [16, 16], "wall": 2,
-			"cost": [10, 0, 0, 0, 0],
-			"blurb": "Replaces the Lamp: lights a wide area for a little power.",
-			"faces": []
+			"id": "floodlight", "name": "Floodlight", "layer": "standalone", "kind": "floodlight", "size": [16, 16], "wall": 2,
+			"mount": "up", "front": "down", "mounts": ["cable", "pipe", "network", "strut"], "needs": ["line"],
+			"tech": "floodlight", "cost": [10, 0, 0, 0, 0],
+			"blurb": "Stands on a line and lights a pool 300 cells wide round it for 0.15 power/s, wherever a line can carry it into a Node's or the Hub's reach. The Lamp stays as the plain fixed light.",
+			"faces": [],
+			"params": {"light": 30, "power": 0.15}
 		}
 	]
 }
