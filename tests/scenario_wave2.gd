@@ -28,6 +28,7 @@ const FL := 900          # the bench's floor row: open air above it
 const ALL := Rect2i(2, 400, 764, 500)
 const SURFACE := 200     # ground level in the machine scenarios
 const TECHS := ["boiler", "chiller", "furnace", "electrolyser", "combustor", "pump"]
+const TX := 396          # the feed Tank's left edge in a rig: the machine plugged into its side stays inside the cleared arena
 
 var game: Node
 var f := 0
@@ -413,26 +414,40 @@ func held(id: int, mat: int) -> int:
 ## A feed Tank on the ground at x 300, the vessel `def` bolted on top of it and a Tank above that.
 func line(def: String, mat: int, n: int) -> Dictionary:
 	fresh()
-	var tank := place("tank", 428, SURFACE - 30)
-	var sn := MC.snap(game, def, 0, Vector2i(441, SURFACE - 30 - 15))
+	var tank := place("tank", TX, SURFACE - 30)
+	var sn := MC.snap(game, def, 0, Vector2i(TX + 36, SURFACE - 15))
 	var vessel := MC.place(game, def, sn["at"], 0)
-	var sn2 := MC.snap(game, "tank", 0, Vector2i(441, SURFACE - 30 - 30 - 15))
+	var sn2 := MC.snap(game, "tank", 0, Vector2i(TX + 13, SURFACE - 30 - 15))
 	var top := MC.place(game, "tank", sn2["at"], 0)
+	secs(0.2)
+	MC.JT.hold_rig(game, top, [tank], true)          # a Tank stacked on a Tank slides off, so it is bolted on
 	MC.add_contents(game, tank, mat, n)
 	secs(0.5)
 	return {"tank": tank, "vessel": vessel, "top": top, "snapped": sn["snapped"] and sn2["snapped"]}
 
 
-## A Tank turned to meet a vessel's side face, on the left (-1) or the right (1) of the vessel at x 300.
-func side_tank(dir: int) -> int:
-	var snap := {"snapped": false, "at": Vector2i()}
-	var turns := 1
-	for t in [1, 3]:
-		snap = MC.snap(game, "tank", t, Vector2i(412, SURFACE - 13) if dir < 0 else Vector2i(468, SURFACE - 13))
-		turns = t
-		if snap["snapped"]:
-			break
-	return MC.place(game, "tank", snap["at"], turns) if snap["snapped"] else 0
+## A feed Tank, the strip `def` against its right side and a second Tank against the strip's right; with `gas`,
+## a third Tank on top of the strip (the strip is then 30 tall, level with the two Tanks).
+func strip(def: String, mix: Dictionary, gas := false) -> Dictionary:
+	fresh()
+	var h: int = MC.defs[def]["size"][1]
+	var feed := place("tank", 386, SURFACE - 30)
+	var sn := MC.snap(game, def, 0, Vector2i(425, SURFACE - (h >> 1)))
+	var mid := MC.place(game, def, sn["at"], 0)
+	var sn2 := MC.snap(game, "tank", 0, Vector2i(sn["at"].x + int(MC.defs[def]["size"][0]) + 13, SURFACE - 15))
+	var out := MC.place(game, "tank", sn2["at"], 0)
+	var top := 0
+	var joined: bool = sn["snapped"] and sn2["snapped"]
+	if gas:
+		var sn3 := MC.snap(game, "tank", 0, Vector2i(sn["at"].x + (int(MC.defs[def]["size"][0]) >> 1), SURFACE - 30 - 15))
+		top = MC.place(game, "tank", sn3["at"], 0)
+		joined = joined and sn3["snapped"]
+		secs(0.2)
+		MC.JT.hold_rig(game, top, [feed, out], true)          # a Tank on a narrow strip slides off, so it is bolted on
+	for mat: int in mix:
+		MC.add_contents(game, feed, mat, mix[mat])
+	secs(0.5)
+	return {"feed": feed, "strip": mid, "out": out, "top": top, "snapped": joined}
 
 
 ## Pixels of casing a module still has.
@@ -443,52 +458,40 @@ func pixels(id: int) -> int:
 
 func scenario_12() -> void:
 	print("12. The machines")
-	# Boiler: Brine leaves Salt, Slick leaves Pitch, both out of the left face.
-	fresh()
-	gfill(Rect2i(428, SURFACE - 7, 26, 7), I["Dirt"])
-	var boiler := place("boiler", 428, SURFACE - 7 - 30)
-	var res := side_tank(-1)
-	var top_sn := MC.snap(game, "tank", 0, Vector2i(441, SURFACE - 7 - 30 - 15))
-	var top := MC.place(game, "tank", top_sn["at"], 0)
-	check(res != 0 and top_sn["snapped"], "a Tank joins the Boiler's top face and another its new left face")
-	MC.add_contents(game, boiler, I["Brine"], 120)
-	MC.add_contents(game, boiler, I["Slick"], 60)
-	var ok := until(func() -> bool: return held(res, I["Salt"]) >= 10 and held(res, I["Pitch"]) >= 10, 90.0)
-	check(ok, "Brine leaves Salt and Slick leaves Pitch, and both go out of the left face (%d Salt, %d Pitch)" % [held(res, I["Salt"]), held(res, I["Pitch"])])
-	check(held(top, I["Steam"]) + held(top, I["Smoke"]) > 0 and held(top, I["Salt"]) == 0 and held(top, I["Pitch"]) == 0, "while the gas goes up (%d Steam, %d Smoke)" % [held(top, I["Steam"]), held(top, I["Smoke"])])
+	# Heater on Boil: Brine leaves Salt, Slick leaves Pitch; the gas and what it leaves go up, the liquids stay.
+	var r := line("heater", I["Brine"], 120)
+	MC.add_contents(game, r["tank"], I["Slick"], 60)
+	var top: int = r["top"]
+	check(r["snapped"], "a Heater plugs into a Tank's side with another Tank on top")
+	var ok := until(func() -> bool: return held(top, I["Salt"]) >= 10 and held(top, I["Pitch"]) >= 10, 90.0)
+	check(ok, "Brine leaves Salt and Slick leaves Pitch, and both go out of the top (%d Salt, %d Pitch)" % [held(top, I["Salt"]), held(top, I["Pitch"])])
+	check(held(top, I["Steam"]) + held(top, I["Smoke"]) > 0 and held(top, I["Brine"]) == 0 and held(top, I["Slick"]) == 0, "with the gas (%d Steam, %d Smoke) while the liquids stay in the feed Tank" % [held(top, I["Steam"]), held(top, I["Smoke"])])
 	# Chiller: Brine to Chillant.
-	var r := line("chiller", I["Brine"], 100)
+	r = line("chiller", I["Brine"], 100)
 	var ok2 := until(func() -> bool: return held(r["top"], I["Chillant"]) >= 20, 90.0)
 	check(ok2 and held(r["top"], I["Brine"]) == 0, "the Chiller turns Brine to Chillant and passes only that (%d Chillant, %d Brine)" % [held(r["top"], I["Chillant"]), held(r["top"], I["Brine"])])
-	# Furnace: Veinstone and Flux to Wire.
-	r = line("furnace", I["Veinstone"], 80)
+	# Heater on Smelt: Veinstone and Flux to Wire.
+	r = line("heater", I["Veinstone"], 80)
 	MC.add_contents(game, r["tank"], I["Flux"], 40)
+	game.modules[r["vessel"]]["mode"] = 1
 	var top2: int = r["top"]
 	var forged := until(func() -> bool: return held(top2, I["Wire"]) >= 8, 150.0)
-	check(forged, "the Furnace smelts Veinstone with Flux to Wire, out of the top (%d Wire)" % held(top2, I["Wire"]))
-	# Electrolyser: Brine and Water.
-	fresh()
-	gfill(Rect2i(428, SURFACE - 7, 26, 7), I["Dirt"])
-	var ely := place("electrolyser", 428, SURFACE - 7 - 30)
-	var lye_t := side_tank(-1)
-	var chlor_t := side_tank(1)
-	var lift_sn := MC.snap(game, "tank", 0, Vector2i(441, SURFACE - 7 - 30 - 15))
-	var lift_t := MC.place(game, "tank", lift_sn["at"], 0)
-	check(lye_t != 0 and chlor_t != 0 and lift_sn["snapped"], "three Tanks join the Electrolyser (Lye left, Chlor right, Lift up)")
-	MC.add_contents(game, ely, I["Brine"], 60)
-	MC.add_contents(game, ely, I["Water"], 20)
-	var done := until(func() -> bool: return held(lye_t, I["Lye"]) >= 60 and held(chlor_t, I["Chlor"]) >= 24 and held(lift_t, I["Lift"]) >= 50, 20.0)
-	check(done, "60 Brine and 20 Water give 60 Lye, about 30 Chlor and 50 Lift (%d, %d, %d)" % [held(lye_t, I["Lye"]), held(chlor_t, I["Chlor"]), held(lift_t, I["Lift"])])
-	check(held(lye_t, I["Chlor"]) + held(lift_t, I["Chlor"]) + held(chlor_t, I["Lift"]) + held(lift_t, I["Lye"]) == 0, "each product leaves by its own face only")
+	check(forged, "the Heater on Smelt smelts Veinstone with Flux to Wire, out of the top (%d Wire)" % held(top2, I["Wire"]))
+	# Electrolyser strip: Brine and Water from one Tank to another.
+	var e := strip("electrolyser", {I["Brine"]: 60, I["Water"]: 20}, true)
+	var feed: int = e["feed"]
+	var out: int = e["out"]
+	var up: int = e["top"]
+	check(e["snapped"], "a Tank joins each side of the Electrolyser and a third its top")
+	var done := until(func() -> bool: return held(out, I["Lye"]) >= 60 and held(up, I["Chlor"]) + held(up, I["Lift"]) >= 70, 40.0)
+	check(done, "60 Brine and 20 Water give 60 Lye in the out Tank and about 30 Chlor and 50 Lift in the top one (%d, %d, %d)" % [held(out, I["Lye"]), held(up, I["Chlor"]), held(up, I["Lift"])])
+	check(held(out, I["Chlor"]) + held(out, I["Lift"]) + held(up, I["Lye"]) + held(feed, I["Lye"]) == 0 and held(out, I["Brine"]) + held(out, I["Water"]) == 0, "each product goes to its own Tank and the feed stays in its own")
 	check(game.stock[D.R_POWER] < 90.0 - 35.0, "and it paid power a cell, 80 cells at 0.5 (%.1f of 90 left)" % game.stock[D.R_POWER])
-	fresh()
-	gfill(Rect2i(428, SURFACE - 7, 26, 7), I["Dirt"])
-	ely = place("electrolyser", 428, SURFACE - 7 - 30)
-	MC.add_contents(game, ely, I["Brine"], 60)
+	e = strip("electrolyser", {I["Brine"]: 60}, true)
 	for _i in 600:
 		game.stock[D.R_POWER] = 0.0
 		game.run_ticks(1)
-	check(held(ely, I["Lye"]) == 0 and held(ely, I["Brine"]) == 60 and "power" in game.modules[ely]["state"].to_lower(), "with no power it splits nothing (%s)" % game.modules[ely]["state"])
+	check(held(e["out"], I["Lye"]) == 0 and held(e["feed"], I["Brine"]) == 60 and "power" in game.modules[e["strip"]]["state"].to_lower(), "with no power it splits nothing (%s)" % game.modules[e["strip"]]["state"])
 	# Combustor: Lift and Pitch burn for power, Pitch first.
 	fresh()
 	game.stock[D.R_POWER] = 10.0

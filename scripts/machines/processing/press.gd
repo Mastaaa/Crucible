@@ -1,17 +1,19 @@
 extends RefCounted
-## Press (A4): takes powder in through its pixel face and, once it holds enough of one kind,
-## squeezes it into a solid block, a rigid body, out of its `front`: Rubble becomes Stone, Loose
-## dirt becomes Dirt, shards become the rock they came from, Sand becomes Glass. A block is
-## `slab` wide and tall, one cell of block for one cell of powder. It needs power for each block
+## Press (A4, recut in A9): plugged into a base's socket, it takes powder out of the base's contents and,
+## once the base holds enough of one kind, squeezes it into a solid block, a rigid body, out of its `front`:
+## Rubble becomes Stone, Loose dirt becomes Dirt, shards become the rock they came from, Sand becomes Glass.
+## A block is `slab` wide and tall, one cell of block for one cell of powder. It needs power for each block
 ## and room in front of it (open air all over the block's footprint). The Macerator turns it back.
+## While it is on a base the base keeps its pressable powder in (`m["holds"]`, see base_work.gd).
 
 const MU = preload("res://scripts/machines/mu.gd")
 const D = preload("res://scripts/defs.gd")
 const M = preload("res://scripts/materials.gd")
 const CUT = preload("res://scripts/machines/excavation/cutter.gd")
+const BW = preload("res://scripts/machines/processing/base_work.gd")
 
 
-## The powder it has the most of that it can press, or -1.
+## The powder a base holds the most of that can be pressed, or -1.
 static func best(m: Dictionary) -> int:
 	var pick := -1
 	var most := 0
@@ -38,12 +40,16 @@ static func footprint(g, m: Dictionary, def: Dictionary) -> Rect2i:
 static func scan(g, m: Dictionary, def: Dictionary) -> void:
 	var p: Dictionary = def["params"]
 	var need: int = int(p["slab"][0]) * int(p["slab"][1])
-	m["cap"] = int(p["cap"])
 	m["net"] = MU.networked(g, m, def)
-	var mat := best(m)
 	m["state"] = ""
-	if mat < 0 or m["contents"][mat] < need:
-		m["state"] = "Waiting for powder (%d of %d cells)." % [m["contents"].get(mat, 0) if mat >= 0 else 0, need]
+	var base := BW.plug_base(g, m)
+	if base.is_empty() or base.get("sim") == null:
+		m["state"] = "Its base has no hollow to work on."
+		return
+	m["holds"] = [{"pressable": true}]
+	var mat := best(base)
+	if mat < 0 or base["contents"][mat] < need:
+		m["state"] = "Waiting for powder (%d of %d cells)." % [base["contents"].get(mat, 0) if mat >= 0 else 0, need]
 		return
 	var r := footprint(g, m, def)
 	var counts: PackedInt32Array = g.sim.rect_counts(r.position.x, r.position.y, r.size.x, r.size.y)
@@ -72,7 +78,7 @@ static func scan(g, m: Dictionary, def: Dictionary) -> void:
 		m["state"] = "Too many loose bodies in the world."
 		return
 	m["work"] = 0.0
-	MU.take(m, mat, need)
+	MU.take(base, mat, need)
 	m["blocks"] = m.get("blocks", 0) + 1
 	m["state"] = "Pressed a block of %s." % M.names[rock]
 
@@ -81,8 +87,8 @@ static func step(_g, _m: Dictionary, _def: Dictionary) -> void:
 	pass
 
 
-static func info(_g, m: Dictionary, def: Dictionary) -> String:
-	return "%s %d of %d cells held, %d blocks so far." % [m.get("state", ""), MU.stored(m), MU.capacity(m, def), m.get("blocks", 0)]
+static func info(_g, m: Dictionary, _def: Dictionary) -> String:
+	return "%s %d blocks so far." % [m.get("state", ""), m.get("blocks", 0)]
 
 
 ## Where the block will come out.

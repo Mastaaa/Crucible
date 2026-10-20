@@ -1,16 +1,17 @@
 extends RefCounted
-## Macerator (A4): bolted in place, grinds loose rigid bodies (a collapsed slab, a Press's block, a
-## load a Conveyor brings) that touch its mouth, `front`, into powder. Each cell of a body becomes
-## what it shatters to (Stone to Rubble), a few cells at a scan, and the powder goes into its hollow
-## and out through its pixel face into whatever is joined there (a Tank, a Funnel). Modules'
-## own casings are never ground. A body that has come to rest settles back into the ground in a
-## moment (the engine's rule) and is then rock again, so bodies are ground on the way in: the
-## Macerator holds one it has started on until it is gone. It needs power from a Node or the Hub in reach.
+## Macerator (A4, recut in A9 into an interior strip): grinds solids to powder for the base at its `out` face. It
+## takes two kinds of work: loose rigid bodies (a collapsed slab, a Press's block, a load a Conveyor brings) that
+## touch its mouth, `front`, and solid cells (rock, ore) the base at its `in` face holds. Each cell becomes what
+## it shatters to (Stone to Rubble), a few cells at a scan, and the powder goes straight into the `out` base.
+## Modules' own casings are never ground. A body that has come to rest settles back into the ground in a
+## moment (the engine's rule) and is then rock again, so bodies are ground on the way in: the Macerator holds
+## one it has started on until it is gone. It needs power from a Node or the Hub in reach.
 
 const MU = preload("res://scripts/machines/mu.gd")
 const D = preload("res://scripts/defs.gd")
 const M = preload("res://scripts/materials.gd")
 const CUT = preload("res://scripts/machines/excavation/cutter.gd")
+const BW = preload("res://scripts/machines/processing/base_work.gd")
 
 const MOUTH := 3                # rows deep past the front that count as the mouth
 
@@ -35,24 +36,67 @@ static func in_mouth(g, m: Dictionary, def: Dictionary) -> Array:
 static func scan(g, m: Dictionary, def: Dictionary) -> void:
 	var p: Dictionary = def["params"]
 	m["state"] = ""
-	m["cap"] = int(p["cap"])
 	m["net"] = MU.networked(g, m, def)
+	var ends := BW.ends(g, m, def)
+	var why := BW.missing(ends)
+	if why != "":
+		m["state"] = why
+		return
+	var src: Dictionary = ends[0]
+	var dst: Dictionary = ends[1]
 	var bodies := in_mouth(g, m, def)
-	if bodies.is_empty():
-		m["state"] = "Nothing in the mouth."
+	var solids := _solids(g, src)
+	if bodies.is_empty() and solids.is_empty():
+		m["state"] = "Nothing to grind."
 		return
 	if not m["net"]:
 		m["state"] = "No power: no Node or Hub in reach."
 		return
 	var budget := MU.rate(g, int(p["rate"]))
+	for mat: int in solids:
+		if budget <= 0:
+			break
+		budget -= _crush(g, m, def, src, dst, mat, budget)
 	for id: int in bodies:
 		if budget <= 0:
 			break
-		budget -= _grind(g, m, def, id, budget)
+		budget -= _grind(g, m, def, dst, id, budget)
+
+
+## The solid materials the `in` base holds that grind to something else, and may leave it.
+static func _solids(g, src: Dictionary) -> Array:
+	var out: Array = []
+	for mat: int in src["contents"]:
+		if M.kind_of(mat) == M.K_STATIC and M.ground_of(mat) != mat and BW.may_leave(g, src, mat):
+			out.append(mat)
+	return out
+
+
+## Grinds up to `budget` solid cells of `mat` out of the `in` base into the `out` base; returns how many it did.
+static func _crush(g, m: Dictionary, def: Dictionary, src: Dictionary, dst: Dictionary, mat: int, budget: int) -> int:
+	var out := M.ground_of(mat)
+	var dst_def: Dictionary = MU.defs[dst["def"]]
+	var want := mini(mini(budget, src["contents"].get(mat, 0)), MU.capacity(dst, dst_def) - MU.stored(dst))
+	if want <= 0:
+		m["state"] = "Full: nowhere to put the powder."
+		return 0
+	var cost := D.power_per_cell(mat) * float(def["params"]["power_mult"])
+	while want > 0 and not MU.take_power(g, cost * float(want)):
+		want = want >> 1
+	if want <= 0:
+		m["state"] = "Waiting for power."
+		return 0
+	var got := MU.take(src, mat, want)
+	var put := MU.add(dst, dst_def, out, got)
+	if put < got:
+		MU.add(src, MU.defs[src["def"]], mat, got - put)
+	m["ground"] = m.get("ground", 0) + put
+	m["state"] = "Grinding."
+	return put
 
 
 ## Grinds up to `budget` cells of body `id`; returns how many it did.
-static func _grind(g, m: Dictionary, def: Dictionary, id: int, budget: int) -> int:
+static func _grind(g, m: Dictionary, def: Dictionary, dst: Dictionary, id: int, budget: int) -> int:
 	var bi: PackedFloat32Array = g.sim.body_info(id)
 	if bi.size() < 5:
 		return 0
@@ -69,7 +113,7 @@ static func _grind(g, m: Dictionary, def: Dictionary, id: int, budget: int) -> i
 		if mat == 0:
 			continue
 		var out := M.ground_of(mat)
-		if MU.capacity(m, def) - MU.stored(m) < 1:
+		if MU.capacity(dst, MU.defs[dst["def"]]) - MU.stored(dst) < 1:
 			m["state"] = "Full: nowhere to put the powder."
 			break
 		if not MU.take_power(g, D.power_per_cell(mat) * float(def["params"]["power_mult"])):
@@ -77,7 +121,7 @@ static func _grind(g, m: Dictionary, def: Dictionary, id: int, budget: int) -> i
 			break
 		if done == 0:
 			g.sim.set_creature(id, true)     # a body being ground doesn't settle back into the ground
-		MU.add(m, def, out, 1)
+		MU.add(dst, MU.defs[dst["def"]], out, 1)
 		m["ground"] = m.get("ground", 0) + 1
 		m["state"] = "Grinding."
 		done += 1
@@ -94,8 +138,8 @@ static func step(_g, _m: Dictionary, _def: Dictionary) -> void:
 	pass
 
 
-static func info(_g, m: Dictionary, def: Dictionary) -> String:
-	return "%s %d of %d cells held, %d ground so far." % [m.get("state", ""), MU.stored(m), MU.capacity(m, def), m.get("ground", 0)]
+static func info(_g, m: Dictionary, _def: Dictionary) -> String:
+	return "%s %d ground so far." % [m.get("state", ""), m.get("ground", 0)]
 
 
 ## The mouth, outlined.

@@ -148,7 +148,9 @@ of their price, Tier 1 build prices hold no Glimmer, and chapter 0's goal ends w
    from their parts, placement and surroundings.
    Status: the foundation is in (layers, side sockets, interior strips, the overseer and its readout, the Case,
    the Build list by layer, stub definitions for every new part; claude/A9_FOUNDATION.md). The processing
-   recut, the exterior parts and lines, and the standalone tools follow as tracks that fill the stubs.
+   recut is in (Press, Heater, Chiller and Blender plug into a base; Sieve, Macerator, Electrolyser and Heat
+   Dispersal Unit are strips between bases). The exterior parts and lines, and the standalone tools follow as
+   tracks that fill the remaining stubs.
 10. A10, economy: machines nearly free with research and upgrades dear, a grid for power
     (capacity against draw), unlimited Hub storage with a Modem to share it, cheap weak Windmills,
     about 80% back on take-down, Coal as a fuel good. Priced after A8 and A9 so it prices the real game.

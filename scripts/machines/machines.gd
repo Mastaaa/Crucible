@@ -34,6 +34,10 @@ const K_THERMAL = preload("res://scripts/machines/processing/thermal.gd")
 const K_CASTER = preload("res://scripts/machines/processing/caster.gd")
 const K_SEPARATOR = preload("res://scripts/machines/processing/separator.gd")
 const K_ELECTROLYSER = preload("res://scripts/machines/processing/electrolyser.gd")
+const K_STRIP = preload("res://scripts/machines/processing/strip.gd")
+const K_BLENDER = preload("res://scripts/machines/processing/blender.gd")
+const K_HDU = preload("res://scripts/machines/processing/hdu.gd")
+const BW = preload("res://scripts/machines/processing/base_work.gd")
 const K_PUMP = preload("res://scripts/machines/logistics/pump.gd")
 const K_SHORER = preload("res://scripts/machines/support/shorer.gd")
 const K_FILLER = preload("res://scripts/machines/support/filler.gd")
@@ -81,7 +85,8 @@ static func ensure_defs() -> void:
 				"lab": K_LAB, "lamp": K_LAMP, "slide": K_SLIDE, "turntable": K_TURNTABLE, "laser": K_LASER, "thumper": K_THUMPER,
 				"macerator": K_MACERATOR, "press": K_PRESS, "thermal": K_THERMAL, "caster": K_CASTER, "combustor": K_COMBUSTOR, "separator": K_SEPARATOR, "electrolyser": K_ELECTROLYSER, "pump": K_PUMP, "shorer": K_SHORER, "filler": K_FILLER, "sensor": K_SENSOR, "thermoelectric": K_THERMOELECTRIC,
 				"chute": K_CHUTE, "conveyor": K_CONVEYOR, "bus_hopper": K_BUS_HOPPER, "vault": K_VAULT,
-				"drone_cage": K_DRONE_CAGE, "stub": K_STUB}
+				"drone_cage": K_DRONE_CAGE, "stub": K_STUB,
+				"strip": K_STRIP, "blender": K_BLENDER, "hdu": K_HDU}
 		LY.kinds = kinds
 		for d: Dictionary in MD.defs():
 			register(d)
@@ -108,6 +113,41 @@ static func migrate(g) -> void:
 		var n: int = F.layout(defs[m["def"]], m["turns"])["faces"].size()
 		while m["faces"].size() < n:
 			m["faces"].append({"open": false, "link_m": 0, "link_f": -1})
+
+
+## The modules the A9 processing recut changed in shape or merged (the Boiler and Furnace are the Heater now),
+## with what each cost, for a save from before it: they are taken down and their price goes back to stock.
+const RECUT_COSTS := {"boiler": [14, 4, 0, 0, 0], "furnace": [20, 8, 0, 0, 0], "chiller": [14, 6, 0, 0, 0], "press": [12, 4, 0, 0, 0],
+		"sieve": [14, 4, 0, 0, 0], "macerator": [12, 4, 0, 0, 0], "electrolyser": [16, 6, 0, 0, 0]}
+
+
+## After loading a save older than the recut (Save.restore calls it before the interiors come back): every module
+## of a recut kind goes, its whole price returns, what it held is lost, and one alert says so. Runs before
+## `migrate`, so a module whose definition no longer exists is never looked up.
+static func retire_recut(g) -> void:
+	ensure_defs()
+	var gone: Array = []
+	for id: int in g.modules:
+		if RECUT_COSTS.has(g.modules[id]["def"]):
+			gone.append(id)
+	for id: int in gone:
+		var m: Dictionary = g.modules[id]
+		for fi in m["faces"].size():
+			var fs: Dictionary = m["faces"][fi]
+			var other: Dictionary = g.modules.get(fs["link_m"], {})
+			if not other.is_empty() and other["faces"].size() > fs["link_f"] and not RECUT_COSTS.has(other["def"]):
+				other["faces"][fs["link_f"]]["link_m"] = 0
+				other["faces"][fs["link_f"]]["link_f"] = -1
+				_set_open(g, other, fs["link_f"], false)
+		var cost: Array = RECUT_COSTS[m["def"]]
+		for r in cost.size():
+			g.stock[r] += float(cost[r])
+		g.stock[D.R_POWER] = minf(g.stock[D.R_POWER], g.power_cap())
+		JT.drop_module(g, id)
+		g.sim.remove_body(m["body"])
+		g.modules.erase(id)
+	if not gone.is_empty():
+		g.alert("info", "The processing parts were recut: %d old ones were taken down and their price is back in stock." % gone.size(), Vector2.ZERO)
 
 
 # --- Placing ---------------------------------------------------------------------
@@ -302,25 +342,37 @@ static func tick(g) -> void:
 			_spill(g, m, frames[id])
 	_connections(g, frames)
 	LY.scan(g)
+	# A machine plugged into a base scans first, so the base's pass rule below already knows what it lets out or holds.
+	for id: int in g.modules.keys():
+		if LY.layer_of(defs[g.modules[id]["def"]]) == "machine":
+			_scan_module(g, g.modules[id])
 	for id: int in g.modules.keys():
 		if not idle(g, g.modules[id]):
 			_pass(g, g.modules[id])
 	for id: int in g.modules.keys():
 		var m: Dictionary = g.modules[id]
-		if m.get("rig_of", 0) != 0 and not g.modules.has(m["rig_of"]):
-			m["rig_of"] = 0          # its Winch is gone
-			m["powered"] = false
-		var kind: Variant = kinds.get(defs[m["def"]].get("kind", ""))
-		if kind != null:
-			if gated(g, m):
-				m["state"] = "Off: its signal is off."
-			elif m.get("needs", "") != "":
-				m["state"] = m["needs"]
-			else:
-				kind.scan(g, m, defs[m["def"]])
+		if LY.layer_of(defs[m["def"]]) != "machine":
+			_scan_module(g, m)
 		INT.ensure(m, defs[m["def"]])
 		INT.sync(m)
 		CS.wear(g, m, defs[m["def"]])
+
+
+## One module's scan: its behaviour's `scan`, unless it is gated off or short of what its layer needs.
+static func _scan_module(g, m: Dictionary) -> void:
+	if m.get("rig_of", 0) != 0 and not g.modules.has(m["rig_of"]):
+		m["rig_of"] = 0          # its Winch is gone
+		m["powered"] = false
+	var kind: Variant = kinds.get(defs[m["def"]].get("kind", ""))
+	m.erase("lets")           # what a processing machine lets out of or keeps in its base, set again by its scan
+	m.erase("holds")
+	if kind != null:
+		if gated(g, m):
+			m["state"] = "Off: its signal is off."
+		elif m.get("needs", "") != "":
+			m["state"] = m["needs"]
+		else:
+			kind.scan(g, m, defs[m["def"]])
 
 
 ## Whether module `m` does no work now: gated off, or short of what its layer needs (a base).
@@ -565,8 +617,9 @@ static func _pass_rule(g, m: Dictionary, rule: Dictionary) -> void:
 		return
 	var left: int = MU.rate(g, int(rule["rate"]))
 	var held: Dictionary = m["contents"].duplicate()
+	var base: bool = LY.layer_of(defs[m["def"]]) == "base"
 	for mat: int in held:
-		if not MU.passes(rule, mat, held):
+		if not MU.passes(rule, mat, held) or (base and not BW.may_leave(g, m, mat)):
 			continue
 		var want := mini(left, m["contents"].get(mat, 0))
 		if want <= 0:
