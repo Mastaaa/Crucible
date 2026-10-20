@@ -103,8 +103,9 @@ func scenario_a() -> void:
 	secs(0.5)
 	game.stock[D.R_POWER] = 0.0
 	var held0 := held(ids[0], SAND)
-	secs(1.0)
-	game.stock[D.R_POWER] = 0.0
+	for _t in 60:
+		game.run_ticks(1)
+		game.stock[D.R_POWER] = 0.0         # the Hub's trickle would pay for a few cells
 	check(held(ids[0], SAND) >= held0 and spout["state"].begins_with("Waiting") or held(ids[0], SAND) == held0, "with no power it pours nothing (%d held)" % held(ids[0], SAND))
 	game.stock[D.R_POWER] = 90.0
 	secs(12.0)

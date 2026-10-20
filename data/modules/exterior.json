@@ -9,7 +9,7 @@
 				{"type": "socket", "dir": "left", "at": 7, "w": 10, "name": "plug"},
 				{"type": "pixel", "dir": "down", "at": 11, "w": 6, "name": "mouth"}
 			],
-			"params": {"rate": 20, "power": 0.004}
+			"params": {"cap": 0, "rate": 20, "power": 0.004}
 		},
 		{
 			"id": "vacuum", "name": "Vacuum", "layer": "exterior", "kind": "vacuum", "size": [30, 16], "wall": 2, "front": "down",
@@ -19,7 +19,7 @@
 				{"type": "socket", "dir": "left", "at": 8, "w": 10, "name": "plug"},
 				{"type": "pixel", "dir": "down", "at": 15, "w": 6, "name": "mouth"}
 			],
-			"params": {"rate": 60, "width": 40, "depth": 20, "power": 0.004}
+			"params": {"cap": 0, "rate": 60, "width": 40, "depth": 20, "power": 0.004}
 		},
 		{
 			"id": "energy_port", "name": "Energy Port", "layer": "exterior", "kind": "energy_port", "size": [20, 14], "wall": 2,

@@ -67,7 +67,7 @@ static func _pour(g, fo: Dictionary, mat: int, n: int) -> int:
 		var cell: int = g.sim.get_cell(int(floor(at.x)), int(floor(at.y)))
 		if not M.buildable_in(cell):
 			continue
-		var v: Vector2 = nrm * 0.5 + side * (g.rng.randf() - 0.5) * 0.4         # cells a tick
+		var v: Vector2 = nrm * 0.5 + side * (g.rng.randf() - 0.5) * 1.6         # cells a tick
 		g.sim.add_particle(at.x, at.y, v.x, v.y, mat)
 		out += 1
 	return out
