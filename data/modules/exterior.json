@@ -22,77 +22,79 @@
 			"params": {"rate": 60, "width": 40, "depth": 20, "power": 0.004}
 		},
 		{
-			"id": "energy_port", "name": "Energy Port", "layer": "exterior", "kind": "stub", "stub": true, "track": "exterior", "size": [20, 14], "wall": 2,
-			"cost": [10, 0, 0, 0, 0],
-			"blurb": "Moves power between its base and a Cable.",
+			"id": "energy_port", "name": "Energy Port", "layer": "exterior", "kind": "energy_port", "size": [20, 14], "wall": 2,
+			"tech": "cables", "cost": [10, 0, 0, 0, 0],
+			"blurb": "Plugs into a base's side socket and is where a Cable ends. An assembly with a Node or the Hub in reach, joined by a live Cable to another assembly's Energy Port, puts that one in reach of the network too.",
+			"attach": [{"face": "cable", "kind": "hookup"}],
 			"faces": [
 				{"type": "socket", "dir": "left", "at": 7, "w": 10, "name": "plug"},
-				{"type": "power", "dir": "up", "at": 10, "w": 6, "name": "power"}
+				{"type": "line", "dir": "up", "at": 10, "w": 4, "name": "cable"}
 			]
 		},
 		{
-			"id": "pipe_hookup", "name": "Pipe Hookup", "layer": "exterior", "kind": "stub", "stub": true, "track": "exterior", "size": [18, 14], "wall": 2,
-			"cost": [10, 0, 0, 0, 0],
-			"blurb": "Where a Pipe joins its base: pixels pass through the hookup between them.",
+			"id": "pipe_hookup", "name": "Pipe Hookup", "layer": "exterior", "kind": "hookup", "size": [18, 14], "wall": 2,
+			"tech": "pipes", "cost": [10, 0, 0, 0, 0],
+			"blurb": "Plugs into a base's side socket and is where a Pipe ends: a Pipe takes from, or puts into, the base behind its hookup.",
 			"attach": [{"face": "pipe", "kind": "hookup"}],
 			"faces": [
 				{"type": "socket", "dir": "left", "at": 7, "w": 10, "name": "plug"},
-				{"type": "pixel", "dir": "right", "at": 9, "w": 6, "name": "pipe"}
+				{"type": "line", "dir": "right", "at": 9, "w": 4, "name": "pipe"}
 			]
 		},
 		{
-			"id": "anchor_hookup", "name": "Anchor Hookup", "layer": "exterior", "kind": "stub", "stub": true, "track": "exterior", "size": [18, 14], "wall": 2,
-			"cost": [10, 0, 0, 0, 0],
-			"blurb": "A point on its base that a joint or a line can be anchored to.",
+			"id": "anchor_hookup", "name": "Anchor Hookup", "layer": "exterior", "kind": "anchor", "size": [18, 14], "wall": 2,
+			"tech": "joints", "cost": [10, 0, 0, 0, 0],
+			"blurb": "Plugs into a base's side socket and gives a Strut or a Rope a place to be held: click near its anchor point with the line tool and the line ends there, held to the base.",
 			"attach": [{"face": "anchor", "kind": "anchor"}],
 			"faces": [
 				{"type": "socket", "dir": "left", "at": 7, "w": 10, "name": "plug"},
-				{"type": "mech", "dir": "down", "at": 9, "w": 4, "name": "anchor"}
+				{"type": "line", "dir": "down", "at": 9, "w": 4, "name": "anchor"}
 			]
 		},
 		{
-			"id": "pipe_router", "name": "Pipe Router", "layer": "anchored", "kind": "stub", "stub": true, "track": "exterior", "size": [22, 22], "wall": 2, "anchored": true,
-			"cost": [10, 0, 0, 0, 0],
-			"blurb": "Bolted in place. Splits or merges the Pipes joined to it.",
+			"id": "pipe_router", "name": "Pipe Router", "layer": "anchored", "kind": "router", "size": [22, 22], "wall": 2, "anchored": true,
+			"tech": "pipes", "cost": [10, 0, 0, 0, 0],
+			"blurb": "Bolted in place. A junction with three Pipe ends: Pipes that end at it put what they carry into it, Pipes that start at it draw from it and share its stock, so it merges and splits.",
 			"attach": [{"face": "a", "kind": "hookup"}, {"face": "b", "kind": "hookup"}, {"face": "c", "kind": "hookup"}],
 			"faces": [
-				{"type": "pixel", "dir": "left", "at": 11, "w": 6, "name": "a"},
-				{"type": "pixel", "dir": "up", "at": 11, "w": 6, "name": "b"},
-				{"type": "pixel", "dir": "right", "at": 11, "w": 6, "name": "c"}
-			]
+				{"type": "line", "dir": "left", "at": 11, "w": 4, "name": "a"},
+				{"type": "line", "dir": "up", "at": 11, "w": 4, "name": "b"},
+				{"type": "line", "dir": "right", "at": 11, "w": 4, "name": "c"}
+			],
+			"params": {"cap": 120}
 		},
 		{
-			"id": "pipe", "name": "Pipe", "layer": "line", "kind": "stub", "stub": true, "track": "exterior", "size": [40, 8], "wall": 2,
-			"inventory": {"cap": 60},
-			"cost": [10, 0, 0, 0, 0],
-			"blurb": "A line that carries pixels from one hookup to another. What it carries at the moment is its in-transit inventory.",
+			"id": "pipe", "name": "Pipe", "layer": "line", "kind": "pipe", "size": [40, 5], "wall": 5, "hidden": true,
+			"tech": "pipes", "inventory": {"cap": 60}, "cost": [1, 0, 0, 0, 0],
+			"blurb": "A line that carries pixels from one Pipe Hookup (or Pipe Router) to another: it takes from the base behind its start and puts into the base behind its end, up to 30 cells a scan. Click it to run it the other way. 1 Stone for every 10 cells, up to 100 long.",
 			"attach": [{"face": "end_a", "kind": "hookup"}, {"face": "end_b", "kind": "hookup"}],
 			"faces": [
-				{"type": "pixel", "dir": "left", "at": 4, "w": 4, "name": "end_a"},
-				{"type": "pixel", "dir": "right", "at": 4, "w": 4, "name": "end_b"}
-			]
+				{"type": "line", "dir": "left", "at": 2, "w": 4, "name": "end_a"},
+				{"type": "line", "dir": "right", "at": 2, "w": 4, "name": "end_b"}
+			],
+			"params": {"rate": 30, "per": 10, "min": 10, "max": 100}
 		},
 		{
-			"id": "cable", "name": "Cable", "layer": "line", "kind": "stub", "stub": true, "track": "exterior", "size": [40, 8], "wall": 2,
-			"inventory": {"cap": 20},
-			"cost": [10, 0, 0, 0, 0],
-			"blurb": "A line that carries power from one hookup to another.",
+			"id": "cable", "name": "Cable", "layer": "line", "kind": "cable", "size": [40, 5], "wall": 5, "hidden": true,
+			"tech": "cables", "inventory": {"cap": 2}, "cost": [1, 0, 0, 0, 0],
+			"blurb": "A line that carries power from one Energy Port to another. It holds some of the Hub's power while it is laid (a twentieth of a unit a cell) and, once half full, puts the assembly at its far end in the network's reach. 1 Stone for every 10 cells, up to 100 long.",
 			"attach": [{"face": "end_a", "kind": "hookup"}, {"face": "end_b", "kind": "hookup"}],
 			"faces": [
-				{"type": "power", "dir": "left", "at": 4, "w": 4, "name": "end_a"},
-				{"type": "power", "dir": "right", "at": 4, "w": 4, "name": "end_b"}
-			]
+				{"type": "line", "dir": "left", "at": 2, "w": 4, "name": "end_a"},
+				{"type": "line", "dir": "right", "at": 2, "w": 4, "name": "end_b"}
+			],
+			"params": {"per": 10, "min": 10, "max": 100, "charge_per_40": 2.0}
 		},
 		{
-			"id": "network", "name": "Network", "layer": "line", "kind": "stub", "stub": true, "track": "exterior", "size": [40, 8], "wall": 2,
-			"inventory": {"cap": 60},
-			"cost": [10, 0, 0, 0, 0],
-			"blurb": "A line that carries goods between Network I/O Ports.",
+			"id": "network", "name": "Network line", "layer": "line", "kind": "network", "size": [40, 5], "wall": 5, "hidden": true,
+			"tech": "network_line", "inventory": {"cap": 60}, "cost": [2, 0, 0, 0, 0],
+			"blurb": "A line that carries goods from a Network port (a Funnel or a Bus Hopper) outside the network's reach to one inside it, which banks them. The far port needs a Node or the Hub in reach. 2 Stone for every 20 cells, up to 120 long.",
 			"attach": [{"face": "end_a", "kind": "hookup"}, {"face": "end_b", "kind": "hookup"}],
 			"faces": [
-				{"type": "signal", "dir": "left", "at": 4, "w": 4, "name": "end_a"},
-				{"type": "signal", "dir": "right", "at": 4, "w": 4, "name": "end_b"}
-			]
+				{"type": "line", "dir": "left", "at": 2, "w": 4, "name": "end_a"},
+				{"type": "line", "dir": "right", "at": 2, "w": 4, "name": "end_b"}
+			],
+			"params": {"rate": 40, "per": 20, "min": 10, "max": 120}
 		}
 	]
 }

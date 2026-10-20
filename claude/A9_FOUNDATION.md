@@ -54,7 +54,7 @@ behaviour script (register it in `MC.ensure_defs`), a `tech` in `defs.gd` TECHS,
 layer rules. Fifteen stubs:
 
 - processing (`processing.json`): Blender, Heat Dispersal Unit
-- exterior (`exterior.json`): Spout, Vacuum, Energy Port, Pipe Hookup, Anchor Hookup, Pipe Router; the lines Pipe, Cable, Network (the Spout and the Vacuum are built; see scripts/machines/exterior/)
+- exterior (`exterior.json`): Spout, Vacuum, Energy Port, Pipe Hookup, Anchor Hookup, Pipe Router; the lines Pipe, Cable, Network (all built; see scripts/machines/exterior/ and scripts/machines/lines.gd)
 - tools (`tools.json`): Area Vac, Scoop, Grabber, Floodlight
 
 Not stubs: Heater and Chiller are recuts of the Boiler, Furnace and Chiller (processing track), the Conveyor line

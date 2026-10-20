@@ -4,6 +4,16 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A9 exterior parts, part 2: hookups and the three lines
+
+Tests: full suite `FAILURES: 0` (scenario_lines is new; scenario_a9_points group D is live). No engine change.
+- Parts: Pipe Hookup, Energy Port and Anchor Hookup (exterior, plug into a base's socket) and the Pipe Router (anchored). New face type `line` (a point where a line ends; it joins but never opens). They declare `attach` points, so a joint tool clicked there takes the hookup, not the base behind it.
+- Lines (`machines/lines.gd`): Pipe, Cable and Network line are laid with a two-click tool (like the Strut) from one hookup point to another. Each is a thin hinge-held body with an inventory; the two hinges belong to the line, so it goes when an end is taken down (80% refund, load handed on) and is left cut if a hinge snaps.
+- Pipe (tech "Pipes", after the Case): moves loose pixels from the base behind its start hookup into the base behind its end, 30 cells a scan, up to 100 long; a click reverses it. The Router merges Pipes and splits its stock between the Pipes that leave it.
+- Cable (tech "Cables", tier 2): a Cable's in-transit power is `charge`, a separate float, not `contents` (contents are material cells and spill as pixels). It fills from the Hub's stock; at half full the assembly at its far end counts as networked (`g.reach`, read by `MU.networked`), so a machine out of the network's reach can be fed through it. Taken down, its charge goes back to the Hub's stock.
+- Network line (tech "Network Line", tier 2): carries goods from a Funnel or Bus Hopper out of the network's reach to one inside it, which banks them. A port with no line banks as before.
+- Taken down or destroyed, a line hands its load on: a Pipe to the base it came from, a Cable's charge to the Hub, a Network line's goods to its far port; what will not fit is gone.
+
 ## A9 exterior parts, part 1: Spout and Vacuum
 
 Tests: full suite `FAILURES: 0` (scenario_exterior is new). No engine change.

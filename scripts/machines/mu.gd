@@ -226,8 +226,14 @@ static func take(m: Dictionary, mat: int, n: int) -> int:
 
 # --- The network -----------------------------------------------------------------
 
-## Whether `m` is in reach of a connected Node or the Hub, the way a machine is.
+## Whether `m` is in reach of a connected Node or the Hub, the way a machine is, or put in reach by a live Cable
+## (a whole assembly) or Network line (a port) from a part that is (machines/lines.gd keeps `g.reach`).
 static func networked(g, m: Dictionary, def: Dictionary) -> bool:
+	return direct(g, m, def) or g.reach.has(m["id"])
+
+
+## Whether a connected Node or the Hub is in reach of `m` itself.
+static func direct(g, m: Dictionary, def: Dictionary) -> bool:
 	return g.find_link(-1, bounds(m, def), null) != null
 
 

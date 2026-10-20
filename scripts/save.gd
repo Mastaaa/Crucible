@@ -14,6 +14,7 @@ const Building = preload("res://scripts/building.gd")
 const Interior = preload("res://scripts/machines/interior.gd")
 const JT = preload("res://scripts/machines/joints.gd")
 const MC = preload("res://scripts/machines/machines.gd")
+const LN = preload("res://scripts/machines/lines.gd")
 
 const PATH := "user://run.save"
 const MAGIC := 0x43525553           # "CRUS"
@@ -139,6 +140,8 @@ static func restore(game, state: Dictionary) -> void:
 			game.set(v, _dec(state[v], by_id, game))
 	Interior.restore(game, state.get("interiors", {}))
 	JT.restore_defs(game)
+	MC.ensure_defs()
+	LN.restore_defs(game)
 	MC.migrate(game)
 	game.hub = by_id[state["hub"]]
 	game.crucible = by_id[state["crucible"]]

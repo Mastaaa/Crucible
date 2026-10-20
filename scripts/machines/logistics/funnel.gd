@@ -5,10 +5,11 @@ extends RefCounted
 
 const MU = preload("res://scripts/machines/mu.gd")
 const M = preload("res://scripts/materials.gd")
+const LN = preload("res://scripts/machines/lines.gd")
 
 
 static func scan(g, m: Dictionary, def: Dictionary) -> void:
-	var left := MU.rate(g, int(def["params"]["bank"]))
+	var left := mini(MU.rate(g, int(def["params"]["bank"])), LN.bank_room(g, m, def))     # out of reach, a Network line takes it
 	for mat: int in m["contents"].keys():
 		var n := mini(left, m["contents"][mat])
 		if M.is_good(mat):
@@ -17,7 +18,7 @@ static func scan(g, m: Dictionary, def: Dictionary) -> void:
 			continue
 		n = MU.take(m, mat, n)
 		left -= n
-		g.bank_cells(m["at"], mat, n)
+		LN.bank(g, m, def, mat, n)
 		m["banked"] = m.get("banked", 0) + n
 		if left <= 0:
 			break

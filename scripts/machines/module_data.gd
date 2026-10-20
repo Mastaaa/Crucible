@@ -19,7 +19,7 @@ const FILES := [
 	"res://data/modules/tools.json",
 ]
 
-const TYPES := {"pixel": F.PIXEL, "power": F.POWER, "mech": F.MECH, "signal": F.SIGNAL, "socket": F.SOCKET}
+const TYPES := {"pixel": F.PIXEL, "power": F.POWER, "mech": F.MECH, "signal": F.SIGNAL, "socket": F.SOCKET, "line": F.LINE}
 const DIRS := {"up": F.UP, "down": F.DOWN, "left": F.LEFT, "right": F.RIGHT}
 
 

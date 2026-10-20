@@ -102,6 +102,7 @@ var fallers: Array = []           # buildings falling right now
 var crushed := {}                 # body id -> {link key: true} for the links it has already hit
 var modules := {}                 # module id -> its state (machines/machines.gd)
 var next_module := 1
+var reach := {}                   # module id -> true when a Cable or Network line puts it in the network's reach; derived every scan, not saved (machines/lines.gd)
 var overseers := {}               # assembly id (lowest module id) -> {members, lead, name}; derived every scan, not saved (machines/layers.gd)
 var joints := {}                  # joint record id -> {kind, a, b, eng ...} (machines/joints.gd)
 var next_joint := 1
