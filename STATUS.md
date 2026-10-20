@@ -4,6 +4,14 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A9 processing recut part 2: the Caster and Centrifuge
+
+Tests: full suite 37 lines `FAILURES: 0`. No engine change.
+- The Caster plugs into the side of a Tank or Case, like the Press, and sets the liquid its base holds into a block out of its top (Lava to Obsidian, Slag a crust, Quickmire Mire stone, Water Ice). The base keeps that liquid in while it is there.
+- The Centrifuge is an interior strip with three bases: the mix in the base on its in side is spun apart one material at a time, the lightest up into the base on top and the heaviest out into the base on its out side.
+- Save version 6. A save from version 4 or 5 loads and takes down its old Caster and Centrifuge (and, from 4, the first half of the recut), returning their price.
+- After this the processing group has no chambers left.
+
 ## A9 processing recut: machines on a base, strips between two
 
 Tests: full suite 37 lines `FAILURES: 0` (processing, thermal, fluids, wave2, interior and layers were reworked for the new layouts). No engine change.

@@ -1,24 +1,25 @@
 extends RefCounted
-## Caster (A5): the Press for liquids. A liquid joined into its bottom face (Lava, Slag, Quickmire,
-## Water) collects in its hollow, and once it holds a slab of one kind the Caster sets it, after a
-## few seconds and some power, as a solid block out of its `front`: Lava becomes Obsidian, Slag a
-## crust, Quickmire Mire stone, Water Ice. A block is `slab` wide and tall, one cell of block for
-## one cell of liquid, and needs open air all over its footprint in front. The Macerator turns a
-## block back into powder.
+## Caster (A5, recut in A9): the Press for liquids. Plugged into a base's socket, it watches the liquid the base
+## holds (Lava, Slag, Quickmire, Water), and once the base has a slab of one kind it sets it, after a few seconds
+## and some power, as a solid block out of its `front`: Lava becomes Obsidian, Slag a crust, Quickmire Mire stone,
+## Water Ice. A block is `slab` wide and tall, one cell of block for one cell of liquid, and needs open air all over
+## its footprint in front. The Macerator turns a block back into powder. While it is on a base the base keeps its
+## castable liquid in (`m["holds"]`, see base_work.gd).
 
 const MU = preload("res://scripts/machines/mu.gd")
 const D = preload("res://scripts/defs.gd")
 const M = preload("res://scripts/materials.gd")
 const PRESS = preload("res://scripts/machines/processing/press.gd")
+const BW = preload("res://scripts/machines/processing/base_work.gd")
 
 
-## The liquid it has the most of that it can cast, or -1.
-static func best(m: Dictionary) -> int:
+## The liquid a base holds the most of that can be cast, or -1.
+static func best(base: Dictionary) -> int:
 	var pick := -1
 	var most := 0
-	for mat: int in m["contents"]:
-		if M.cast_of(mat) >= 0 and m["contents"][mat] > most:
-			most = m["contents"][mat]
+	for mat: int in base["contents"]:
+		if M.cast_of(mat) >= 0 and base["contents"][mat] > most:
+			most = base["contents"][mat]
 			pick = mat
 	return pick
 
@@ -26,12 +27,16 @@ static func best(m: Dictionary) -> int:
 static func scan(g, m: Dictionary, def: Dictionary) -> void:
 	var p: Dictionary = def["params"]
 	var need: int = int(p["slab"][0]) * int(p["slab"][1])
-	m["cap"] = int(p["cap"])
 	m["net"] = MU.networked(g, m, def)
-	var mat := best(m)
 	m["state"] = ""
-	if mat < 0 or m["contents"][mat] < need:
-		m["state"] = "Waiting for liquid (%d of %d cells)." % [m["contents"].get(mat, 0) if mat >= 0 else 0, need]
+	var base := BW.plug_base(g, m)
+	if base.is_empty() or base.get("sim") == null:
+		m["state"] = "Its base has no hollow to work on."
+		return
+	m["holds"] = [{"castable": true}]
+	var mat := best(base)
+	if mat < 0 or base["contents"][mat] < need:
+		m["state"] = "Waiting for liquid (%d of %d cells)." % [base["contents"].get(mat, 0) if mat >= 0 else 0, need]
 		return
 	var r := PRESS.footprint(g, m, def)
 	var counts: PackedInt32Array = g.sim.rect_counts(r.position.x, r.position.y, r.size.x, r.size.y)
@@ -60,7 +65,7 @@ static func scan(g, m: Dictionary, def: Dictionary) -> void:
 		m["state"] = "Too many loose bodies in the world."
 		return
 	m["work"] = 0.0
-	MU.take(m, mat, need)
+	MU.take(base, mat, need)
 	m["blocks"] = m.get("blocks", 0) + 1
 	m["state"] = "Cast a block of %s." % M.names[solid]
 
@@ -69,8 +74,8 @@ static func step(_g, _m: Dictionary, _def: Dictionary) -> void:
 	pass
 
 
-static func info(_g, m: Dictionary, def: Dictionary) -> String:
-	return "%s %d of %d cells held, %d blocks so far." % [m.get("state", ""), MU.stored(m), MU.capacity(m, def), m.get("blocks", 0)]
+static func info(_g, m: Dictionary, _def: Dictionary) -> String:
+	return "%s %d blocks so far." % [m.get("state", ""), m.get("blocks", 0)]
 
 
 ## Where the block will come out.

@@ -199,10 +199,12 @@ static func passes(rule: Dictionary, mat: int, held: Dictionary = {}) -> bool:
 	return true
 
 
-## Whether a definition's `accepts` rule (the filters of `passes`, and `pressable`: a Press could squeeze it)
+## Whether a definition's `accepts` rule (the filters of `passes`, and `pressable`: a Press could squeeze it, `castable`: a Caster could set it)
 ## lets material `mat` in. What it refuses stays in whatever was passing it on.
 static func accepts(rule: Dictionary, mat: int) -> bool:
 	if rule.get("pressable", false) and M.pressed_of(mat) < 0:
+		return false
+	if rule.get("castable", false) and M.cast_of(mat) < 0:
 		return false
 	return passes(rule, mat)
 

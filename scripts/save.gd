@@ -17,7 +17,7 @@ const MC = preload("res://scripts/machines/machines.gd")
 
 const PATH := "user://run.save"
 const MAGIC := 0x43525553           # "CRUS"
-const VERSION := 5                  # 5: A9, the processing recut (a save from 4 still loads; MC.retire_recut returns the old Boiler, Furnace, Chiller, Press, Sieve, Macerator and Electrolyser to stock). 4: A7, the Solar Panel is gone (its module and tech no longer exist). 3: A6, the world is 1024 wide. 2: the A3 cut (no Drill, new building types, modules for the rest)
+const VERSION := 6                  # 6: A9, the Caster and Centrifuge recut (a save from 5 loads; MC.retire_recut returns the old two). 5: A9, the processing recut (a save from 4 still loads; MC.retire_recut returns the old Boiler, Furnace, Chiller, Press, Sieve, Macerator and Electrolyser to stock). 4: A7, the Solar Panel is gone (its module and tech no longer exist). 3: A6, the world is 1024 wide. 2: the A3 cut (no Drill, new building types, modules for the rest)
 const AUTOSAVE_S := 300.0           # seconds of play between autosaves
 
 ## What the game node keeps that a run needs back. Everything else is a cache
@@ -40,9 +40,9 @@ const GAME_VARS := [
 const SKIP_BUILDING := ["scan_idx", "seg_idx"]
 
 
-## Whether a save of this version can be read: the last one and the one before it (the recut parts of 4 are returned on load).
+## Whether a save of this version can be read: 4 and later (the recut parts of 4 and 5 are returned on load).
 static func _readable(version: int) -> bool:
-	return version == VERSION or version == VERSION - 1
+	return version >= 4 and version <= VERSION
 
 
 static func exists(path := PATH) -> bool:
@@ -146,8 +146,8 @@ static func restore(game, state: Dictionary) -> void:
 	for v: String in GAME_VARS:
 		if state.has(v):
 			game.set(v, _dec(state[v], by_id, game))
-	if int(state.get("saved_version", VERSION)) < 5:
-		MC.retire_recut(game)
+	if int(state.get("saved_version", VERSION)) < VERSION:
+		MC.retire_recut(game, int(state["saved_version"]))
 	Interior.restore(game, state.get("interiors", {}))
 	JT.restore_defs(game)
 	MC.migrate(game)

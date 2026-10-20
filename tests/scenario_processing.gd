@@ -5,7 +5,7 @@ extends SceneTree
 ##  B. the Press squeezes powder from the Tank beside it into a block of rock that comes out of its
 ##     front as a loose body, keeps that powder in the Tank, says when something is in the way, and does nothing without power
 ##  C. research: both Build buttons wait for their techs
-##  D. a save from before the recut returns the old processing parts to stock; a current save keeps its parts
+##  D. a save from before the recut returns the old processing parts to stock (a Caster too, from version 5); a current save keeps its parts
 ## Run: godot --headless --path . --script tests/scenario_processing.gd
 
 # A6: the world is 1024 wide and the Hub moved from x 384 to 512, so every bench x below is the old one plus 128.
@@ -249,7 +249,7 @@ func scenario_c() -> void:
 	check(MC.unlocked(game, MC.defs["macerator"]) and MC.unlocked(game, MC.defs["press"]), "and open once researched")
 
 
-## A Press and a Macerator joined to Tanks, saved as the current version and as a version 4 file.
+## A Press and a Macerator joined to Tanks, saved as the current version and as a version 4 file; then a version 5 file with a Caster.
 func scenario_d() -> void:
 	print("D. a save from before the recut")
 	var path := "user://processing_test.save"
@@ -276,3 +276,26 @@ func scenario_d() -> void:
 		linked = linked or fs["link_m"] != 0
 	check(not linked, "whose socket is free again")
 	check(absf(game.stock[D.R_STONE] - (stone + 24.0)) < 0.5, "their price (24 Stone) is back in stock (%.1f from %.1f)" % [game.stock[D.R_STONE], stone])
+	# A version 5 save keeps the first half of the recut and loses the Caster and Centrifuge.
+	fresh()
+	var node = game.place(D.B_NODE, Rect2i(352, SURFACE - 20, 20, 20))
+	node.built = true
+	game.scan_dirty = true
+	game.net_dirty = true
+	var base := place("tank", 410, SURFACE - 30)
+	var psn := MC.snap(game, "press", 0, Vector2i(400, SURFACE - 15))
+	var keep := MC.place(game, "press", psn["at"], 0)
+	var csn := MC.snap(game, "caster", 0, Vector2i(446, SURFACE - 15))
+	var cast := MC.place(game, "caster", csn["at"], 0)
+	secs(1.0)
+	check(psn["snapped"] and csn["snapped"], "a Press and a Caster plug into one Tank")
+	stone = game.stock[D.R_STONE]
+	Save.write(game, path)
+	fa = FileAccess.open(path, FileAccess.READ_WRITE)
+	fa.seek(4)
+	fa.store_32(5)
+	fa.close()
+	game.continue_run(path)
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	check(game.modules.has(keep) and game.modules.has(base) and not game.modules.has(cast), "a version 5 save loses its old Caster and keeps the Press and the Tank")
+	check(absf(game.stock[D.R_STONE] - (stone + 16.0)) < 0.5, "and gets the Caster's 16 Stone back (%.1f from %.1f)" % [game.stock[D.R_STONE], stone])

@@ -1,5 +1,5 @@
 {
-	"_about": "Module definitions for the processing group (A4, A5; recut in A9). See logistics.json for the shape. Machines (layer `machine`: Press, Heater, Chiller, Blender) plug into a base's socket and act on its contents; interior strips (layer `interior`: Sieve, Macerator, Electrolyser, Heat Dispersal Unit) join a base on each pixel face and work on what passes between them. Strips name their faces `in` and `out` (the HDU `a` and `b`; the Electrolyser has a third, `gas`). `front` is where a Macerator's mouth and a Press's or Caster's block are. The Heater and Chiller share the thermal kind: `params.modes` lists {name, target (degrees), lets (what may leave the base while it is on), tech}, rate (degrees a scan), power (a second while it works). The Sieve is the strip kind: `params.rule` is a `pass` style filter. The Centrifuge and Caster are still chambers fed by a Tank's pass rule (separator and caster kinds).",
+	"_about": "Module definitions for the processing group (A4, A5; recut in A9). See logistics.json for the shape. Machines (layer `machine`: Press, Heater, Chiller, Caster, Blender) plug into a base's socket and act on its contents; interior strips (layer `interior`: Sieve, Centrifuge, Macerator, Electrolyser, Heat Dispersal Unit) join a base on each pixel face and work on what passes between them. Strips name their faces `in` and `out` (the HDU `a` and `b`; the Electrolyser has a third, `gas`, and the Centrifuge a third, `light`). `front` is where a Macerator's mouth and a Press's or Caster's block are. The Heater and Chiller share the thermal kind: `params.modes` lists {name, target (degrees), lets (what may leave the base while it is on), tech}, rate (degrees a scan), power (a second while it works). The Sieve and Centrifuge are the strip kind: `params.rule` is a `pass` style filter into `out`, or `params.routes` lists {to, rule} per face. The Caster is a machine like the Press (it casts the liquid its base holds); the Centrifuge is a strip with routes `light` (top) and `out` (heavy).",
 	"modules": [
 		{
 			"id": "macerator", "name": "Macerator", "layer": "interior", "kind": "macerator", "size": [26, 16], "wall": 2, "front": "up",
@@ -44,17 +44,28 @@
 			"params": {"rate": 20, "power": 0.25, "modes": [{"name": "Chill", "target": -20, "lets": [{"mats": ["Ice", "Chillant"]}]}]}
 		},
 		{
-			"id": "caster", "name": "Caster", "kind": "caster", "size": [26, 18], "wall": 2, "interior": true, "front": "right", "anchored": true,
-			"tech": "caster", "cost": [16, 6, 0, 0, 0],
-			"blurb": "Bolted in place. Liquid joined into its bottom face is set, once there is enough of one kind, into a solid block (a rigid body) that comes out of its side: Lava becomes Obsidian, Slag a crust, Quickmire Mire stone, Water Ice. Each block takes 4 seconds and some power, and needs open air in front for the block.",
-			"faces": [
-				{"type": "pixel", "dir": "down", "at": 10, "w": 6, "name": "in"},
-				{"type": "signal", "dir": "left", "at": 9, "w": 4, "name": "gate"}
-			],
-			"params": {"slab": [12, 8], "time": 4.0, "power": 4.0, "cap": 300}
-		},
-		{
-			"id": "electrolyser", "name": "Electrolyser", "layer": "interior", "kind": "electrolyser", "size": [14, 30], "wall": 2,
+			"id": "caster", "name": "Caster", "layer": "machine", "kind": "caster", "size": [20, 30], "wall": 2, "front": "up",
+				"tech": "caster", "cost": [16, 6, 0, 0, 0],
+				"blurb": "Plugs into the side of a Tank or Case, on either of its sides. Liquid in its base is set, once there is enough of one kind, into a solid block (a rigid body) that comes out of its top: Lava becomes Obsidian, Slag a crust, Quickmire Mire stone, Water Ice. Its base keeps that liquid in while it is there. Each block takes 4 seconds and some power, and needs open air above for the block.",
+				"faces": [
+					{"type": "socket", "dir": "left", "at": 9, "w": 10, "name": "plug_l"},
+					{"type": "socket", "dir": "right", "at": 9, "w": 10, "name": "plug_r"}
+				],
+				"params": {"slab": [12, 8], "time": 4.0, "power": 4.0}
+			},
+			{
+				"id": "centrifuge", "name": "Centrifuge", "layer": "interior", "kind": "strip", "size": [14, 30], "wall": 2,
+				"tech": "centrifuge", "cost": [16, 6, 0, 0, 0],
+				"blurb": "A strip between two bases, with a third on top. It spins the mix in the base on its in side apart by density, one material at a time: the lightest goes up into the base on top and the densest out into the base on its out side. Needs a Node or the Hub in reach, and power a cell.",
+				"faces": [
+					{"type": "pixel", "dir": "left", "at": 22, "w": 6, "name": "in"},
+					{"type": "pixel", "dir": "right", "at": 22, "w": 6, "name": "out"},
+					{"type": "pixel", "dir": "up", "at": 4, "w": 6, "name": "light"}
+				],
+				"params": {"rate": 30, "power": 0.01, "routes": [{"to": "light", "rule": {"light": true}}, {"to": "out", "rule": {"heavy": true}}]}
+			},
+			{
+				"id": "electrolyser", "name": "Electrolyser", "layer": "interior", "kind": "electrolyser", "size": [14, 30], "wall": 2,
 				"tech": "electrolyser", "cost": [16, 6, 0, 0, 0],
 				"blurb": "A strip between two bases, with a third on top for the gases. Splits what the base on its in side holds, for power a cell from a Node or the Hub in reach: two cells of Brine become two Lye, a Chlor and a Lift, and a cell of Water becomes a Lift (the oxygen vents). The Lye goes into the base on its out side and the gases into the base on top. Kept apart, because Lye and Chlor eat each other. Brine and Water wait in the first base until they are split.",
 				"faces": [
@@ -73,18 +84,6 @@
 				{"type": "pixel", "dir": "right", "at": 8, "w": 6, "name": "out"}
 			],
 			"params": {"rule": {"kinds": ["liquid", "gas"]}, "rate": 30, "power": 0.004}
-		},
-		{
-			"id": "centrifuge", "name": "Centrifuge", "kind": "separator", "size": [26, 30], "wall": 2, "interior": true, "anchored": true,
-			"tech": "centrifuge", "cost": [16, 6, 0, 0, 0],
-			"blurb": "Bolted in place. A Tank passes a mix into its bottom face; it spins the mix apart by density, the lightest material out of its top face and the densest out of its left face, one material at a time. Needs a Node or the Hub in reach, and power a cell.",
-			"faces": [
-				{"type": "pixel", "dir": "down", "at": 6, "w": 6, "name": "in"},
-				{"type": "pixel", "dir": "up", "at": 13, "w": 6, "name": "light"},
-				{"type": "pixel", "dir": "left", "at": 24, "w": 6, "name": "heavy"}
-			],
-			"pass": [{"face": 1, "rate": 30, "light": true, "power": 0.01}, {"face": 2, "rate": 30, "heavy": true, "power": 0.01}],
-			"params": {"cap": 300}
 		},
 		{
 			"id": "blender", "name": "Blender", "layer": "machine", "kind": "blender", "size": [20, 30], "wall": 2,
