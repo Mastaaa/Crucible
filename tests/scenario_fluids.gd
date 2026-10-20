@@ -172,15 +172,39 @@ func sorter(def: String, mix: Dictionary, dead := false) -> Dictionary:
 	return {"sorter": s, "top": top, "side": side, "snapped": top_sn["snapped"] and side_sn["snapped"]}
 
 
+## A strip between two Tanks on the ground: `mix` goes into the left one. Returns the strip and both Tanks.
+func striped(def: String, mix: Dictionary, dead := false) -> Dictionary:     # the Sieve is 14 wide
+	fresh()
+	if dead:
+		game.stock[D.R_POWER] = 0.0
+	var feed := place("tank", 386, SURFACE - 30)
+	var sn := MC.snap(game, def, 0, Vector2i(425, SURFACE - 8))
+	var strip := MC.place(game, def, sn["at"], 0)
+	var sn2 := MC.snap(game, "tank", 0, Vector2i(sn["at"].x + int(MC.defs[def]["size"][0]) + 13, SURFACE - 15))
+	var out := MC.place(game, "tank", sn2["at"], 0)
+	for mat: int in mix:
+		MC.add_contents(game, feed, mat, mix[mat])
+	for _i in 30:
+		if dead:
+			game.stock[D.R_POWER] = 0.0
+		game.run_ticks(1)
+	return {"strip": strip, "feed": feed, "out": out, "snapped": sn["snapped"] and sn2["snapped"]}
+
+
 func scenario_c() -> void:
 	print("C. Sieve")
-	var r := sorter("sieve", {SAND: 60, WATER: 60})
-	check(r["snapped"], "both Tanks join the Sieve")
-	var top: int = r["top"]
-	var side: int = r["side"]
-	until(func() -> bool: return held(top, WATER) >= 60 and held(side, SAND) >= 60, 30.0)
-	check(held(top, WATER) >= 60 and held(top, SAND) == 0, "the Water goes up (%d Water, %d Sand in the top Tank)" % [held(top, WATER), held(top, SAND)])
-	check(held(side, SAND) >= 60 and held(side, WATER) == 0, "the Sand goes out of the side (%d Sand, %d Water in the side Tank)" % [held(side, SAND), held(side, WATER)])
+	var r := striped("sieve", {SAND: 60, WATER: 60})
+	check(r["snapped"], "a Tank joins each side of the Sieve")
+	var feed: int = r["feed"]
+	var out: int = r["out"]
+	until(func() -> bool: return held(out, WATER) >= 60, 30.0)
+	check(held(out, WATER) >= 60 and held(out, SAND) == 0, "the Water goes through (%d Water, %d Sand in the out Tank)" % [held(out, WATER), held(out, SAND)])
+	check(held(feed, SAND) == 60 and held(feed, WATER) == 0, "the Sand stays behind (%d Sand, %d Water in the feed Tank)" % [held(feed, SAND), held(feed, WATER)])
+	r = striped("sieve", {SAND: 60, WATER: 60}, true)
+	for _i in 600:
+		game.stock[D.R_POWER] = 0.0
+		game.run_ticks(1)
+	check(held(r["out"], WATER) == 0, "with no power it passes nothing")
 
 
 func scenario_d() -> void:

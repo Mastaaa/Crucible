@@ -78,7 +78,7 @@ func pos(id: int) -> Vector2:
 ## A Case at (x, AIR_Y) and a part plugged into its right socket.
 func case_and(def_id: String) -> Array:
 	var c := MC.place(game, "case", Vector2i(380, AIR_Y), 0)
-	var p := MC.place(game, def_id, Vector2i(406, AIR_Y + 8 - 11), 0)
+	var p := MC.place(game, def_id, Vector2i(406, AIR_Y + 8 - 9), 0)       # the Blender's plug is 9 down its side
 	return [c, p]
 
 
@@ -103,7 +103,7 @@ func scenario_a() -> void:
 	for id: String in MC.defs:
 		if MC.defs[id].get("stub", false):
 			stubs += 1
-	check(stubs == 15, "fifteen stubs (found %d)" % stubs)
+	check(stubs == 13, "thirteen stubs (found %d)" % stubs)
 	check(MC.defs["pipe"].has("inventory") and MC.defs["cable"].has("inventory") and MC.defs["network"].has("inventory"), "the lines carry an inventory")
 	var hooks := 0
 	for id: String in MC.defs:
@@ -133,7 +133,7 @@ func scenario_b() -> void:
 	var c: Dictionary = game.modules[ids[0]]
 	var b: Dictionary = game.modules[ids[1]]
 	var ci := LY_face(c, "socket_r")
-	var bi := LY_face(b, "plug")
+	var bi := LY_face(b, "plug_l")
 	check(c["faces"][ci]["link_m"] == ids[1] and b["faces"][bi]["link_m"] == ids[0], "socket and plug are joined")
 	check(not c["faces"][ci]["open"] and not b["faces"][bi]["open"] and c["opened"] == 0 and b["opened"] == 0, "and stay shut: no wall pixels leave")
 	check(b["needs"] == "", "the Blender has its base")
@@ -175,13 +175,13 @@ func scenario_c() -> void:
 	check(info.contains("Needs a base"), "the hover text says it")
 	fresh()
 	var a := MC.place(game, "case", Vector2i(380, AIR_Y), 0)
-	var h := MC.place(game, "hdu", Vector2i(406, AIR_Y + 18 - 13), 0)
+	var h := MC.place(game, "hdu", Vector2i(406, AIR_Y + 18 - 8), 0)
 	game.run_ticks(12)
 	check(game.modules[h]["needs"].begins_with("Needs a base joined on each side"), "a strip with one base: \"%s\"" % game.modules[h]["needs"])
 	check(game.modules[h]["faces"][LY_face(game.modules[h], "a")]["link_m"] == a, "it joined the Case at its a face")
 	fresh()
 	a = MC.place(game, "case", Vector2i(380, AIR_Y), 0)
-	h = MC.place(game, "hdu", Vector2i(406, AIR_Y + 18 - 13), 0)
+	h = MC.place(game, "hdu", Vector2i(406, AIR_Y + 18 - 8), 0)
 	var bb := MC.place(game, "case", Vector2i(420, AIR_Y), 0)
 	game.run_ticks(12)
 	check(game.modules[h]["needs"] == "", "with a base on each side it has what it needs")
@@ -207,7 +207,7 @@ func scenario_d() -> void:
 	var line := LY.line(game, game.modules[ids[0]])
 	print("    " + line)
 	check(line.begins_with("Processing line, 2 parts"), "names the assembly and counts its parts")
-	check(line.contains("Blender: Not built yet"), "and carries the lead's own status")
+	check(line.contains("Blender: Nothing to mix"), "and carries the lead's own status")
 	check(line == LY.line(game, game.modules[ids[1]]), "the same line from either part")
 	game.modules[ids[0]]["waits"] = "Waiting for the Blender to finish."
 	line = LY.line(game, game.modules[ids[0]])
@@ -308,4 +308,4 @@ func scenario_h() -> void:
 		check(ok and MC.info(game, m).length() > 0, "%s: \"%s\"" % [id, m["state"]])
 		MC.remove(game, m_id)
 		n += 1
-	check(n == 15, "all fifteen placed and taken down (%d)" % n)
+	check(n == 13, "all thirteen placed and taken down (%d)" % n)
