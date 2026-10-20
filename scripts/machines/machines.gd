@@ -63,6 +63,10 @@ const K_HOOKUP = preload("res://scripts/machines/exterior/hookup.gd")
 const K_ANCHOR = preload("res://scripts/machines/exterior/anchor.gd")
 const K_ENERGY_PORT = preload("res://scripts/machines/exterior/energy_port.gd")
 const K_ROUTER = preload("res://scripts/machines/exterior/router.gd")
+const K_AREA_VAC = preload("res://scripts/machines/tools/area_vac.gd")
+const K_SCOOP = preload("res://scripts/machines/tools/scoop.gd")
+const K_GRABBER = preload("res://scripts/machines/tools/grabber.gd")
+const K_FLOODLIGHT = preload("res://scripts/machines/tools/floodlight.gd")
 const K_STUB = preload("res://scripts/machines/stub.gd")
 
 const SCAN := MU.SCAN           # ticks between scans
@@ -94,7 +98,8 @@ static func ensure_defs() -> void:
 				"chute": K_CHUTE, "conveyor": K_CONVEYOR, "bus_hopper": K_BUS_HOPPER, "vault": K_VAULT,
 				"drone_cage": K_DRONE_CAGE, "spout": K_SPOUT, "vacuum": K_VACUUM,
 				"pipe": K_LINE, "cable": K_LINE, "network": K_LINE, "hookup": K_HOOKUP, "anchor": K_ANCHOR, "energy_port": K_ENERGY_PORT, "router": K_ROUTER,
-				"strip": K_STRIP, "blender": K_BLENDER, "hdu": K_HDU, "stub": K_STUB}
+				"strip": K_STRIP, "blender": K_BLENDER, "hdu": K_HDU,
+				"area_vac": K_AREA_VAC, "scoop": K_SCOOP, "grabber": K_GRABBER, "floodlight": K_FLOODLIGHT, "stub": K_STUB}
 		LY.kinds = kinds
 		for d: Dictionary in MD.defs():
 			register(d)
@@ -495,6 +500,9 @@ static func _lost(g, m: Dictionary) -> void:
 
 static func _dump(g, m: Dictionary) -> void:
 	LY.rescue(g, m, defs[m["def"]])
+	var kind: Variant = kinds.get(defs[m["def"]].get("kind", ""))
+	if kind != null and kind.has_method("release"):
+		kind.release(g, m)          # a Grabber lets go of what it holds
 	var at: Vector2 = m["at"]
 	var n := 0
 	for mat: int in m["contents"]:
@@ -817,10 +825,14 @@ static func click(g, cell: Vector2i) -> bool:
 		why = "Needs %s in the stockpile." % cost_text(def.get("cost", []))
 	if why != "":
 		g.show_banner(why, 2.0)
-	elif place(g, g.module_pick, at, g.module_turns) > 0:
-		var cost: Array = def.get("cost", [])
-		for r in cost.size():
-			g.stock[r] -= cost[r]
+	else:
+		var placed := place(g, g.module_pick, at, g.module_turns)
+		if placed > 0:
+			var cost: Array = def.get("cost", [])
+			for r in cost.size():
+				g.stock[r] -= cost[r]
+			if def.has("mount") and g.modules[placed].get("needs", "") != "":
+				g.show_banner(g.modules[placed]["needs"], 3.0)      # a tool set down off its line says so at once
 	return true
 
 
@@ -914,8 +926,12 @@ static func lights(g) -> Array:
 	var out: Array = []
 	for id: int in g.modules:
 		var m: Dictionary = g.modules[id]
-		if defs[m["def"]].get("kind", "") == "lamp" and m.get("lit", false):
+		var dk: String = defs[m["def"]].get("kind", "")
+		if dk == "lamp" and m.get("lit", false):
 			out.append([m["at"], D.LIGHT_LAMP, D.LIGHT_LAMP])
+		elif dk == "floodlight" and m.get("lit", false):
+			var radius: float = float(defs[m["def"]]["params"]["light"]) * D.S
+			out.append([m["at"], radius, radius])
 		else:
 			out.append([m["at"], D.LIGHT_PILOT, D.SIGHT_MACHINE])
 	return out

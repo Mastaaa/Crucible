@@ -52,12 +52,8 @@ The overseer still only names and reports; each part decides for itself.
 `attach` points, a placeholder price and a blurb saying what it will do. It never shows in the Build list
 (`MC.unlocked` is false) and says "Not built yet." when placed by hand. To fill one in: give it a real `kind` and
 behaviour script (register it in `MC.ensure_defs`), a `tech` in `defs.gd` TECHS, drop `stub` and `track`, keep the
-layer rules. Four stubs are left (the exterior track is built; see scripts/machines/exterior/ and scripts/machines/lines.gd):
-
-- tools (`tools.json`): Area Vac, Scoop, Grabber, Floodlight
-
-Not stubs: the processing and exterior tracks are done (see below), the Conveyor line is the existing Conveyor until a line beats
-it, and the Case is real.
+layer rules. No stubs are left: the processing, exterior and tools tracks are done (see below and scripts/machines/exterior/,
+scripts/machines/lines.gd, scripts/machines/tools/). The Conveyor line is the existing Conveyor until a line beats it, and the Case is real.
 
 ## Processing recut (what the exterior and line threads can rely on)
 Parts: Press, Heater, Chiller, Caster, Blender (machines on a base's socket); Sieve, Centrifuge, Macerator,
@@ -82,6 +78,22 @@ Electrolyser, Heat Dispersal Unit (interior strips between bases). Behaviour is 
 - Techs: Boiler is now the Heater (id `boiler`), Furnace is "Smelting" (id `furnace`, adds Smelt mode to the Heater),
   plus new Blender and HDU. Tests: processing, thermal, fluids, wave2, interior, layers.
 
+## Standalone tools (what later threads can rely on)
+Area Vac, Scoop, Grabber, Floodlight (`data/modules/tools.json`, behaviour in `scripts/machines/tools/`, shared code in `mount.gd`, "MT").
+- A tool stands on a line where its centre meets it. The definition names `mount` (the side whose middle is the foot), `mounts`
+  (the line kinds it takes: pipe, cable, network, strut) and `front` (opposite the mount, the side it works on), and has
+  `needs: ["line"]`. `LY.unmet` runs `MT.line_under` each scan: the nearest line whose face lies within `MT.SLACK` (4 cells) of
+  the foot. It sets `m["on"]` (the line's module id, 0 for none) and a tool short of its line does no work and says so.
+- `LY.weld` calls `MT.hold`, which keeps one bolt (`auto` = the tool) between tool and line at the foot. The line moves, the tool goes
+  with it; a taken-down line leaves the tool without a bolt and without a line (it falls).
+- The line gives the tool what it needs: the Area Vac and Scoop put what they lift into the Pipe's `contents` (a Pipe then carries it
+  to the base behind its far hookup; they stop while the Pipe is full), the Floodlight and Grabber ask only for reach. A tool is
+  powered when it, or a part its line is held by (a Pipe's two ends, a Strut's bolts), has a Node or the Hub in reach (`MT.powered`).
+- A behaviour may define `release(g, m)`: `MC._dump` calls it when the module is taken down, wrecked or lost (the Grabber lets go).
+- Floodlight light radius comes from `params.light` (cells over D.S) in `MC.lights`. The Lamp is unchanged.
+- The Grabber's grip is an engine joint of its own (`m["grip"]`: `eng`, `body`, `cells`), not a `g.joints` record, because the other end
+  is a loose body, which has no module id. It is checked against `sim.joint_ids()` each scan.
+
 ## Line parts and inventory
 `"inventory": {"cap": N}` is what a line part carries in transit. It is the part's `contents`, with `MU.capacity`
 reading the cap. When such a part is taken down or lost, `LY.rescue` first hands its contents to the nearest joined
@@ -98,7 +110,7 @@ pass today. The thread that lands Pipe and Cable flips `A9 := false` there.
 ## Ownership and testing
 - processing track: processing.json, processing/*.gd; tests processing, thermal, fluids, wave2, interior, shorer.
 - exterior track: logistics (new parts), exterior.json; tests logistics, a9_points, contraptions.
-- tools track: tools.json and its own scenario.
+- tools track: tools.json, machines/tools/*; test scenario_tools.
 - Only one engine-changing PR merges at a time. The foundation made no engine change.
 - Tests that place modules in the open air let them fall; bodies that fall far break on landing. Build a few cells
   above the ground (see scenario_layers `AIR_Y`).

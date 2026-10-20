@@ -11,6 +11,15 @@ Tests: full suite 37 lines `FAILURES: 0`. No engine change.
 - The Centrifuge is an interior strip with three bases: the mix in the base on its in side is spun apart one material at a time, the lightest up into the base on top and the heaviest out into the base on its out side.
 - Save version 6. A save from version 4 or 5 loads and takes down its old Caster and Centrifuge (and, from 4, the first half of the recut), returning their price.
 - After this the processing group has no chambers left.
+## A9 standalone tools: Area Vac, Scoop, Grabber, Floodlight
+
+Tests: scenario_tools (new, 44 checks). No engine change.
+- A tool stands on a line where its centre meets it: its foot (the middle of its mount edge) rests against a Pipe, Cable, Network line or Strut and a bolt of its own holds it there. Set down off a line, it says what it needs.
+- Area Vac: draws every loose pixel of a wide patch into the Pipe it hangs from, for a little power a cell; the Pipe carries it to its far base.
+- Scoop: lifts a measured scoop of one powder or liquid, the most plentiful under it, and keeps to it until none is left.
+- Grabber: takes a loose rigid body between its jaws and carries it with its line; a click lets go or grabs again.
+- Floodlight: lights 300 cells round it for 0.15 power/s while its line puts it in the network's reach. The Lamp stays; the tests and the bot use it.
+- Four techs: Scoop, Area Vac, Grabber, Floodlight (prices are placeholders until A10).
 
 ## A9 exterior parts, part 3: Network cost and the Node transit view
 
