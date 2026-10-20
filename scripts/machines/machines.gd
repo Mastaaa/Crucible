@@ -52,6 +52,8 @@ const K_WINDMILL = preload("res://scripts/machines/power/windmill.gd")
 const K_WATERWHEEL = preload("res://scripts/machines/power/waterwheel.gd")
 const K_LAB = preload("res://scripts/machines/support/lab.gd")
 const K_LAMP = preload("res://scripts/machines/support/lamp.gd")
+const K_SPOUT = preload("res://scripts/machines/exterior/spout.gd")
+const K_VACUUM = preload("res://scripts/machines/exterior/vacuum.gd")
 const K_STUB = preload("res://scripts/machines/stub.gd")
 
 const SCAN := MU.SCAN           # ticks between scans
@@ -81,7 +83,9 @@ static func ensure_defs() -> void:
 				"lab": K_LAB, "lamp": K_LAMP, "slide": K_SLIDE, "turntable": K_TURNTABLE, "laser": K_LASER, "thumper": K_THUMPER,
 				"macerator": K_MACERATOR, "press": K_PRESS, "thermal": K_THERMAL, "caster": K_CASTER, "combustor": K_COMBUSTOR, "separator": K_SEPARATOR, "electrolyser": K_ELECTROLYSER, "pump": K_PUMP, "shorer": K_SHORER, "filler": K_FILLER, "sensor": K_SENSOR, "thermoelectric": K_THERMOELECTRIC,
 				"chute": K_CHUTE, "conveyor": K_CONVEYOR, "bus_hopper": K_BUS_HOPPER, "vault": K_VAULT,
-				"drone_cage": K_DRONE_CAGE, "stub": K_STUB}
+				"drone_cage": K_DRONE_CAGE,
+					"spout": K_SPOUT, "vacuum": K_VACUUM,
+					"stub": K_STUB}
 		LY.kinds = kinds
 		for d: Dictionary in MD.defs():
 			register(d)

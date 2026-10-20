@@ -2,22 +2,24 @@
 	"_about": "Stubs: parts A9 has defined (layer, faces, attach points, price) and not built. `kind` is 'stub', so a stub can't be picked from the Build list and says 'Not built yet.' when placed by hand. The track named in `track` fills one in by giving it a real kind and behaviour and dropping `stub` and `track`. Prices are placeholders until A10. See logistics.json for the format. Exterior parts plug into a base's socket; lines carry an `inventory`; the Hookups declare `attach` points for joints.",
 	"modules": [
 		{
-			"id": "spout", "name": "Spout", "layer": "exterior", "kind": "stub", "stub": true, "track": "exterior", "size": [22, 14], "wall": 2,
-			"cost": [10, 0, 0, 0, 0],
-			"blurb": "Pours the contents of its base out of its mouth as loose pixels, a few at a time.",
+			"id": "spout", "name": "Spout", "layer": "exterior", "kind": "spout", "size": [22, 14], "wall": 2, "front": "down",
+			"tech": "spout", "cost": [10, 0, 0, 0, 0],
+			"blurb": "Plugs into a base's side socket and pours the base's contents out of its mouth as loose pixels, a few cells a scan, for a little power a cell. Joined at its mouth to a Chute or Tank it passes them in there. Needs a Node or the Hub in reach.",
 			"faces": [
 				{"type": "socket", "dir": "left", "at": 7, "w": 10, "name": "plug"},
 				{"type": "pixel", "dir": "down", "at": 11, "w": 6, "name": "mouth"}
-			]
+			],
+			"params": {"rate": 20, "power": 0.004}
 		},
 		{
-			"id": "vacuum", "name": "Vacuum", "layer": "exterior", "kind": "stub", "stub": true, "track": "exterior", "size": [30, 16], "wall": 2,
-			"cost": [10, 0, 0, 0, 0],
-			"blurb": "Pulls the loose pixels of a wide area into its base: the quick way to gather whatever lies about.",
+			"id": "vacuum", "name": "Vacuum", "layer": "exterior", "kind": "vacuum", "size": [30, 16], "wall": 2, "front": "down",
+			"tech": "vacuum", "cost": [10, 0, 0, 0, 0],
+			"blurb": "Plugs into a base's side socket and pulls the loose pixels (powder, liquid, gas) of a wide patch in front of its mouth into the base, nearest row first, for a little power a cell. The quick way to gather whatever lies about; the Drone Cage is the slow one that takes a single material. Needs a Node or the Hub in reach.",
 			"faces": [
 				{"type": "socket", "dir": "left", "at": 8, "w": 10, "name": "plug"},
 				{"type": "pixel", "dir": "down", "at": 15, "w": 6, "name": "mouth"}
-			]
+			],
+			"params": {"rate": 60, "width": 40, "depth": 20, "power": 0.004}
 		},
 		{
 			"id": "energy_port", "name": "Energy Port", "layer": "exterior", "kind": "stub", "stub": true, "track": "exterior", "size": [20, 14], "wall": 2,

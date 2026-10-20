@@ -100,10 +100,14 @@ func scenario_a() -> void:
 	for id: String in ["cutter", "laser", "thumper", "pump", "funnel", "bus_hopper"]:
 		check(MC.defs[id]["layer"] == "exterior" and MC.defs[id]["needs"].is_empty(), "%s is exterior and works without a base" % id)
 	var stubs := 0
+	var exterior_stubs := 0
 	for id: String in MC.defs:
 		if MC.defs[id].get("stub", false):
 			stubs += 1
-	check(stubs == 15, "fifteen stubs (found %d)" % stubs)
+			if MC.defs[id]["track"] == "exterior":
+				exterior_stubs += 1
+	check(stubs <= 15, "no more than the fifteen stubs the foundation made (found %d)" % stubs)
+	check(exterior_stubs == 7, "the exterior track has filled in Spout and Vacuum (%d stubs left)" % exterior_stubs)
 	check(MC.defs["pipe"].has("inventory") and MC.defs["cable"].has("inventory") and MC.defs["network"].has("inventory"), "the lines carry an inventory")
 	var hooks := 0
 	for id: String in MC.defs:

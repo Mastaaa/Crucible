@@ -4,6 +4,13 @@ Open this folder in Godot 4.7 and press Play (F5). F1 in game lists the controls
 This file is the full history, newest phase first. The short "where it stands" version
 Claude reads each session is claude/STATUS.md.
 
+## A9 exterior parts, part 1: Spout and Vacuum
+
+Tests: full suite `FAILURES: 0` (scenario_exterior is new). No engine change.
+- Spout (tech "Spout", tier 1, after the Pump): an exterior part that plugs into a Tank's or Case's side socket and pours the base's contents out of its mouth as loose pixels, 20 cells a scan for 0.004 power a cell. Joined at its mouth to a Chute or Tank it passes them in there instead. It will not pour into rock or a pile that has reached the mouth; the cells stay in the base.
+- Vacuum (tech "Vacuum", tier 2, after the Spout): plugs into a base's socket and pulls the loose pixels (powder, liquid, gas) of a 40 by 20 patch in front of its mouth into the base, nearest row first, up to 60 cells a scan. It stops when the base is full. The Drone Cage stays as the slow one that takes a single material.
+- Both need a Node or the Hub in reach, like every module. New material mask `M.mask("loose")`; shared helpers in scripts/machines/exterior/ext.gd.
+
 ## A9 foundation: layers, sockets, the overseer, the Case
 
 Tests: full suite 37 lines `FAILURES: 0` (scenario_layers is new). No engine change.
