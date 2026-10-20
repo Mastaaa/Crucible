@@ -1,0 +1,96 @@
+{
+	"_about": "Stubs: parts A9 has defined (layer, faces, attach points, price) and not built. `kind` is 'stub', so a stub can't be picked from the Build list and says 'Not built yet.' when placed by hand. The track named in `track` fills one in by giving it a real kind and behaviour and dropping `stub` and `track`. Prices are placeholders until A10. See logistics.json for the format. Exterior parts plug into a base's socket; lines carry an `inventory`; the Hookups declare `attach` points for joints.",
+	"modules": [
+		{
+			"id": "spout", "name": "Spout", "layer": "exterior", "kind": "stub", "stub": true, "track": "exterior", "size": [22, 14], "wall": 2,
+			"cost": [10, 0, 0, 0, 0],
+			"blurb": "Pours the contents of its base out of its mouth as loose pixels, a few at a time.",
+			"faces": [
+				{"type": "socket", "dir": "left", "at": 7, "w": 10, "name": "plug"},
+				{"type": "pixel", "dir": "down", "at": 11, "w": 6, "name": "mouth"}
+			]
+		},
+		{
+			"id": "vacuum", "name": "Vacuum", "layer": "exterior", "kind": "stub", "stub": true, "track": "exterior", "size": [30, 16], "wall": 2,
+			"cost": [10, 0, 0, 0, 0],
+			"blurb": "Pulls the loose pixels of a wide area into its base: the quick way to gather whatever lies about.",
+			"faces": [
+				{"type": "socket", "dir": "left", "at": 8, "w": 10, "name": "plug"},
+				{"type": "pixel", "dir": "down", "at": 15, "w": 6, "name": "mouth"}
+			]
+		},
+		{
+			"id": "energy_port", "name": "Energy Port", "layer": "exterior", "kind": "stub", "stub": true, "track": "exterior", "size": [20, 14], "wall": 2,
+			"cost": [10, 0, 0, 0, 0],
+			"blurb": "Moves power between its base and a Cable.",
+			"faces": [
+				{"type": "socket", "dir": "left", "at": 7, "w": 10, "name": "plug"},
+				{"type": "power", "dir": "up", "at": 10, "w": 6, "name": "power"}
+			]
+		},
+		{
+			"id": "pipe_hookup", "name": "Pipe Hookup", "layer": "exterior", "kind": "stub", "stub": true, "track": "exterior", "size": [18, 14], "wall": 2,
+			"cost": [10, 0, 0, 0, 0],
+			"blurb": "Where a Pipe joins its base: pixels pass through the hookup between them.",
+			"attach": [{"face": "pipe", "kind": "hookup"}],
+			"faces": [
+				{"type": "socket", "dir": "left", "at": 7, "w": 10, "name": "plug"},
+				{"type": "pixel", "dir": "right", "at": 9, "w": 6, "name": "pipe"}
+			]
+		},
+		{
+			"id": "anchor_hookup", "name": "Anchor Hookup", "layer": "exterior", "kind": "stub", "stub": true, "track": "exterior", "size": [18, 14], "wall": 2,
+			"cost": [10, 0, 0, 0, 0],
+			"blurb": "A point on its base that a joint or a line can be anchored to.",
+			"attach": [{"face": "anchor", "kind": "anchor"}],
+			"faces": [
+				{"type": "socket", "dir": "left", "at": 7, "w": 10, "name": "plug"},
+				{"type": "mech", "dir": "down", "at": 9, "w": 4, "name": "anchor"}
+			]
+		},
+		{
+			"id": "pipe_router", "name": "Pipe Router", "layer": "anchored", "kind": "stub", "stub": true, "track": "exterior", "size": [22, 22], "wall": 2, "anchored": true,
+			"cost": [10, 0, 0, 0, 0],
+			"blurb": "Bolted in place. Splits or merges the Pipes joined to it.",
+			"attach": [{"face": "a", "kind": "hookup"}, {"face": "b", "kind": "hookup"}, {"face": "c", "kind": "hookup"}],
+			"faces": [
+				{"type": "pixel", "dir": "left", "at": 11, "w": 6, "name": "a"},
+				{"type": "pixel", "dir": "up", "at": 11, "w": 6, "name": "b"},
+				{"type": "pixel", "dir": "right", "at": 11, "w": 6, "name": "c"}
+			]
+		},
+		{
+			"id": "pipe", "name": "Pipe", "layer": "line", "kind": "stub", "stub": true, "track": "exterior", "size": [40, 8], "wall": 2,
+			"inventory": {"cap": 60},
+			"cost": [10, 0, 0, 0, 0],
+			"blurb": "A line that carries pixels from one hookup to another. What it carries at the moment is its in-transit inventory.",
+			"attach": [{"face": "end_a", "kind": "hookup"}, {"face": "end_b", "kind": "hookup"}],
+			"faces": [
+				{"type": "pixel", "dir": "left", "at": 4, "w": 4, "name": "end_a"},
+				{"type": "pixel", "dir": "right", "at": 4, "w": 4, "name": "end_b"}
+			]
+		},
+		{
+			"id": "cable", "name": "Cable", "layer": "line", "kind": "stub", "stub": true, "track": "exterior", "size": [40, 8], "wall": 2,
+			"inventory": {"cap": 20},
+			"cost": [10, 0, 0, 0, 0],
+			"blurb": "A line that carries power from one hookup to another.",
+			"attach": [{"face": "end_a", "kind": "hookup"}, {"face": "end_b", "kind": "hookup"}],
+			"faces": [
+				{"type": "power", "dir": "left", "at": 4, "w": 4, "name": "end_a"},
+				{"type": "power", "dir": "right", "at": 4, "w": 4, "name": "end_b"}
+			]
+		},
+		{
+			"id": "network", "name": "Network", "layer": "line", "kind": "stub", "stub": true, "track": "exterior", "size": [40, 8], "wall": 2,
+			"inventory": {"cap": 60},
+			"cost": [10, 0, 0, 0, 0],
+			"blurb": "A line that carries goods between Network I/O Ports.",
+			"attach": [{"face": "end_a", "kind": "hookup"}, {"face": "end_b", "kind": "hookup"}],
+			"faces": [
+				{"type": "signal", "dir": "left", "at": 4, "w": 4, "name": "end_a"},
+				{"type": "signal", "dir": "right", "at": 4, "w": 4, "name": "end_b"}
+			]
+		}
+	]
+}

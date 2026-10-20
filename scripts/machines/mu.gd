@@ -131,6 +131,8 @@ static func drive(m: Dictionary, v: Vector2, spin := 0.0) -> void:
 static func capacity(m: Dictionary, def: Dictionary) -> int:
 	if m.has("cap"):
 		return m["cap"]
+	if def.has("inventory"):
+		return int(def["inventory"]["cap"])       # a line part's in-transit store (layers.gd)
 	if def.get("params", {}).has("cap"):
 		return int(def["params"]["cap"])      # a vessel's box is its size from the first scan
 	return F.layout(def, m["turns"])["cavity"]

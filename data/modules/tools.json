@@ -1,0 +1,29 @@
+{
+	"_about": "Stubs: parts A9 has defined (layer, faces, attach points, price) and not built. `kind` is 'stub', so a stub can't be picked from the Build list and says 'Not built yet.' when placed by hand. The track named in `track` fills one in by giving it a real kind and behaviour and dropping `stub` and `track`. Prices are placeholders until A10. See logistics.json for the format. Standalone tools stand on a line (a Pipe, Cable or Network) where it meets their centre.",
+	"modules": [
+		{
+			"id": "area_vac", "name": "Area Vac", "layer": "standalone", "kind": "stub", "stub": true, "track": "tools", "size": [30, 20], "wall": 2,
+			"cost": [10, 0, 0, 0, 0],
+			"blurb": "A tool that stands on a line and draws the loose pixels of an area into it.",
+			"faces": []
+		},
+		{
+			"id": "scoop", "name": "Scoop", "layer": "standalone", "kind": "stub", "stub": true, "track": "tools", "size": [24, 16], "wall": 2,
+			"cost": [10, 0, 0, 0, 0],
+			"blurb": "A tool that stands on a line and lifts a measured scoop of powder or liquid out of what is under it.",
+			"faces": []
+		},
+		{
+			"id": "grabber", "name": "Grabber", "layer": "standalone", "kind": "stub", "stub": true, "track": "tools", "size": [24, 18], "wall": 2,
+			"cost": [10, 0, 0, 0, 0],
+			"blurb": "A tool that stands on a line and picks up loose rigid bodies and sets them down.",
+			"faces": []
+		},
+		{
+			"id": "floodlight", "name": "Floodlight", "layer": "standalone", "kind": "stub", "stub": true, "track": "tools", "size": [16, 16], "wall": 2,
+			"cost": [10, 0, 0, 0, 0],
+			"blurb": "Replaces the Lamp: lights a wide area for a little power.",
+			"faces": []
+		}
+	]
+}

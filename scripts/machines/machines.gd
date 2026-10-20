@@ -21,6 +21,7 @@ const MU = preload("res://scripts/machines/mu.gd")
 const JT = preload("res://scripts/machines/joints.gd")
 const MD = preload("res://scripts/machines/module_data.gd")
 const INT = preload("res://scripts/machines/interior.gd")
+const LY = preload("res://scripts/machines/layers.gd")
 # The module groups' behaviour scripts, by the `kind` a definition names. A group adds its own here.
 const K_TANK = preload("res://scripts/machines/logistics/tank.gd")
 const K_FUNNEL = preload("res://scripts/machines/logistics/funnel.gd")
@@ -51,6 +52,7 @@ const K_WINDMILL = preload("res://scripts/machines/power/windmill.gd")
 const K_WATERWHEEL = preload("res://scripts/machines/power/waterwheel.gd")
 const K_LAB = preload("res://scripts/machines/support/lab.gd")
 const K_LAMP = preload("res://scripts/machines/support/lamp.gd")
+const K_STUB = preload("res://scripts/machines/stub.gd")
 
 const SCAN := MU.SCAN           # ticks between scans
 const CONNECT_DIST := 3.5       # faces this near (cells) and square on join
@@ -79,7 +81,8 @@ static func ensure_defs() -> void:
 				"lab": K_LAB, "lamp": K_LAMP, "slide": K_SLIDE, "turntable": K_TURNTABLE, "laser": K_LASER, "thumper": K_THUMPER,
 				"macerator": K_MACERATOR, "press": K_PRESS, "thermal": K_THERMAL, "caster": K_CASTER, "combustor": K_COMBUSTOR, "separator": K_SEPARATOR, "electrolyser": K_ELECTROLYSER, "pump": K_PUMP, "shorer": K_SHORER, "filler": K_FILLER, "sensor": K_SENSOR, "thermoelectric": K_THERMOELECTRIC,
 				"chute": K_CHUTE, "conveyor": K_CONVEYOR, "bus_hopper": K_BUS_HOPPER, "vault": K_VAULT,
-				"drone_cage": K_DRONE_CAGE}
+				"drone_cage": K_DRONE_CAGE, "stub": K_STUB}
+		LY.kinds = kinds
 		for d: Dictionary in MD.defs():
 			register(d)
 		for d: Dictionary in TM.defs():
@@ -89,8 +92,22 @@ static func ensure_defs() -> void:
 
 static func reset(g) -> void:
 	g.modules.clear()
+	g.overseers.clear()
 	g.next_module = 1
 	JT.reset(g)
+
+
+## After a load: a module saved before its definition gained faces (A9 gave the Tank and Vault Cell
+## sockets) has fewer face records than its layout, so the new ones are added closed.
+static func migrate(g) -> void:
+	ensure_defs()
+	for id: int in g.modules:
+		var m: Dictionary = g.modules[id]
+		if not defs.has(m["def"]):
+			continue
+		var n: int = F.layout(defs[m["def"]], m["turns"])["faces"].size()
+		while m["faces"].size() < n:
+			m["faces"].append({"open": false, "link_m": 0, "link_f": -1})
 
 
 # --- Placing ---------------------------------------------------------------------
@@ -171,6 +188,7 @@ static func _register(g, def_id: String, turns: int, body: int, lay: Dictionary,
 		g.mark("First %s built" % def["name"], false)
 	_attach(g, id)
 	_join_rig(g, g.modules[id])
+	LY.placed(g, g.modules[id])
 	return id
 
 
@@ -283,8 +301,9 @@ static func tick(g) -> void:
 		if m["breach"].x >= 0:
 			_spill(g, m, frames[id])
 	_connections(g, frames)
+	LY.scan(g)
 	for id: int in g.modules.keys():
-		if not gated(g, g.modules[id]):
+		if not idle(g, g.modules[id]):
 			_pass(g, g.modules[id])
 	for id: int in g.modules.keys():
 		var m: Dictionary = g.modules[id]
@@ -295,11 +314,18 @@ static func tick(g) -> void:
 		if kind != null:
 			if gated(g, m):
 				m["state"] = "Off: its signal is off."
+			elif m.get("needs", "") != "":
+				m["state"] = m["needs"]
 			else:
 				kind.scan(g, m, defs[m["def"]])
 		INT.ensure(m, defs[m["def"]])
 		INT.sync(m)
 		CS.wear(g, m, defs[m["def"]])
+
+
+## Whether module `m` does no work now: gated off, or short of what its layer needs (a base).
+static func idle(g, m: Dictionary) -> bool:
+	return gated(g, m) or m.get("needs", "") != ""
 
 
 ## Whether module `m` has a signal face called `gate` joined to a sensor whose signal is off: it
@@ -397,6 +423,7 @@ static func _lost(g, m: Dictionary) -> void:
 
 
 static func _dump(g, m: Dictionary) -> void:
+	LY.rescue(g, m, defs[m["def"]])
 	var at: Vector2 = m["at"]
 	var n := 0
 	for mat: int in m["contents"]:
@@ -468,6 +495,8 @@ static func _join(g, ma: Dictionary, i: int, mb: Dictionary, j: int) -> void:
 	mb["faces"][j]["link_f"] = i
 	if defs[ma["def"]].get("tether", false) or defs[mb["def"]].get("tether", false):
 		return              # a cable's hook stays shut: nothing passes through it, and sand would
+	if F.layout(defs[ma["def"]], ma["turns"])["faces"][i]["type"] == F.SOCKET:
+		return              # a socket and its plug stay shut: a part's effect reaches the base through the wall
 	_set_open(g, ma, i, true)
 	_set_open(g, mb, j, true)
 
@@ -586,37 +615,75 @@ static func affordable(g, def: Dictionary) -> bool:
 	return true
 
 
-## Adds a button per registered module under the HUD's Build list (the catalogue first,
-## the framework's test modules after).
+## Adds the Build list's module buttons, grouped under a heading per layer (Alex's kit: bases, machines,
+## interiors, exterior parts, lines, standalone tools, anchored parts; what has no layer yet is "Other"),
+## then the joint tools, then the framework's test modules. A heading shows while any button under it does.
 static func add_build_buttons(hud, vb: VBoxContainer) -> void:
 	ensure_defs()
-	for pass_test in [false, true]:
+	for layer: String in LY.ORDER + [""]:
+		var made: Array = []
+		var head := _heading(hud, vb, LY.NAMES[layer])
 		for id: String in defs:
 			var def: Dictionary = defs[id]
-			if def.get("test", false) != pass_test or def.get("hidden", false):
+			if def.get("test", false) or def.get("hidden", false) or LY.layer_of(def) != layer:
 				continue
-			var label := "   %s (module)" % def["name"] if pass_test else "   %s  [%s]" % [def["name"], cost_text(def.get("cost", []))]
-			var b: Button = hud._button(label)
-			b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-			b.add_theme_font_size_override("font_size", 13)
-			b.tooltip_text = "%s\nR turns it before placing, Esc cancels. It snaps onto a free matching face nearby." \
-					% def.get("blurb", "A framework test module.")
-			b.pressed.connect(func() -> void:
-				hud.game.cancel_tool()
-				hud.game.module_pick = id
-				hud.game.show_banner("%s: click to place, R turns it, Esc cancels." % defs[id]["name"], 3.0))
-			b.visible = pass_test or unlocked(hud.game, def)
-			hud.module_buttons.append({"button": b, "def": def})
-			vb.add_child(b)
+			made.append(_module_button(hud, vb, id, def, false))
+		_group(hud, head, made)
+	var at: int = hud.module_buttons.size()
+	var joints_head := _heading(hud, vb, "Joints and lines")
 	JT.add_buttons(hud, vb)
+	var joint_buttons: Array = []
+	for e: Dictionary in hud.module_buttons.slice(at):
+		joint_buttons.append(e["button"])
+	_group(hud, joints_head, joint_buttons)
+	var tests: Array = []
+	var test_head := _heading(hud, vb, "Test modules")
+	for id: String in defs:
+		if defs[id].get("test", false) and not defs[id].get("hidden", false):
+			tests.append(_module_button(hud, vb, id, defs[id], true))
+	_group(hud, test_head, tests)
 
 
-## Shows a module's Build button once its tech is researched.
+static func _heading(hud, vb: VBoxContainer, text: String) -> Label:
+	var head: Label = hud._label(text, 12, hud.GOLD)
+	vb.add_child(head)
+	return head
+
+
+static func _group(hud, head: Label, buttons: Array) -> void:
+	hud.module_headers.append({"label": head, "buttons": buttons})
+	head.visible = buttons.any(func(b: Button) -> bool: return b.visible)
+
+
+static func _module_button(hud, vb: VBoxContainer, id: String, def: Dictionary, pass_test: bool) -> Button:
+	var label := "   %s (module)" % def["name"] if pass_test else "   %s  [%s]" % [def["name"], cost_text(def.get("cost", []))]
+	var b: Button = hud._button(label)
+	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	b.add_theme_font_size_override("font_size", 13)
+	b.tooltip_text = "%s\nR turns it before placing, Esc cancels. It snaps onto a free matching face nearby." \
+			% def.get("blurb", "A framework test module.")
+	b.pressed.connect(func() -> void:
+		hud.game.cancel_tool()
+		hud.game.module_pick = id
+		hud.game.show_banner("%s: click to place, R turns it, Esc cancels." % defs[id]["name"], 3.0))
+	b.visible = pass_test or unlocked(hud.game, def)
+	hud.module_buttons.append({"button": b, "def": def})
+	vb.add_child(b)
+	return b
+
+
+## Shows a module's Build button once its tech is researched, and a heading while a button under it shows.
 static func refresh_buttons(hud) -> void:
 	for e: Dictionary in hud.module_buttons:
 		var open: bool = e["def"].get("test", false) or unlocked(hud.game, e["def"])
 		if e["button"].visible != open:
 			e["button"].visible = open
+	for h: Dictionary in hud.module_headers:
+		var any := false
+		for b: Button in h["buttons"]:
+			any = any or b.visible
+		if h["label"].visible != any:
+			h["label"].visible = any
 
 
 ## Where a module picked for placement goes with the cursor on `cell`: its top left, and
@@ -719,6 +786,8 @@ static func key(g, k: int) -> bool:
 ## Whether the Build list offers module `def` and it can be placed: it names a tech, or
 ## doesn't need one.
 static func unlocked(g, def: Dictionary) -> bool:
+	if def.get("stub", false):
+		return false          # defined, not built: the Build list leaves it out until a track fills it in
 	return not def.has("tech") or g.researched.has(def["tech"])
 
 
@@ -810,6 +879,11 @@ static func info(g, m: Dictionary) -> String:
 	var s := "%s (%d%%)" % [def["name"], roundi(float(m["integrity"]) * 100.0)]
 	if kind != null:
 		s += "\n" + kind.info(g, m, def)
+	if m.get("needs", "") != "":
+		s += "\n" + m["needs"]
+	var asm := LY.line(g, m)
+	if asm != "":
+		s += "\n" + asm
 	return s
 
 

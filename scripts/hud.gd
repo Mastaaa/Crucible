@@ -113,6 +113,7 @@ var seed_label: Label
 var cursor_label: Label
 var build_buttons: Array = []
 var module_buttons: Array = []
+var module_headers: Array = []     # {label, buttons}: a Build list heading and the buttons under it
 var left_col: VBoxContainer
 var info_panel: PanelContainer
 var info_box: VBoxContainer
