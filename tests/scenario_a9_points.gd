@@ -4,14 +4,15 @@ extends SceneTree
 ##     joint made there is keyed to both module ids
 ##  B. a declared point moves with its module (the joint carries the pair as one)
 ##  C. taking a module down clears its joints and leaves the other module's points as they were
-##  D. A9 checks, switched off until A9 lands: a Pipe or Cable module declaring a hookup point that a joint
-##     can be made at. Set A9 to true to run them.
+##  D. A9 (live since the exterior track): a Pipe or Cable module declaring a hookup point that a joint
+##     can be made at, and a Pipe laid at those points.
 ## Run: godot --headless --path . --script tests/scenario_a9_points.gd
 
 const D = preload("res://scripts/defs.gd")
 const MC = preload("res://scripts/machines/machines.gd")
 const JT = preload("res://scripts/machines/joints.gd")
-const A9 := false
+const LN = preload("res://scripts/machines/lines.gd")
+const A9 := true
 var game: Node
 var f := 0
 var fails := 0
@@ -140,3 +141,28 @@ func scenario_d() -> void:
 		for a: Dictionary in MC.defs.get(def_id, {}).get("attach", []):
 			has = has or a.get("kind", "") == "hookup"
 		check(has, "%s declares a hookup point" % def_id)
+	# And a laid line is held at the points: a hinge at each hookup, owned by the line.
+	for t in ["chute", "case", "pipes"]:
+		game.researched[t] = true
+	var c1 := MC.place(game, "case", Vector2i(340, SURFACE - 26), 0)
+	var h1 := MC.place(game, "pipe_hookup", Vector2i(366, SURFACE - 25), 0)
+	var c2 := MC.place(game, "case", Vector2i(440, SURFACE - 26), 0)
+	var h2 := MC.place(game, "pipe_hookup", Vector2i(422, SURFACE - 25), 2)
+	game.run_ticks(60)
+	var p1 := hookup(h1)
+	var p2 := hookup(h2)
+	check(c1 != 0 and c2 != 0 and h1 != 0 and h2 != 0 and not p1.is_empty() and not p2.is_empty(), "a Pipe Hookup offers its point")
+	var e1: Dictionary = JT.hold(game, p1["pos"])
+	check(e1.get("mod", 0) == h1 and e1.get("kind", "") == "hookup", "a joint tool clicked at the point takes the hookup, not the base behind it")
+	game.joint_from = {}
+	LN.click(game, "pipe", p1["pos"])
+	LN.click(game, "pipe", p2["pos"])
+	var lines := LN.all(game)
+	check(lines.size() == 1, "the Pipe tool lays a Pipe between two hookup points")
+	if lines.size() == 1:
+		var m: Dictionary = game.modules[lines[0]]
+		var ok := true
+		for k in 2:
+			var j: Dictionary = game.joints.get(m["joints"][k], {})
+			ok = ok and j.get("kind", "") == "hinge" and j.get("auto", 0) == lines[0] and [j.get("a", 0), j.get("b", 0)].has(m["ends"][k])
+		check(ok, "held by a hinge at each point, owned by the line")

@@ -52,12 +52,11 @@ The overseer still only names and reports; each part decides for itself.
 `attach` points, a placeholder price and a blurb saying what it will do. It never shows in the Build list
 (`MC.unlocked` is false) and says "Not built yet." when placed by hand. To fill one in: give it a real `kind` and
 behaviour script (register it in `MC.ensure_defs`), a `tech` in `defs.gd` TECHS, drop `stub` and `track`, keep the
-layer rules. Thirteen stubs:
+layer rules. Four stubs are left (the exterior track is built; see scripts/machines/exterior/ and scripts/machines/lines.gd):
 
-- exterior (`exterior.json`): Spout, Vacuum, Energy Port, Pipe Hookup, Anchor Hookup, Pipe Router; the lines Pipe, Cable, Network
 - tools (`tools.json`): Area Vac, Scoop, Grabber, Floodlight
 
-Not stubs: the processing track is done (see below), the Conveyor line is the existing Conveyor until a line beats
+Not stubs: the processing and exterior tracks are done (see below), the Conveyor line is the existing Conveyor until a line beats
 it, and the Case is real.
 
 ## Processing recut (what the exterior and line threads can rely on)

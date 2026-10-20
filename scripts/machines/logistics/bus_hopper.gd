@@ -11,6 +11,7 @@ const MU = preload("res://scripts/machines/mu.gd")
 const D = preload("res://scripts/defs.gd")
 const M = preload("res://scripts/materials.gd")
 const CUT = preload("res://scripts/machines/excavation/cutter.gd")
+const LN = preload("res://scripts/machines/lines.gd")
 
 const IMPORT := -1              # the mode that imports; any other value is the material exported
 
@@ -76,7 +77,7 @@ static func _import(g, m: Dictionary, def: Dictionary) -> void:
 	var power := float(p["power"])
 	var did := 0
 	# What joined modules passed in.
-	var left := MU.rate(g, int(p["rate"]))
+	var left := mini(MU.rate(g, int(p["rate"])), LN.bank_room(g, m, def))     # out of reach, a Network line takes it
 	for mat: int in m["contents"].keys():
 		var n := mini(left, int(m["contents"][mat]))
 		if M.is_good(mat):
@@ -85,7 +86,7 @@ static func _import(g, m: Dictionary, def: Dictionary) -> void:
 			continue
 		n = MU.take(m, mat, n)
 		left -= n
-		g.bank_cells(m["at"], mat, n)
+		LN.bank(g, m, def, mat, n)
 		did += n
 		if left <= 0:
 			break
@@ -94,11 +95,14 @@ static func _import(g, m: Dictionary, def: Dictionary) -> void:
 	var mask := M.mask("loose_bank" if g.goods_room() >= 1.0 else "loose_stock")    # no room: goods stay out
 	var there: int = g.sim.count_in_rect(r.position.x, r.position.y, r.size.x, r.size.y, mask)
 	if there > 0:
+		if there > LN.bank_room(g, m, def):
+			m["state"] = "Importing: its Network line is full."
+			return
 		if MU.take_power(g, power * there):
 			var got: PackedInt32Array = g.sim.dig_rect(r.position.x, r.position.y, r.size.x, r.size.y, mask, 0, 0)
 			for mat in 256:
 				if got[mat] > 0:
-					g.bank_cells(m["at"], mat, got[mat])
+					LN.bank(g, m, def, mat, got[mat])
 					did += got[mat]
 		else:
 			m["state"] = "Waiting for power."

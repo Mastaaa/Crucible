@@ -22,6 +22,7 @@ const JT = preload("res://scripts/machines/joints.gd")
 const MD = preload("res://scripts/machines/module_data.gd")
 const INT = preload("res://scripts/machines/interior.gd")
 const LY = preload("res://scripts/machines/layers.gd")
+const LN = preload("res://scripts/machines/lines.gd")
 # The module groups' behaviour scripts, by the `kind` a definition names. A group adds its own here.
 const K_TANK = preload("res://scripts/machines/logistics/tank.gd")
 const K_FUNNEL = preload("res://scripts/machines/logistics/funnel.gd")
@@ -56,6 +57,13 @@ const K_WINDMILL = preload("res://scripts/machines/power/windmill.gd")
 const K_WATERWHEEL = preload("res://scripts/machines/power/waterwheel.gd")
 const K_LAB = preload("res://scripts/machines/support/lab.gd")
 const K_LAMP = preload("res://scripts/machines/support/lamp.gd")
+const K_SPOUT = preload("res://scripts/machines/exterior/spout.gd")
+const K_VACUUM = preload("res://scripts/machines/exterior/vacuum.gd")
+const K_LINE = preload("res://scripts/machines/exterior/line_part.gd")
+const K_HOOKUP = preload("res://scripts/machines/exterior/hookup.gd")
+const K_ANCHOR = preload("res://scripts/machines/exterior/anchor.gd")
+const K_ENERGY_PORT = preload("res://scripts/machines/exterior/energy_port.gd")
+const K_ROUTER = preload("res://scripts/machines/exterior/router.gd")
 const K_STUB = preload("res://scripts/machines/stub.gd")
 
 const SCAN := MU.SCAN           # ticks between scans
@@ -85,11 +93,13 @@ static func ensure_defs() -> void:
 				"lab": K_LAB, "lamp": K_LAMP, "slide": K_SLIDE, "turntable": K_TURNTABLE, "laser": K_LASER, "thumper": K_THUMPER,
 				"macerator": K_MACERATOR, "press": K_PRESS, "thermal": K_THERMAL, "caster": K_CASTER, "combustor": K_COMBUSTOR, "separator": K_SEPARATOR, "electrolyser": K_ELECTROLYSER, "pump": K_PUMP, "shorer": K_SHORER, "filler": K_FILLER, "sensor": K_SENSOR, "thermoelectric": K_THERMOELECTRIC,
 				"chute": K_CHUTE, "conveyor": K_CONVEYOR, "bus_hopper": K_BUS_HOPPER, "vault": K_VAULT,
-				"drone_cage": K_DRONE_CAGE, "stub": K_STUB,
-				"strip": K_STRIP, "blender": K_BLENDER, "hdu": K_HDU}
+				"drone_cage": K_DRONE_CAGE, "spout": K_SPOUT, "vacuum": K_VACUUM,
+				"pipe": K_LINE, "cable": K_LINE, "network": K_LINE, "hookup": K_HOOKUP, "anchor": K_ANCHOR, "energy_port": K_ENERGY_PORT, "router": K_ROUTER,
+				"strip": K_STRIP, "blender": K_BLENDER, "hdu": K_HDU, "stub": K_STUB}
 		LY.kinds = kinds
 		for d: Dictionary in MD.defs():
 			register(d)
+		LN.register()
 		for d: Dictionary in TM.defs():
 			d["test"] = true
 			register(d)
@@ -98,6 +108,7 @@ static func ensure_defs() -> void:
 static func reset(g) -> void:
 	g.modules.clear()
 	g.overseers.clear()
+	g.net_reach.clear()
 	g.next_module = 1
 	JT.reset(g)
 
@@ -271,6 +282,8 @@ static func take_down(g, id: int) -> void:
 	var m: Dictionary = g.modules.get(id, {})
 	if m.is_empty():
 		return
+	for line: int in LN.ending_at(g, id):
+		take_down(g, line)           # a line goes with the end it was laid to
 	var cost: Array = defs[m["def"]].get("cost", [])
 	for r in cost.size():
 		g.stock[r] += float(cost[r]) * TAKE_DOWN_REFUND
@@ -342,6 +355,7 @@ static func tick(g) -> void:
 			_spill(g, m, frames[id])
 	_connections(g, frames)
 	LY.scan(g)
+	LN.scan(g)
 	# A machine plugged into a base scans first, so the base's pass rule below already knows what it lets out or holds.
 	for id: int in g.modules.keys():
 		if LY.layer_of(defs[g.modules[id]["def"]]) == "machine":
@@ -547,8 +561,9 @@ static func _join(g, ma: Dictionary, i: int, mb: Dictionary, j: int) -> void:
 	mb["faces"][j]["link_f"] = i
 	if defs[ma["def"]].get("tether", false) or defs[mb["def"]].get("tether", false):
 		return              # a cable's hook stays shut: nothing passes through it, and sand would
-	if F.layout(defs[ma["def"]], ma["turns"])["faces"][i]["type"] == F.SOCKET:
-		return              # a socket and its plug stay shut: a part's effect reaches the base through the wall
+	var ftype: int = F.layout(defs[ma["def"]], ma["turns"])["faces"][i]["type"]
+	if ftype == F.SOCKET or ftype == F.LINE:
+		return              # a socket and its plug stay shut: a part's effect reaches the base through the wall; a line's end is a point, not an opening
 	_set_open(g, ma, i, true)
 	_set_open(g, mb, j, true)
 
@@ -685,6 +700,7 @@ static func add_build_buttons(hud, vb: VBoxContainer) -> void:
 	var at: int = hud.module_buttons.size()
 	var joints_head := _heading(hud, vb, "Joints and lines")
 	JT.add_buttons(hud, vb)
+	LN.add_buttons(hud, vb)
 	var joint_buttons: Array = []
 	for e: Dictionary in hud.module_buttons.slice(at):
 		joint_buttons.append(e["button"])

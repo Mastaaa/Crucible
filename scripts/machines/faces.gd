@@ -16,7 +16,8 @@ const POWER := 1
 const MECH := 2
 const SIGNAL := 3
 const SOCKET := 4          # A9: a base's side socket and the plug of a machine or exterior part; it joins but stays shut
-const TYPE_NAMES := ["pixel", "power", "mechanical", "signal", "socket"]
+const LINE := 5            # A9: where a Pipe, Cable or Network line ends (a Hookup, Energy Port, Router or Network port); joins but stays shut
+const TYPE_NAMES := ["pixel", "power", "mechanical", "signal", "socket", "line"]
 const SOCKET_W := 10       # every socket and plug is this wide, so any part fits any base's socket
 
 const UP := Vector2i(0, -1)

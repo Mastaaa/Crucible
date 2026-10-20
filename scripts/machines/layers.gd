@@ -267,7 +267,12 @@ static func placed(g, m: Dictionary) -> void:
 ## nearest joined module that will take it before it is spilled, as Alex asked: a broken Pipe puts its
 ## contents back where they came from.
 static func rescue(g, m: Dictionary, def: Dictionary) -> void:
-	if not def.has("inventory") or m["contents"].is_empty():
+	if not def.has("inventory"):
+		return
+	var kind: Variant = kinds.get(def.get("kind", ""))
+	if kind != null and kind.has_method("rescue"):
+		kind.rescue(g, m, def)       # a drawn line (lines.gd) knows where its load belongs
+	if m["contents"].is_empty():
 		return
 	var near: Array = []
 	for l: Dictionary in links(g, m):

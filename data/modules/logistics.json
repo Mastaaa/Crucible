@@ -68,20 +68,24 @@
 		},
 		{
 			"id": "funnel", "layer": "exterior", "needs": [], "name": "Funnel", "kind": "funnel", "size": [14, 14], "wall": 2,
-			"cost": [4, 0, 0, 0, 0], "anchored": true,
-			"blurb": "Bolted in place. A Tank docked under it empties into it, and what it takes goes into the Hub's stockpile.",
+			"cost": [4, 0, 0, 0, 0], "anchored": true, "port": true,
+			"blurb": "Bolted in place. A Tank docked under it empties into it, and what it takes goes into the Hub's stockpile. A Network port: out of the network's reach, a Network line from its top carries what it banks to a port that is in reach.",
+			"attach": [{"face": "net", "kind": "hookup"}],
 			"faces": [
-				{"type": "pixel", "dir": "down", "at": 6, "w": 6, "name": "in"}
+				{"type": "pixel", "dir": "down", "at": 6, "w": 6, "name": "in"},
+				{"type": "line", "dir": "up", "at": 7, "w": 4, "name": "net"}
 			],
-			"params": {"bank": 40}
+			"params": {"bank": 40, "power": 0.002}
 		},
 		{
 			"id": "bus_hopper", "layer": "exterior", "needs": [], "name": "Bus Hopper", "kind": "bus_hopper", "size": [26, 22], "wall": 2, "interior": true, "front": "up", "anchored": true,
-			"tech": "bus_hopper", "cost": [10, 0, 0, 0, 0],
-			"blurb": "Bolted in place. The network's way in and out. Importing, it swallows the loose powder, liquid and gas in its open top and whatever a joined Tank, Chute or Conveyor passes into its left face, and banks it: goods under their own names, the rest as the Hub's stockpiles. Click it to export a banked good (or Water) instead, out of its right face or, with nothing joined there, out of its mouth. Needs a Node or the Hub in reach, and a little power per cell.",
+			"tech": "bus_hopper", "cost": [10, 0, 0, 0, 0], "port": true,
+			"attach": [{"face": "net", "kind": "hookup"}],
+			"blurb": "Bolted in place. The network's way in and out. Importing, it swallows the loose powder, liquid and gas in its open top and whatever a joined Tank, Chute or Conveyor passes into its left face, and banks it: goods under their own names, the rest as the Hub's stockpiles. Click it to export a banked good (or Water) instead, out of its right face or, with nothing joined there, out of its mouth. Needs a Node or the Hub in reach (or a Network line from its bottom to a port that has), and a little power per cell.",
 			"faces": [
 				{"type": "pixel", "dir": "right", "at": 11, "w": 6, "name": "out"},
-				{"type": "pixel", "dir": "left", "at": 11, "w": 6, "name": "in"}
+				{"type": "pixel", "dir": "left", "at": 11, "w": 6, "name": "in"},
+				{"type": "line", "dir": "down", "at": 13, "w": 4, "name": "net"}
 			],
 			"pass": {"face": 0, "rate": 40},
 			"params": {"cap": 200, "rate": 24, "depth": 4, "power": 0.004}
