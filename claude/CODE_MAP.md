@@ -244,7 +244,7 @@ it (blueprints fill by packet), the rig (Cutter, Tank, Funnel, Winch), a Lab and
 and picks research from `ORDER`; prints the tutorial steps, research, non-info alerts and the
 500-row depth marks (`--seed`, `--max`, `--quiet`). `--cheat` starts with Drill Bit 5, Drill Shaft 8
 and Tank Size 3 and holds the Hub's power at 100, so it tests the machines, not the economy.
-`--lv=name:n` starts at a research level, `--vac` hangs a Vacuum on the Tank (a probe: it shows why no A9 part rides the rig), `--shot=DEPTH:PATH` saves a screenshot of the rig under xvfb. `--dump` prints the rig's modules and a look at the shaft above the Tank (`_look_above`).
+`--lv=name:n` starts at a research level, `--vac` hangs a Vacuum on the Tank (a probe: it shows why no A9 part rides the rig), `--shot=DEPTH:PATH` saves a screenshot of the rig under xvfb, `--kit` runs the surface kit probe beside the Hub (tests/autoplay_kit.gd: Vacuum, Pipe, two Cases and a Floodlight on their own Nodes; a cheated run; `--shotkit=PATH` shoots it). `--dump` prints the rig's modules and a look at the shaft above the Tank (`_look_above`).
 
 ## Tests: the usual harness
 `extends SceneTree`; `_initialize` instantiates `scenes/main.tscn`; `_process` runs the
