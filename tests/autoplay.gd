@@ -13,6 +13,7 @@ extends SceneTree
 const D = preload("res://scripts/defs.gd")
 const MC = preload("res://scripts/machines/machines.gd")
 const M = preload("res://scripts/materials.gd")
+const Kit = preload("res://tests/autoplay_kit.gd")
 const Cutter = preload("res://scripts/machines/excavation/cutter.gd")
 
 const ORDER := ["drill_bit", "drill_shaft", "chute", "pump", "tank_size", "drill_shaft", "lamp", "drill_bit", "drill_shaft", "tank_size", "brace", "plating", "plating"]
@@ -44,6 +45,9 @@ var alerts_seen := {}
 var cheat := false
 var free_levels := {}
 var vac_probe := false
+var kit = null
+var kit_shot := ""
+var kit_shot_wait := 0
 var shot_depth := 0
 var shot_path := ""
 var shot_wait := 0
@@ -73,6 +77,11 @@ func _initialize() -> void:
 			var sv := a.substr(7).split(":")
 			shot_depth = int(sv[0])
 			shot_path = sv[1]
+		elif a == "--kit":                   # the surface kit probe (tests/autoplay_kit.gd); a cheated run
+			kit = Kit.new()
+			cheat = true
+		elif a.begins_with("--shotkit="):    # screenshot of the kit once it has run a while (needs a display)
+			kit_shot = a.substr(10)
 		elif a == "--vac":                   # probe: a Vacuum on the Tank's right socket (cheat-only; it needs the Vacuum tech)
 			vac_probe = true
 		elif a.begins_with("--lv="):         # --lv=tank_size:3 starts with that research level (probes the economy)
@@ -103,6 +112,8 @@ func _process(_d: float) -> bool:
 			if vac_probe:
 				for t: String in ["spout", "vacuum"]:
 					game.researched[t] = true
+			if kit != null:
+				kit.prepare(game)
 			game._refresh_unlocks()
 			game.stock[D.R_STONE] += 20.0               # the Filler's 8 Stone and the Stone it lays, on top of the opening's 60
 			game.stock[D.R_GLIMMER] = 40.0
@@ -111,6 +122,10 @@ func _process(_d: float) -> bool:
 	if f < 3:
 		return false
 	_play()
+	if kit != null:
+		kit.step(self)
+		if kit_shot != "" and kit.stage == 2 and game.game_time > kit.started + 120.0:
+			kit_shot_now()
 	if shot_depth > 0 and MC.deepest(game) >= shot_depth and rig.has("tank") and game.modules.has(rig["tank"]):
 		shot_wait += 1
 		if shot_wait == 1:
@@ -123,11 +138,30 @@ func _process(_d: float) -> bool:
 			img.save_png(shot_path + ".png")
 			print("saved %s.png %s" % [shot_path, img.get_size()])
 			shot_depth = 0
+	if (game.game_time >= max_time or game.run_lost or game.won) and kit != null:
+		kit.final_report(game)
 	if game.game_time >= max_time or game.run_lost or game.won:
 		_report(true)
 		print("FAILURES: 0")
 		return true
 	return false
+
+
+## Saves a screenshot of the kit, zoomed on Case A, once it has run a couple of minutes.
+func kit_shot_now() -> void:
+	kit_shot_wait += 1
+	var a: Dictionary = game.modules.get(kit.ids["case_a"], {})
+	if a.is_empty():
+		return
+	if kit_shot_wait == 1:
+		game.title.visible = false
+		game.set_zoom(game.zoom_max * 0.45)
+		game._center_on(a["at"].y, true, a["at"].x - 40.0)
+	elif kit_shot_wait == 4:
+		var img := root.get_viewport().get_texture().get_image()
+		img.save_png(kit_shot + ".png")
+		print("saved %s.png %s" % [kit_shot, img.get_size()])
+		kit_shot = ""
 
 
 ## The strip left of the Hub, cleared to air over a dirt floor: the bot builds there.
@@ -136,6 +170,8 @@ func _flatten() -> void:
 	var ground := hub.end.y
 	var from := hub.position.x - 300 if side < 0 else hub.end.x
 	var width := 300 if rig_x == 0 else 300 + hub.size.x + 200      # --rigx also builds to the Hub's right
+	if kit != null:
+		kit.flatten_right(game, hub)
 	for x in range(from, from + width):
 		if x >= hub.position.x and x < hub.end.x:
 			continue
