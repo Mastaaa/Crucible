@@ -1,10 +1,13 @@
 extends RefCounted
-## Standalone tools (A9 tools track, "MT"): the Area Vac, Scoop, Grabber and Floodlight. A tool stands on a line where its
+## Standalone tools (A9 tools track, "MT"): the Area Vac, Scoop and Grabber, and the Floodlight. A tool stands on a line where its
 ## centre meets it: its `mount` side (the middle of that edge, the foot) rests against a drawn line (a Pipe, Cable or
 ## Network line, or a Strut: `mounts` lists the kinds a tool takes), and is bolted there by a joint the tool owns, so it goes
 ## with the line and the line goes with whatever carries it. `front` is the side the tool works on, opposite its mount.
 ## This file is the part every tool shares: finding the line, holding on to it, and asking whether the line puts the
 ## tool in reach of the network. layers.gd calls `line_under` and `hold` (a tool's `needs` is ["line"]).
+## The Floodlight is the one that attaches to a machine instead: its `needs` is ["host"], and `host_under` finds the module
+## (any base, machine, interior or exterior part, not a line or another tool) its foot rests against. The bolt, `m["on"]` and
+## the reach check are the same ones a line gets.
 
 const MU = preload("res://scripts/machines/mu.gd")
 const JT = preload("res://scripts/machines/joints.gd")
@@ -60,8 +63,31 @@ static func line_under(g, m: Dictionary, def: Dictionary) -> int:
 	return best
 
 
+## The machine (module id) a tool with `needs: ["host"]` stands on: the nearest part that is not a line or a tool whose box
+## is within SLACK of the foot. 0 for none.
+static func host_under(g, m: Dictionary, def: Dictionary) -> int:
+	var foot: Vector2 = foot_of(g, m, def)["pos"]
+	var best := 0
+	var best_d := INF
+	for id: int in g.modules:
+		if id == m["id"]:
+			continue
+		var hm: Dictionary = g.modules[id]
+		var hd: Dictionary = MU.defs[hm["def"]]
+		if line_kind(hd) != "" or hd.has("mount"):
+			continue
+		var r := Rect2(MU.bounds(hm, hd))
+		var d := foot.distance_to(Vector2(clampf(foot.x, r.position.x, r.end.x), clampf(foot.y, r.position.y, r.end.y)))
+		if d <= SLACK and d < best_d:
+			best = id
+			best_d = d
+	return best
+
+
 ## What a tool short of its line says.
 static func missing(def: Dictionary) -> String:
+	if def.get("needs", []).has("host"):
+		return "Needs a machine: set its %s side against any machine, Tank or Case." % def.get("mount", "back")
 	var names: Array = []
 	for k: String in def.get("mounts", []):
 		names.append(NAMES.get(k, k))
@@ -130,7 +156,7 @@ static func ready(g, m: Dictionary, def: Dictionary) -> Dictionary:
 		m["state"] = missing(def)
 		return {}
 	if not powered(g, m, def, line):
-		m["state"] = "No power: no Node or Hub in reach of it or of its line."
+		m["state"] = "No power: no Node or Hub in reach of it or of what it stands on."
 		return {}
 	return line
 

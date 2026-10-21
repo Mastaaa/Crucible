@@ -107,6 +107,10 @@ static func unmet(g, m: Dictionary, def: Dictionary) -> String:
 			m["on"] = MT.line_under(g, m, def)
 			if m["on"] == 0:
 				return MT.missing(def)
+		elif need == "host":
+			m["on"] = MT.host_under(g, m, def)
+			if m["on"] == 0:
+				return MT.missing(def)
 	return ""
 
 
@@ -327,11 +331,13 @@ static func validate(def: Dictionary) -> Array:
 	if needs.has("base_each_face"):
 		if pixels.size() < 2 or pixels.size() > 3 or (pixels[0]["dir"] + pixels[1]["dir"]) != Vector2i.ZERO:
 			bad.append("%s: an interior strip has two pixel faces on opposite sides (and may have a third)" % id)
-	if needs.has("line"):
-		if not MU.FRONT_DIRS.has(def.get("mount", "")) or def.get("mounts", []).is_empty():
-			bad.append("%s: a part that needs a line names its `mount` side and the `mounts` it takes" % id)
-		elif MU.FRONT_DIRS[def["mount"]] + MU.FRONT_DIRS.get(def.get("front", "down"), Vector2i.ZERO) != Vector2i.ZERO:
-			bad.append("%s: its `front` is opposite its `mount`" % id)
+	if needs.has("host") and not MU.FRONT_DIRS.has(def.get("mount", "")):
+		bad.append("%s: a part that needs a host names its `mount` side" % id)
+	if needs.has("line") and (not MU.FRONT_DIRS.has(def.get("mount", "")) or def.get("mounts", []).is_empty()):
+		bad.append("%s: a part that needs a line names its `mount` side and the `mounts` it takes" % id)
+	if (needs.has("line") or needs.has("host")) and MU.FRONT_DIRS.has(def.get("mount", "")) \
+			and MU.FRONT_DIRS[def["mount"]] + MU.FRONT_DIRS.get(def.get("front", "down"), Vector2i.ZERO) != Vector2i.ZERO:
+		bad.append("%s: its `front` is opposite its `mount`" % id)
 	if layer == "anchored" and not def.get("anchored", false):
 		bad.append("%s: an anchored part is `anchored`" % id)
 	if def.has("inventory"):

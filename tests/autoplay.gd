@@ -42,6 +42,12 @@ var techs_seen := 0
 var last_report := 0.0
 var alerts_seen := {}
 var cheat := false
+var free_levels := {}
+var vac_probe := false
+var shot_depth := 0
+var shot_path := ""
+var shot_wait := 0
+var vac := 0
 var digger := "cutter"       # what hangs under the Tank: the Cutter, or the Pump while it drains a liquid the Cutter stops at
 var swaps := 0
 var swap_logged := false
@@ -63,6 +69,15 @@ func _initialize() -> void:
 			quiet = true
 		elif a == "--cheat":
 			cheat = true
+		elif a.begins_with("--shot="):       # --shot=500:/tmp/rig saves a screenshot of the rig at that depth (needs a display: xvfb-run, no --headless)
+			var sv := a.substr(7).split(":")
+			shot_depth = int(sv[0])
+			shot_path = sv[1]
+		elif a == "--vac":                   # probe: a Vacuum on the Tank's right socket (cheat-only; it needs the Vacuum tech)
+			vac_probe = true
+		elif a.begins_with("--lv="):         # --lv=tank_size:3 starts with that research level (probes the economy)
+			var kv := a.substr(5).split(":")
+			free_levels[kv[0]] = int(kv[1])
 	game = load("res://scenes/main.tscn").instantiate()
 	root.add_child(game)
 
@@ -74,6 +89,10 @@ func _process(_d: float) -> bool:
 		game.paused = true
 		MC.ensure_defs()
 		_flatten()
+		for k: String in free_levels:
+			game.levels[k] = free_levels[k]
+		if not free_levels.is_empty():
+			game._refresh_unlocks()
 		if cheat:
 			game.levels["drill_bit"] = 5
 			game.levels["drill_shaft"] = 9
@@ -81,6 +100,9 @@ func _process(_d: float) -> bool:
 			game.researched["chute"] = true
 			game.researched["pump"] = true
 			game.researched["filler"] = true
+			if vac_probe:
+				for t: String in ["spout", "vacuum"]:
+					game.researched[t] = true
 			game._refresh_unlocks()
 			game.stock[D.R_STONE] += 20.0               # the Filler's 8 Stone and the Stone it lays, on top of the opening's 60
 			game.stock[D.R_GLIMMER] = 40.0
@@ -89,6 +111,18 @@ func _process(_d: float) -> bool:
 	if f < 3:
 		return false
 	_play()
+	if shot_depth > 0 and MC.deepest(game) >= shot_depth and rig.has("tank") and game.modules.has(rig["tank"]):
+		shot_wait += 1
+		if shot_wait == 1:
+			var at: Vector2 = game.modules[rig["tank"]]["at"]
+			game.title.visible = false
+			game.set_zoom(game.zoom_max * 0.6)
+			game._center_on(at.y, true, at.x)
+		elif shot_wait == 4:
+			var img := root.get_viewport().get_texture().get_image()
+			img.save_png(shot_path + ".png")
+			print("saved %s.png %s" % [shot_path, img.get_size()])
+			shot_depth = 0
 	if game.game_time >= max_time or game.run_lost or game.won:
 		_report(true)
 		print("FAILURES: 0")
@@ -181,6 +215,11 @@ func _play() -> void:
 						rig["digger"] = id
 		_run(1.0)
 		return
+	if vac_probe and vac == 0 and game.modules.has(rig.get("tank", -1)):
+		var tb: Rect2i = MC.bounds(game.modules[rig["tank"]])
+		vac = _put("vacuum", tb.end.x, tb.position.y + 1)
+		if vac > 0:
+			print("%s  vacuum probe: a Vacuum is on the Tank" % _clock(game.game_time))
 	if windmill == 0:       # the Windmill first: at 16 Stone it can sit out of reach behind a Lab that took the Stone, with no power to dig more
 		windmill = _put("windmill", hub.position.x - 150 if side < 0 else hub.end.x + 120, top - 40)
 	elif lab == 0:

@@ -79,7 +79,7 @@ Electrolyser, Heat Dispersal Unit (interior strips between bases). Behaviour is 
   plus new Blender and HDU. Tests: processing, thermal, fluids, wave2, interior, layers.
 
 ## Standalone tools (what later threads can rely on)
-Area Vac, Scoop, Grabber, Floodlight (`data/modules/tools.json`, behaviour in `scripts/machines/tools/`, shared code in `mount.gd`, "MT").
+Area Vac, Scoop, Grabber and Floodlight (`data/modules/tools.json`, behaviour in `scripts/machines/tools/`, shared code in `mount.gd`, "MT").
 - A tool stands on a line where its centre meets it. The definition names `mount` (the side whose middle is the foot), `mounts`
   (the line kinds it takes: pipe, cable, network, strut) and `front` (opposite the mount, the side it works on), and has
   `needs: ["line"]`. `LY.unmet` runs `MT.line_under` each scan: the nearest line whose face lies within `MT.SLACK` (4 cells) of
@@ -90,7 +90,11 @@ Area Vac, Scoop, Grabber, Floodlight (`data/modules/tools.json`, behaviour in `s
   to the base behind its far hookup; they stop while the Pipe is full), the Floodlight and Grabber ask only for reach. A tool is
   powered when it, or a part its line is held by (a Pipe's two ends, a Strut's bolts), has a Node or the Hub in reach (`MT.powered`).
 - A behaviour may define `release(g, m)`: `MC._dump` calls it when the module is taken down, wrecked or lost (the Grabber lets go).
-- Floodlight light radius comes from `params.light` (cells over D.S) in `MC.lights`. The Lamp is unchanged.
+- The Floodlight is the exception to the line rule: `needs: ["host"]`, so `MT.host_under` finds the machine (any module that is not a
+  line or a tool) its foot rests against within `MT.SLACK`, and `m["on"]` and the bolt work as for a line. It throws a cone out of its
+  `front` (default: foot on the left, light to the right; R turns it): `params.range` (40, cells over D.S, so 400) and `params.spread`
+  (20 degrees either side). `floodlight.gd` `beam` turns the cone into circles inscribed in it, `MC.lights` hands each one to the
+  engine's light flood, so no engine change. The Lamp is unchanged: it stands on its own and lights 200 cells round it.
 - The Grabber's grip is an engine joint of its own (`m["grip"]`: `eng`, `body`, `cells`), not a `g.joints` record, because the other end
   is a loose body, which has no module id. It is checked against `sim.joint_ids()` each scan.
 

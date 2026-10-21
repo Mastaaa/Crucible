@@ -315,7 +315,7 @@ const TECHS := [
 	{"id": "grabber", "name": "Grabber", "tier": 2, "needs": ["strut", "pipes"], "power": 800, "mats": [0, 4, 0, 0, 0], "module": "grabber",
 		"text": "A standalone tool that stands on a line (a Strut too), takes hold of a loose rigid body between its jaws and carries it with the line until a click lets go."},
 	{"id": "floodlight", "name": "Floodlight", "tier": 2, "needs": ["lamp", "cables"], "power": 700, "mats": [0, 4, 0, 0, 0], "module": "floodlight",
-		"text": "A standalone tool that stands on a line and lights 300 cells round it for 0.15 power/s, wherever a line can carry it into the network's reach."},
+		"text": "A tool that bolts to the side of a machine and throws a long cone of light, 400 cells out and 40 degrees wide, for 0.15 power/s. The Lamp lights the area round it instead."},
 	{"id": "sieve", "name": "Sieve", "tier": 2, "needs": ["chute"], "power": 700, "mats": [0, 4, 0, 0, 0], "module": "sieve",
 		"text": "An interior strip between two bases that lets liquids and gases through to the second and keeps the solids in the first."},
 	{"id": "centrifuge", "name": "Centrifuge", "tier": 3, "needs": ["sieve"], "power": 1600, "mats": [0, 12, 0, 0, 0], "module": "centrifuge",
