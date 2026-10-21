@@ -1,5 +1,5 @@
 {
-	"_about": "Standalone tools (A9 tools track). A tool stands on a line where its centre meets it: its `mount` side (the foot, middle of that edge) rests against a drawn line it takes (`mounts`: pipe, cable, network, strut) and is bolted there, and `front` (opposite the mount) is the side it works on. `needs: ['line']` makes a tool short of its line do nothing and say so. See machines/tools/mount.gd. Prices are placeholders until A10. See logistics.json for the format.",
+	"_about": "Standalone tools (A9 tools track). A tool stands on a line where its centre meets it (the Floodlight attaches to a machine instead: `needs: ['host']`): its `mount` side (the foot, middle of that edge) rests against a drawn line it takes (`mounts`: pipe, cable, network, strut) and is bolted there, and `front` (opposite the mount) is the side it works on. `needs: ['line']` makes a tool short of its line do nothing and say so. See machines/tools/mount.gd. Prices are placeholders until A10. See logistics.json for the format.",
 	"modules": [
 		{
 			"id": "area_vac", "name": "Area Vac", "layer": "standalone", "kind": "area_vac", "size": [30, 20], "wall": 2,
@@ -27,11 +27,11 @@
 		},
 		{
 			"id": "floodlight", "name": "Floodlight", "layer": "standalone", "kind": "floodlight", "size": [16, 16], "wall": 2,
-			"mount": "up", "front": "down", "mounts": ["cable", "pipe", "network", "strut"], "needs": ["line"],
+			"mount": "left", "front": "right", "needs": ["host"],
 			"tech": "floodlight", "cost": [10, 0, 0, 0, 0],
-			"blurb": "Stands on a line and lights a pool 300 cells wide round it for 0.15 power/s, wherever a line can carry it into a Node's or the Hub's reach. The Lamp stays as the plain fixed light.",
+			"blurb": "Bolts to the side of a machine, Tank or Case and throws a long cone of light 400 cells out of its front (40 degrees wide) for 0.15 power/s. Turn it with R before you place it. The Lamp stays as the light that fills the area round it.",
 			"faces": [],
-			"params": {"light": 30, "power": 0.15}
+			"params": {"range": 40, "spread": 20, "lens": 1.0, "power": 0.15}
 		}
 	]
 }

@@ -1,10 +1,12 @@
 extends SceneTree
-## A9 standalone tools on seed 7: the Area Vac, Scoop, Grabber and Floodlight, each standing on a line where its centre meets it.
+## A9 standalone tools on seed 7: the Area Vac, Scoop and Grabber, each standing on a line where its centre meets it, and the
+## Floodlight, bolted to a machine.
 ##  A. mounting: a tool with its foot against a Pipe is bolted to it and works, one off the line says what it needs, a tool
 ##     goes with its line, and the definitions pass the layer checks
 ##  B. Area Vac: draws every loose pixel of the patch under it into its Pipe and the Pipe carries it to the far base
 ##  C. Scoop: lifts one material at a time, the most plentiful, and keeps to it
-##  D. Floodlight: lights while the stock pays and its line puts it in reach, and stays dark off a line or without power
+##  D. Floodlight: bolted to the top of a Case it throws a cone of light, 400 cells long and 40 degrees wide, while the stock pays,
+##     and stays dark off a machine (a Pipe is no host) or without power
 ##  E. Grabber: takes a loose body between its jaws, carries it with its line, lets go on a click
 ##  F. research gates all four, and a tool on a line survives a save
 ## Run: godot --headless --path . --script tests/scenario_tools.gd
@@ -17,6 +19,7 @@ const LN = preload("res://scripts/machines/lines.gd")
 const LY = preload("res://scripts/machines/layers.gd")
 const EX = preload("res://scripts/machines/exterior/ext.gd")
 const MT = preload("res://scripts/machines/tools/mount.gd")
+const FL = preload("res://scripts/machines/tools/floodlight.gd")
 const Save = preload("res://scripts/save.gd")
 var game: Node
 var f := 0
@@ -110,6 +113,14 @@ func point(id: int, name: String) -> Vector2:
 var why := ""
 
 
+## A Floodlight on top of module `host`, turned so its foot is at the bottom and its front points up.
+func mount_light(host: int) -> int:
+	var b := MC.bounds(game.modules[host])
+	var at := Vector2i(b.position.x + (b.size.x >> 1) - 8, b.position.y - 16)
+	why = MC.check_place(game, "floodlight", at, 3)
+	return MC.place(game, "floodlight", at, 3)
+
+
 ## A tool of `def_id` hanging from the middle of the Pipe, its top edge a cell under the pipe's underside.
 func hang(def_id: String, pipe: int, dx := 0) -> int:
 	var pm: Dictionary = game.modules[pipe]
@@ -136,8 +147,8 @@ func scenario_a() -> void:
 	check(r[0] != 0 and r[1] != 0 and r[2] != 0, "two Cases stand with a Pipe laid across the pit")
 	if r[2] == 0:
 		return
-	var t := hang("floodlight", r[2])
-	check(t != 0, "a Floodlight is hung under the Pipe (%s)" % why)
+	var t := hang("scoop", r[2])
+	check(t != 0, "a Scoop is hung under the Pipe (%s)" % why)
 	if t == 0:
 		return
 	secs(1.0)
@@ -229,29 +240,54 @@ func scenario_c() -> void:
 func scenario_d() -> void:
 	print("D. Floodlight")
 	var r := rig()
-	var t := hang("floodlight", r[2])
-	check(t != 0, "a Floodlight is hung under the Pipe")
+	var t := mount_light(r[1])
+	check(t != 0, "a Floodlight is set on top of the far Case (%s)" % why)
 	if t == 0:
 		return
 	secs(1.5)
 	var tm: Dictionary = game.modules[t]
+	check(tm["needs"] == "" and tm["on"] == r[1], "it stands on the Case (needs '%s')" % tm["needs"])
+	var bolts := 0
+	for jid: int in game.joints:
+		if game.joints[jid].get("auto", 0) == t and game.joints[jid]["b"] == r[1]:
+			bolts += 1
+	check(bolts == 1, "and is bolted to it by one joint of its own")
 	check(tm.get("lit", false), "it is lit with the Hub's stock to pay (%s)" % tm.get("state", ""))
-	var radius := 0.0
+	var beam: Array = FL.beam(game, tm, MC.defs["floodlight"])
+	var lit_n := 0
 	for l: Array in MC.lights(game):
-		if (l[0] as Vector2).distance_to(tm["at"]) < 1.0:
-			radius = maxf(radius, l[1])
-	check(radius > D.LIGHT_LAMP, "and lights a wider pool than the Lamp (%d against %d)" % [int(radius), int(D.LIGHT_LAMP)])
+		for c: Array in beam:
+			if (l[0] as Vector2).distance_to(c[0]) < 0.5 and absf(l[1] - c[1]) < 0.5:
+				lit_n += 1
+	check(lit_n >= beam.size(), "the game lights all of its circles (%d of %d)" % [lit_n, beam.size()])
+	var lens := Vector2(tm["at"])
+	var far := 0.0
+	var off := 0.0
+	for c: Array in beam:
+		var d: Vector2 = (c[0] as Vector2) - lens
+		far = maxf(far, -d.y + c[1])
+		off = maxf(off, absf(d.x) + c[1])
+	check(beam.size() >= 4, "it throws a chain of circles (%d)" % beam.size())
+	check(far > 380.0 and far < 410.0, "up to the range, twice the Lamp's reach (%d cells against the Lamp's %d)" % [int(far), int(D.LIGHT_LAMP)])
+	check(off < 0.4 * far, "and the cone is narrow: %d cells either side at most against %d long" % [int(off), int(far)])
+	var below := 0
+	for c: Array in beam:
+		if (c[0] as Vector2).y > lens.y + 4.0:
+			below += 1
+	check(below == 0, "and points out of its front, not down")
 	var stock := float(game.stock[D.R_POWER])
 	for _i in 90:
 		game.stock[D.R_POWER] = 0.0        # the Hub's trickle would pay a Floodlight otherwise
 		game.run_ticks(1)
 	check(not tm.get("lit", false), "it goes dark with the stock dry")
 	game.stock[D.R_POWER] = stock
+	var pm: Dictionary = game.modules[r[2]]
+	var pat := Vector2i(int(pm["at"].x) - 8, MC.bounds(pm).end.y + 1)      # hung under the Pipe, turned so its foot is at the top
+	var onpipe := MC.place(game, "floodlight", pat, 1)
 	var lone := MC.place(game, "floodlight", Vector2i(PIT.position.x + 4, SURFACE + 14), 0)
 	secs(1.5)
-	check(lone != 0 and not game.modules[lone].get("lit", false) and game.modules[lone]["needs"].begins_with("Needs a line"), "one standing off its line stays dark")
-	# The Cases are out of the Hub's reach on the far side of a Node-less field: a tool is in reach through its Pipe's far end.
-	check(tm["needs"] == "", "its Pipe is the line it stands on")
+	check(onpipe != 0 and not game.modules[onpipe].get("lit", false) and game.modules[onpipe]["needs"].begins_with("Needs a machine"), "one set against a Pipe stays dark (a line is no host)")
+	check(lone != 0 and not game.modules[lone].get("lit", false) and game.modules[lone]["needs"].begins_with("Needs a machine"), "one standing off any machine stays dark")
 
 
 func scenario_e() -> void:
@@ -293,16 +329,16 @@ func scenario_e() -> void:
 func scenario_f() -> void:
 	print("F. research and saving")
 	var r := rig()
-	var t := hang("floodlight", r[2], 10)
+	var t := mount_light(r[1])
 	var s := hang("scoop", r[2], -14)
 	secs(1.0)
-	check(t != 0 and s != 0, "a Floodlight and a Scoop hang from the Pipe")
+	check(t != 0 and s != 0, "a Floodlight stands on the Case and a Scoop hangs from the Pipe")
 	var path := "user://tools_test.save"
 	Save.write(game, path)
 	game.continue_run(path)
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 	secs(1.5)
-	check(game.modules.has(t) and game.modules[t]["on"] == r[2], "a tool still stands on its Pipe after a save")
+	check(game.modules.has(t) and game.modules[t]["on"] == r[1], "the Floodlight still stands on its Case after a save")
 	check(game.modules.has(t) and game.modules[t].get("lit", false), "and is lit")
 	for id: String in ["scoop", "area_vac", "grabber", "floodlight"]:
 		game.researched.erase(id)

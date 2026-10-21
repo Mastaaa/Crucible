@@ -150,7 +150,7 @@ of their price, Tier 1 build prices hold no Glimmer, and chapter 0's goal ends w
    the Build list by layer, stub definitions for every new part; claude/A9_FOUNDATION.md). The processing
    recut is in (Press, Heater, Chiller, Caster and Blender plug into a base; Sieve, Centrifuge, Macerator,
    Electrolyser and Heat Dispersal Unit are strips between bases). The exterior parts and lines are in, and so
-   are the standalone tools (Area Vac, Scoop, Grabber, Floodlight stand on a line where their centre meets it).
+   are the standalone tools (Area Vac, Scoop and Grabber stand on a line where their centre meets it; the Floodlight bolts to a machine and throws a cone).
    The bot has yet to learn the new parts.
 10. A10, economy: machines nearly free with research and upgrades dear, a grid for power
     (capacity against draw), unlimited Hub storage with a Modem to share it, cheap weak Windmills,

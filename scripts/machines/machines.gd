@@ -921,7 +921,7 @@ static func count_named(g, name: String) -> int:
 
 
 ## Light and sight the modules give, as [position, light radius, sight radius]: every module
-## carries a pilot light (enough to see it work), and a running Lamp lights its whole pool.
+## carries a pilot light (enough to see it work), a running Lamp lights its whole pool and a running Floodlight throws a cone.
 static func lights(g) -> Array:
 	var out: Array = []
 	for id: int in g.modules:
@@ -930,8 +930,8 @@ static func lights(g) -> Array:
 		if dk == "lamp" and m.get("lit", false):
 			out.append([m["at"], D.LIGHT_LAMP, D.LIGHT_LAMP])
 		elif dk == "floodlight" and m.get("lit", false):
-			var radius: float = float(defs[m["def"]]["params"]["light"]) * D.S
-			out.append([m["at"], radius, radius])
+			for c: Array in K_FLOODLIGHT.beam(g, m, defs[m["def"]]):
+				out.append([c[0], c[1], c[1]])
 		else:
 			out.append([m["at"], D.LIGHT_PILOT, D.SIGHT_MACHINE])
 	return out
